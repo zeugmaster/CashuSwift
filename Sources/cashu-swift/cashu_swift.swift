@@ -1,2 +1,7 @@
-// The Swift Programming Language
-// https://docs.swift.org/swift-book
+import secp256k1
+
+class Wallet {
+    
+    
+    
+}
