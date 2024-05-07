@@ -5,10 +5,16 @@ import PackageDescription
 
 let package = Package(
     name: "cashu-swift",
+    platforms: [
+        .iOS(.v13),
+        .macOS(.v13),
+        .tvOS(.v15),
+        .watchOS(.v9)
+    ],
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.
         .library(
-            name: "cashu-swift",
+            name: "Cashu",
             targets: ["cashu-swift"]),
     ],
     dependencies: [
