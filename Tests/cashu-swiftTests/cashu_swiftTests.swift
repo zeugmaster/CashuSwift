@@ -21,6 +21,10 @@ final class cashu_swiftTests: XCTestCase {
         
         print(token.prettyJSON())
         
-        print(try token.serialize())
+        let testToken = try token.serialize()
+        
+        print("Test token serialized: \(testToken)")
+        
+        XCTAssertEqual(token, try testToken.deserializeToken())
     }
 }
