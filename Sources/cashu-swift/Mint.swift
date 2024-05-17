@@ -8,20 +8,27 @@
 import Foundation
 import CryptoKit
 
-
-class Keyset {
+struct Keyset: Codable {
     let id: String
     let keys: Dictionary<String, String>
     var derivationCounter:Int
+    let unit:String
     
-    init(id: String, keys: Dictionary<String, String>, derivationCounter: Int) {
+    init(id: String, keys: Dictionary<String, String>, derivationCounter: Int, unit:String) {
         self.id = id
         self.keys = keys
         self.derivationCounter = derivationCounter
+        self.unit = unit
     }
 }
 
 class Mint: Identifiable, Hashable {
+    
+    let url: URL
+    var activeKeyset: Keyset
+    var allKeysets: [Keyset]
+    var info:MintInfo
+    var nickname:String?
     
     static func == (lhs: Mint, rhs: Mint) -> Bool {
         lhs.url == rhs.url
@@ -33,21 +40,18 @@ class Mint: Identifiable, Hashable {
             // hasher.combine(name)
         }
     
-    let url: URL
-    var activeKeyset: Keyset
-    var allKeysets: [Keyset]
-    var info:MintInfo
-    
-    init(url: URL, activeKeyset: Keyset, allKeysets: [Keyset], info: MintInfo) {
+    init(url: URL, activeKeyset: Keyset, allKeysets: [Keyset], info: MintInfo, nickname:String? = nil) {
         self.url = url
         self.activeKeyset = activeKeyset
         self.allKeysets = allKeysets
         self.info = info
+        self.nickname = nickname
     }
     
     static func calculateKeysetID(keyset:Dictionary<String,String>) -> String {
         let sortedValues = keyset.sorted { (firstElement, secondElement) -> Bool in
-            guard let firstKey = UInt(firstElement.key), let secondKey = UInt(secondElement.key) else {
+            guard let firstKey = UInt(firstElement.key), 
+                  let secondKey = UInt(secondElement.key) else {
                 return false
             }
             return firstKey < secondKey
@@ -63,7 +67,8 @@ class Mint: Identifiable, Hashable {
     
     static func calculateHexKeysetID(keyset:Dictionary<String,String>) -> String {
         let sortedValues = keyset.sorted { (firstElement, secondElement) -> Bool in
-            guard let firstKey = UInt(firstElement.key), let secondKey = UInt(secondElement.key) else {
+            guard let firstKey = UInt(firstElement.key), 
+                  let secondKey = UInt(secondElement.key) else {
                 return false
             }
             return firstKey < secondKey
@@ -81,16 +86,17 @@ class Mint: Identifiable, Hashable {
     }
     
     ///Pings the mint for it's info to check wether it is online or not
-//    func checkAvailability() async -> Bool {
+    func isReachable() async -> Bool {
 //        do {
-//            // if the network doesn't throw an error we can assume the mint is online
+//             if the network doesn't throw an error we can assume the mint is online
 //            let _ = try await Network.mintInfo(mintURL: self.url)
-//            //and return true
+//            and return true
 //            return true
 //        } catch {
 //            return false
 //        }
-//    }
+        fatalError()
+    }
 }
 
 struct MintInfo: Codable {
