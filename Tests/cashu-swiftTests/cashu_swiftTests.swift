@@ -28,40 +28,22 @@ final class cashu_swiftTests: XCTestCase {
         
         XCTAssertEqual(token, try testToken.deserializeToken())
         
-        let jsonString = """
-        [
-          "P2PK",
-          {
-            "nonce": "exampleNonce",
-            "data": "exampleData",
-            "tags": [
-              ["tag1", "value1", "value2"],
-              ["tag2", "value1"]
-            ]
-          }
-        ]
-        """
-
-        if let jsonData = jsonString.data(using: .utf8) {
-            do {
-                // Decode JSON to Swift object
-                let secret = try JSONDecoder().decode(Secret.self, from: jsonData)
-                
-                // Pattern matching with the Secret enum
-                switch secret {
-                case .p2pk(let secretData):
-                    print("Secret is P2PK with data: \(secretData)")
-                case .htlc(let secretData):
-                    print("Secret is HTLC with data: \(secretData)")
-                }
-                
-                // Encode Swift object to JSON
-                let encodedData = try JSONEncoder().encode(secret)
-                let encodedString = String(data: encodedData, encoding: .utf8)!
-                print("Serialized JSON: \(encodedString)")
-            } catch {
-                print("Error: \(error)")
-            }
-        }
+        
+    }
+    
+    func testSecretSerialization() {
+        let tag = Tag.n_sigs(values: [1, 2])
+        let tag2 = Tag.sigflag(values: ["one", "two", "three"])
+        let tags = [tag, tag2]
+//        let secret = Secret.HTLC(sc: SpendingCondition(nonce: "bbbbbbb", data: "aaaaaa", tags: [tag]))
+        
+        let data = try! JSONEncoder().encode(tags)
+        let s = String(data: data, encoding: .utf8)
+        
+        print(s!)
+        
+        let reverse = try! JSONDecoder().decode([Tag].self, from: data)
+        
+        print(reverse)
     }
 }

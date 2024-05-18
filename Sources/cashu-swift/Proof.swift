@@ -32,77 +32,89 @@ class Proof: Codable, Equatable, CustomStringConvertible {
     }
 }
 
-import Foundation
+enum Tag: Codable {
+    case sigflag(values: [String])
+    case n_sigs(values: [Int])
 
-struct Tag: Codable {
-    let key: String
-    let values: [String]
-    
-    init(from decoder: Decoder) throws {
-        var container = try decoder.unkeyedContainer()
-        key = try container.decode(String.self)
-        var values = [String]()
-        while !container.isAtEnd {
-            values.append(try container.decode(String.self))
+    // Custom decoding
+    enum Tag: Codable {
+        case sigflag(values: [String])
+        case n_sigs(values: [Int])
+
+        // Custom decoding
+        init(from decoder: Decoder) throws {
+            var container = try decoder.unkeyedContainer()
+
+            guard let type = try? container.decode(String.self) else {
+                throw DecodingError.dataCorruptedError(in: container, debugDescription: "Cannot decode type identifier")
+            }
+            
+            switch type {
+            case "sigflag":
+                var values = [String]()
+                while !container.isAtEnd {
+                    let value = try container.decode(String.self)
+                    values.append(value)
+                }
+                self = .sigflag(values: values)
+            case "n_sigs":
+                var values = [Int]()
+                while !container.isAtEnd {
+                    let valueString = try container.decode(String.self)
+                    if let value = Int(valueString) {
+                        values.append(value)
+                    } else {
+                        throw DecodingError.typeMismatch(Int.self, DecodingError.Context(codingPath: container.codingPath, debugDescription: "Expected string representation of Int, got \(valueString)"))
+                    }
+                }
+                self = .n_sigs(values: values)
+            default:
+                throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unknown tag type: \(type)")
+            }
         }
-        self.values = values
-    }
-    
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.unkeyedContainer()
-        try container.encode(key)
-        for value in values {
-            try container.encode(value)
+
+        // Custom encoding
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.unkeyedContainer()
+
+            switch self {
+            case .sigflag(let values):
+                try container.encode("sigflag")
+                for value in values {
+                    try container.encode(value)
+                }
+            case .n_sigs(let values):
+                try container.encode("n_sigs")
+                for value in values {
+                    try container.encode(String(value))
+                }
+            }
         }
     }
+
 }
 
-struct SecretData: Codable {
+struct SpendingCondition: Codable {
     let nonce: String
     let data: String
-    let tags: [[Tag]]?
-    
-    enum CodingKeys: String, CodingKey {
-        case nonce
-        case data
-        case tags
-    }
+    let tags: [Tag] //TODO: should check for types String or Int
 }
 
-enum Secret: Codable {
-    case p2pk(secretData: SecretData)
-    case htlc(secretData: SecretData)
+enum Secret {
+    case P2PK(sc:SpendingCondition)
+    case HTLC(sc:SpendingCondition)
+    case deterministic(s:String)
     
-    enum CodingKeys: String, CodingKey {
-        case kind
-        case secretData = "data"
-    }
-    
-    init(from decoder: Decoder) throws {
-        var container = try decoder.unkeyedContainer()
-        let kindString = try container.decode(String.self)
-        let secretData = try container.decode(SecretData.self)
-        
-        switch kindString.uppercased() {
-        case "P2PK":
-            self = .p2pk(secretData: secretData)
-        case "HTLC":
-            self = .htlc(secretData: secretData)
-        default:
-            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid kind value")
-        }
-    }
-    
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.unkeyedContainer()
+    func serialize() -> String {
         switch self {
-        case .p2pk(let secretData):
-            try container.encode("P2PK")
-            try container.encode(secretData)
-        case .htlc(let secretData):
-            try container.encode("HTLC")
-            try container.encode(secretData)
+        case .deterministic(let s):
+            return s
+        case let .HTLC(sc):
+            let scData = try! JSONEncoder().encode(sc)
+            return "\"HTLC\", \(String(data:scData, encoding: .utf8)!)"
+        case .P2PK(let sc):
+            let scData = try! JSONEncoder().encode(sc)
+            return "\"P2PK\", \(String(data:scData, encoding: .utf8)!)"
         }
     }
 }
-
