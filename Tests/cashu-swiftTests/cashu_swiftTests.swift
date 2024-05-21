@@ -32,18 +32,20 @@ final class cashu_swiftTests: XCTestCase {
     }
     
     func testSecretSerialization() {
-        let tag = Tag.n_sigs(values: [1, 2])
-        let tag2 = Tag.sigflag(values: ["one", "two", "three"])
+        let tag = SpendingCondition.Tag.n_sigs(values: [1, 2])
+        let tag2 = SpendingCondition.Tag.sigflag(values: ["one", "two", "three"])
         let tags = [tag, tag2]
-//        let secret = Secret.HTLC(sc: SpendingCondition(nonce: "bbbbbbb", data: "aaaaaa", tags: [tag]))
+        let sc = SpendingCondition(nonce: "test_nonce", data: "test_data", tags: tags)
+        let secret = Secret.HTLC(sc: sc)
         
-        let data = try! JSONEncoder().encode(tags)
-        let s = String(data: data, encoding: .utf8)
+        print(secret.serialize())
+//        let data = try! JSONEncoder().encode(sc)
+//        let s = String(data: data, encoding: .utf8)
         
-        print(s!)
+//        print(s!)
         
-        let reverse = try! JSONDecoder().decode([Tag].self, from: data)
+//        let reverse = try! JSONDecoder().decode(SpendingCondition.self, from: data)
         
-        print(reverse)
+//        print(reverse)
     }
 }
