@@ -31,14 +31,21 @@ final class cashu_swiftTests: XCTestCase {
         
     }
     
-    func testSecretSerialization() {
+    func testSecretSerialization() throws {
         let tag = SpendingCondition.Tag.n_sigs(values: [1, 2])
         let tag2 = SpendingCondition.Tag.sigflag(values: ["one", "two", "three"])
         let tags = [tag, tag2]
         let sc = SpendingCondition(nonce: "test_nonce", data: "test_data", tags: tags)
         let secret = Secret.HTLC(sc: sc)
         
-        print(secret.serialize())
+        let serialized = secret.serialize()
+        
+        print(serialized)
+        
+        print(try Secret.deserialize(string: serialized))
+        
+        //TODO: check serialization for all Secret types
+        
 //        let data = try! JSONEncoder().encode(sc)
 //        let s = String(data: data, encoding: .utf8)
         

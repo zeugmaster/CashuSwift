@@ -113,4 +113,54 @@ enum Secret {
             return "[\"P2PK\", \(String(data:scData, encoding: .utf8)!)]"
         }
     }
+    
+    static func deserialize(string:String) throws -> Secret {
+//        var strings = try JSONDecoder().decode([String].self, from: string.data(using: .utf8)!)
+//        if strings.contains("HTLC") {
+//            strings.removeAll(where: { $0 == "HTLC" })
+//            if let spendingConditionString = strings[safe: 0] {
+//                let sc = try JSONDecoder().decode(SpendingCondition.self, from: spendingConditionString.data(using: .utf8)!)
+//                return Secret.HTLC(sc: sc)
+//            }
+//        } else if strings.contains("P2PK") {
+//            strings.removeAll(where: { $0 == "P2PK" })
+//            if let spendingConditionString = strings[safe: 0] {
+//                let sc = try JSONDecoder().decode(SpendingCondition.self, from: spendingConditionString.data(using: .utf8)!)
+//                return Secret.HTLC(sc: sc)
+//            }
+//        }
+        let data = string.data(using: .utf8)!
+        do {
+            let wrapper = try JSONDecoder().decode(SecretWrapper.self, from: data)
+            switch wrapper.kind {
+            case "HTLC":
+                return Secret.HTLC(sc: wrapper.condition)
+            case "P2PK":
+                return Secret.P2PK(sc: wrapper.condition)
+            default:
+                return Secret.deterministic(s: string)
+            }
+        } catch {
+            // log
+        }
+        return Secret.deterministic(s: string)
+    }
+}
+
+fileprivate struct SecretWrapper: Codable {
+    let kind: String
+    let condition: SpendingCondition
+
+    init(from decoder: Decoder) throws {
+        var container = try decoder.unkeyedContainer()
+        kind = try container.decode(String.self)
+        condition = try container.decode(SpendingCondition.self)
+    }
+}
+
+
+extension Array {
+    subscript(safe index: Int) -> Element? {
+        return indices.contains(index) ? self[index] : nil
+    }
 }
