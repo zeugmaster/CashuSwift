@@ -32,9 +32,6 @@ class Proof: Codable, Equatable, CustomStringConvertible {
     }
 }
 
-
-
-
 struct SpendingCondition: Codable {
     let nonce: String
     let data: String
@@ -43,39 +40,46 @@ struct SpendingCondition: Codable {
     enum Tag: Codable {
         case sigflag(values: [String])
         case n_sigs(values: [Int])
-
+        case pubkeys(values: [String])
+        case locktime(values: [Int])
+        case refund(values: [String])
+        
         // Custom decoding
         init(from decoder: Decoder) throws {
             var container = try decoder.unkeyedContainer()
 
             guard let type = try? container.decode(String.self) else {
-                throw DecodingError.dataCorruptedError(in: container, debugDescription: "Cannot decode type identifier")
+                throw DecodingError.dataCorruptedError(in: container, 
+                                                       debugDescription: "Cannot decode type identifier")
             }
             
             switch type {
-            case "sigflag":
+            case "sigflag", "pubkeys", "refund": // these tags contain strings
                 var values = [String]()
                 while !container.isAtEnd {
                     let value = try container.decode(String.self)
                     values.append(value)
                 }
                 self = .sigflag(values: values)
-            case "n_sigs":
+            case "n_sigs", "locktime": // these tags contain integers, encoded as strings
                 var values = [Int]()
                 while !container.isAtEnd {
                     let valueString = try container.decode(String.self)
                     if let value = Int(valueString) {
                         values.append(value)
                     } else {
-                        throw DecodingError.typeMismatch(Int.self, DecodingError.Context(codingPath: container.codingPath, debugDescription: "Expected string representation of Int, got \(valueString)"))
+                        throw DecodingError.typeMismatch(Int.self, 
+                                                         DecodingError.Context(codingPath: container.codingPath,
+                                                                               debugDescription: "Expected string representation of Int, got \(valueString)"))
                     }
                 }
                 self = .n_sigs(values: values)
             default:
-                throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unknown tag type: \(type)")
+                throw DecodingError.dataCorruptedError(in: container, 
+                                                       debugDescription: "Unknown tag type: \(type)")
             }
         }
-
+        
         // Custom encoding
         func encode(to encoder: Encoder) throws {
             var container = encoder.unkeyedContainer()
@@ -90,6 +94,21 @@ struct SpendingCondition: Codable {
                 try container.encode("n_sigs")
                 for value in values {
                     try container.encode(String(value))
+                }
+            case .pubkeys(values: let values):
+                try container.encode("pubkeys")
+                for value in values {
+                    try container.encode(value)
+                }
+            case .locktime(values: let values):
+                try container.encode("locktime")
+                for value in values {
+                    try container.encode(String(value))
+                }
+            case .refund(values: let values):
+                try container.encode("refund")
+                for value in values {
+                    try container.encode(value)
                 }
             }
         }
@@ -115,20 +134,6 @@ enum Secret {
     }
     
     static func deserialize(string:String) throws -> Secret {
-//        var strings = try JSONDecoder().decode([String].self, from: string.data(using: .utf8)!)
-//        if strings.contains("HTLC") {
-//            strings.removeAll(where: { $0 == "HTLC" })
-//            if let spendingConditionString = strings[safe: 0] {
-//                let sc = try JSONDecoder().decode(SpendingCondition.self, from: spendingConditionString.data(using: .utf8)!)
-//                return Secret.HTLC(sc: sc)
-//            }
-//        } else if strings.contains("P2PK") {
-//            strings.removeAll(where: { $0 == "P2PK" })
-//            if let spendingConditionString = strings[safe: 0] {
-//                let sc = try JSONDecoder().decode(SpendingCondition.self, from: spendingConditionString.data(using: .utf8)!)
-//                return Secret.HTLC(sc: sc)
-//            }
-//        }
         let data = string.data(using: .utf8)!
         do {
             let wrapper = try JSONDecoder().decode(SecretWrapper.self, from: data)
@@ -155,12 +160,5 @@ fileprivate struct SecretWrapper: Codable {
         var container = try decoder.unkeyedContainer()
         kind = try container.decode(String.self)
         condition = try container.decode(SpendingCondition.self)
-    }
-}
-
-
-extension Array {
-    subscript(safe index: Int) -> Element? {
-        return indices.contains(index) ? self[index] : nil
     }
 }
