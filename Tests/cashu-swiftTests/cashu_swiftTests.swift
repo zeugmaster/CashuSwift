@@ -23,36 +23,41 @@ final class cashu_swiftTests: XCTestCase {
         print(token.prettyJSON())
         
         let testToken = try token.serialize()
-        
-//        print("Test token serialized: \(testToken)")
-        
+                
         XCTAssertEqual(token, try testToken.deserializeToken())
         
         
     }
     
     func testSecretSerialization() throws {
-        let tag = SpendingCondition.Tag.n_sigs(values: [1, 2])
-        let tag2 = SpendingCondition.Tag.sigflag(values: ["one", "two", "three"])
-        let tags = [tag, tag2]
-        let sc = SpendingCondition(nonce: "test_nonce", data: "test_data", tags: tags)
-        let secret = Secret.HTLC(sc: sc)
         
-        let serialized = secret.serialize()
+        // test that deserialization from string works properly
+        let secretString = "[\"P2PK\",{\"nonce\":\"859d4935c4907062a6297cf4e663e2835d90d97ecdd510745d32f6816323a41f\",\"data\":\"0249098aa8b9d2fbec49ff8598feb17b592b986e62319a4fa488a3dc36387157a7\",\"tags\":[[\"sigflag\",\"SIG_INPUTS\"]]}]"
         
-        print(serialized)
+        let tag = SpendingCondition.Tag.sigflag(values: ["SIG_INPUTS"])
+        let sc = SpendingCondition(nonce: "859d4935c4907062a6297cf4e663e2835d90d97ecdd510745d32f6816323a41f",
+                                   data: "0249098aa8b9d2fbec49ff8598feb17b592b986e62319a4fa488a3dc36387157a7",
+                                   tags: [tag])
         
-        print(try Secret.deserialize(string: serialized))
+        let secret = Secret.P2PK(sc: sc)
+        XCTAssertEqual(try Secret.deserialize(string: secretString), secret)
         
-        //TODO: check serialization for all Secret types
+        // test that objects can properly be compared using `Equatable` protocol
+        let secret1:Secret
+        let secret2:Secret
         
-//        let data = try! JSONEncoder().encode(sc)
-//        let s = String(data: data, encoding: .utf8)
-        
-//        print(s!)
-        
-//        let reverse = try! JSONDecoder().decode(SpendingCondition.self, from: data)
-        
-//        print(reverse)
+        do {
+            let tag1 = SpendingCondition.Tag.pubkeys(values: ["1XXXXXXXXX", "2XXXXXXXXX"])
+            let tag2 = SpendingCondition.Tag.locktime(values: [10, 100, 1000])
+            let sc = SpendingCondition(nonce: "nonce", data: "data", tags: [tag1, tag2])
+            secret1 = Secret.P2PK(sc: sc)
+        }
+        do {
+            let tag1 = SpendingCondition.Tag.pubkeys(values: ["1XXXXXXXXX", "2XXXXXXXXX"])
+            let tag2 = SpendingCondition.Tag.locktime(values: [10, 100, 1000])
+            let sc = SpendingCondition(nonce: "nonce", data: "data", tags: [tag2, tag1])
+            secret2 = Secret.P2PK(sc: sc)
+        }
+        XCTAssertEqual(secret1, secret2)
     }
 }
