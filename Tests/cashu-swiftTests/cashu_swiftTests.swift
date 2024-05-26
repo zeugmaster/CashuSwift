@@ -60,4 +60,22 @@ final class cashu_swiftTests: XCTestCase {
         }
         XCTAssertEqual(secret1, secret2)
     }
+    
+    func testNetworkManager() async throws {
+//        let mintInfo = try await Network.get(url: URL(string: "https://mint.macadamia.cash/v1/info")!,
+//                              expected: MintInfo.self)
+//        print(mintInfo)
+        do {
+            let keyset = try await Network.get(url: URL(string: "https://mint.macadamia.cash/keys")!, 
+                                               expected: Dictionary<String, String>.self)
+            print(keyset)
+        } catch let error as NetworkError {
+            switch error {
+            case .decoding(let data):
+                print(String(data: data, encoding: .utf8) ?? "could not ")
+            default:
+                print(error)
+            }
+        }
+    }
 }
