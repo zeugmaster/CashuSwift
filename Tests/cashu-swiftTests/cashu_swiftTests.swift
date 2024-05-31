@@ -77,5 +77,23 @@ final class cashu_swiftTests: XCTestCase {
                 print(error)
             }
         }
+        
+        do {
+            let mintQuoteRequest = MintQuoteBolt11Request(amount: 50001, unit: "sat")
+            let url = URL(string: "https://mint.macadamia.cash/v1/mint/quote/bolt11")!
+            let quote = try await Network.post(url: url,
+                                               body: mintQuoteRequest,
+                                               expected: MintQuoteBolt11Response.self)
+            print(quote)
+        } catch let error as NetworkError {
+            switch error {
+            case .decoding(let data):
+                print(String(data: data, encoding: .utf8) ?? "could not ")
+            case .encoding:
+                print("there was an error encoding the data")
+            default:
+                print(error)
+            }
+        }
     }
 }

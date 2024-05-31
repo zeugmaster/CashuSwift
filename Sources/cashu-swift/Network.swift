@@ -28,18 +28,44 @@ class Network {
     static func get<T:Codable>(url:URL, expected:T.Type, timeout:Double = 10) async throws -> T {
         var req = URLRequest(url: url, timeoutInterval: timeout)
         req.httpMethod = "GET"
+        
         let (data, response) = try await URLSession.shared.data(for: req)
-        guard let httpResponse = response as? HTTPURLResponse, 
-                  httpResponse.statusCode == 200 else {
-            throw NetworkError.unavailable
-        }
+        
+//        guard let httpResponse = response as? HTTPURLResponse,
+//                  httpResponse.statusCode == 200 else {
+//            throw NetworkError.unavailable
+//        }
+        
         guard let decoded = try? JSONDecoder().decode(T.self, from: data) else {
             throw NetworkError.decoding(data: data)
         }
+        
         return decoded
     }
     
-    static func post<T:Codable>(url:URL, body:Any, expected:T.Type) throws -> T {
-        fatalError()
+    static func post<I:Codable, T:Codable>(url:URL, body:I, expected:T.Type, timeout:Double = 10) async throws -> T {
+        var req = URLRequest(url: url, timeoutInterval: timeout)
+        req.httpMethod = "POST"
+        req.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        guard let payload = try? JSONEncoder().encode(body) else {
+            throw NetworkError.encoding
+        }
+        
+        req.httpBody = payload
+        
+        let (data, response) = try await URLSession.shared.data(for: req)
+        
+//        guard let httpResponse = response as? HTTPURLResponse,
+//              httpResponse.statusCode >= 200 && httpResponse.statusCode < 500 else {
+//            print(response)
+//            throw NetworkError.unavailable
+//        }
+        
+        guard let decoded = try? JSONDecoder().decode(T.self, from: data) else {
+            throw NetworkError.decoding(data: data)
+        }
+        
+        return decoded
     }
 }
