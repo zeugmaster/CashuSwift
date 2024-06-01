@@ -15,13 +15,15 @@ import Foundation
 // - network error remote
 // - decoding error -> throw with data to filter for protocol errors
 
-enum NetworkError: Error {
-    case decoding(data: Data)
-    case encoding
-    case unavailable
-}
-
-class Network {
+struct Network {
+    
+    private init() {}
+    
+    enum Error: Swift.Error {
+        case decoding(data: Data)
+        case encoding
+        case unavailable
+    }
     
     ///Make a HTTP GET request to the specified URL, returns the decoded response of the expected type T or an error if decoding fails
     ///Timeout in seconds, default is 10
@@ -29,41 +31,37 @@ class Network {
         var req = URLRequest(url: url, timeoutInterval: timeout)
         req.httpMethod = "GET"
         
-        let (data, response) = try await URLSession.shared.data(for: req)
-        
-//        guard let httpResponse = response as? HTTPURLResponse,
-//                  httpResponse.statusCode == 200 else {
-//            throw NetworkError.unavailable
-//        }
+        guard let (data, response) = try? await URLSession.shared.data(for: req) else {
+            throw Error.unavailable
+        }
         
         guard let decoded = try? JSONDecoder().decode(T.self, from: data) else {
-            throw NetworkError.decoding(data: data)
+            throw Error.decoding(data: data)
         }
         
         return decoded
     }
     
+    ///Makes a HTTP POST request to the specified URL, with the body as an object of type `I` that conforms to `Codable`
+    ///returns the decoded response of the expected type `T` or an error if decoding fails
+    ///Timeout in seconds, default is 10
     static func post<I:Codable, T:Codable>(url:URL, body:I, expected:T.Type, timeout:Double = 10) async throws -> T {
         var req = URLRequest(url: url, timeoutInterval: timeout)
         req.httpMethod = "POST"
         req.addValue("application/json", forHTTPHeaderField: "Content-Type")
         
         guard let payload = try? JSONEncoder().encode(body) else {
-            throw NetworkError.encoding
+            throw Error.encoding
         }
         
         req.httpBody = payload
         
-        let (data, response) = try await URLSession.shared.data(for: req)
-        
-//        guard let httpResponse = response as? HTTPURLResponse,
-//              httpResponse.statusCode >= 200 && httpResponse.statusCode < 500 else {
-//            print(response)
-//            throw NetworkError.unavailable
-//        }
-        
+        guard let (data, response) = try? await URLSession.shared.data(for: req) else {
+            throw Error.unavailable
+        }
+                
         guard let decoded = try? JSONDecoder().decode(T.self, from: data) else {
-            throw NetworkError.decoding(data: data)
+            throw Error.decoding(data: data)
         }
         
         return decoded

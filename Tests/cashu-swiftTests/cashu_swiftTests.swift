@@ -69,9 +69,10 @@ final class cashu_swiftTests: XCTestCase {
             let keyset = try await Network.get(url: URL(string: "https://mint.macadamia.cash/keys")!, 
                                                expected: Dictionary<String, String>.self)
             print(keyset)
-        } catch let error as NetworkError {
+        } catch let error as Network.Error {
             switch error {
             case .decoding(let data):
+                print("Network.Error.decoding:")
                 print(String(data: data, encoding: .utf8) ?? "could not ")
             default:
                 print(error)
@@ -85,14 +86,16 @@ final class cashu_swiftTests: XCTestCase {
                                                body: mintQuoteRequest,
                                                expected: MintQuoteBolt11Response.self)
             print(quote)
-        } catch let error as NetworkError {
+        } catch let error as Network.Error {
             switch error {
             case .decoding(let data):
+                print("Network.Error.decoding:")
                 print(String(data: data, encoding: .utf8) ?? "could not ")
             case .encoding:
                 print("there was an error encoding the data")
             default:
                 print(error)
+                throw error
             }
         }
     }
