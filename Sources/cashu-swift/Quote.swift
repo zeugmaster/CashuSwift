@@ -7,14 +7,41 @@
 
 import Foundation
 
-struct MintQuoteBolt11Request:Codable {
-    let amount:Int
-    let unit:String
+public protocol QuoteRequest:Codable {
+    var unit:String { get }
 }
 
-struct MintQuoteBolt11Response:Codable {
-    let quote:String
-    let request: String
-    let paid:Bool
-    let expiry:Int
+public protocol Quote:Codable {
+    var quote:String { get }
+    var paid:Bool { get }
+    var expiry:Int { get }
+}
+
+public struct Bolt11 {
+    private init() {}
+    
+    struct RequestMintQuote:QuoteRequest {
+        let unit: String
+        let amount:Int
+    }
+    
+    struct RequestMeltQuote: QuoteRequest {
+        let unit: String
+        let request:String
+    }
+    
+    struct MintQuote:Quote {
+        let quote:String
+        let request: String
+        let paid:Bool
+        let expiry:Int
+    }
+
+    struct MeltQuote:Quote {
+        let quote: String
+        let amount:Int
+        let fee_reserve:Int
+        let paid: Bool
+        let expiry: Int
+    }
 }

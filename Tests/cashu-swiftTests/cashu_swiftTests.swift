@@ -62,29 +62,12 @@ final class cashu_swiftTests: XCTestCase {
     }
     
     func testNetworkManager() async throws {
-//        let mintInfo = try await Network.get(url: URL(string: "https://mint.macadamia.cash/v1/info")!,
-//                              expected: MintInfo.self)
-//        print(mintInfo)
         do {
-            let keyset = try await Network.get(url: URL(string: "https://mint.macadamia.cash/keys")!, 
-                                               expected: Dictionary<String, String>.self)
-            print(keyset)
-        } catch let error as Network.Error {
-            switch error {
-            case .decoding(let data):
-                print("Network.Error.decoding:")
-                print(String(data: data, encoding: .utf8) ?? "could not ")
-            default:
-                print(error)
-            }
-        }
-        
-        do {
-            let mintQuoteRequest = MintQuoteBolt11Request(amount: 50001, unit: "sat")
+            let mintQuoteRequest = Bolt11.RequestMintQuote(unit: "sat", amount: 21)
             let url = URL(string: "https://mint.macadamia.cash/v1/mint/quote/bolt11")!
             let quote = try await Network.post(url: url,
                                                body: mintQuoteRequest,
-                                               expected: MintQuoteBolt11Response.self)
+                                               expected: Bolt11.MintQuote.self)
             print(quote)
         } catch let error as Network.Error {
             switch error {
@@ -98,5 +81,33 @@ final class cashu_swiftTests: XCTestCase {
                 throw error
             }
         }
+    }
+    
+    func testMintCheckReachable() async throws {
+        let mintUrl = URL(string: "https://mint.macadamia.cash")!
+        
+        let mintInfo = try await Network.get(url: mintUrl.appending(path: "/v1/info"), expected: MintInfo.self)
+        
+        let keysetList = try await Network.get(url: mintUrl.appending(path: "/v1/keys"), expected: KeysetList.self)
+        let keysetStateList = try await Network.get(url: mintUrl.appending(path: "/v1/keysets"), expected: KeysetList.self)
+                
+        let combined = keysetList.keysets.map { keyset in
+            var updated = keyset
+            updated.active = keysetStateList.keysets.first(where: { $0.id == keyset.id })!.active
+            return updated
+        }
+        
+        let mint = Mint(url: mintUrl,
+                        allKeysets: combined,
+                        info: mintInfo,
+                        nickname: "Macadamia Mint")
+        
+        let reachable = await mint.isReachable()
+        
+        // check that the mint's keysets contain at least one active one (required)
+        let oneKeysetActive = combined.contains { $0.active == true }
+        
+        XCTAssert(reachable)
+        XCTAssert(oneKeysetActive)
     }
 }

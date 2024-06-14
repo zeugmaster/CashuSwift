@@ -8,25 +8,38 @@
 import Foundation
 import CryptoKit
 
+struct KeysetList: Codable {
+    let keysets:[Keyset]
+}
+
 struct Keyset: Codable {
     let id: String
     let keys: Dictionary<String, String>
     var derivationCounter:Int
+    var active:Bool
     let unit:String
     
-    init(id: String, keys: Dictionary<String, String>, derivationCounter: Int, unit:String) {
-        self.id = id
-        self.keys = keys
-        self.derivationCounter = derivationCounter
-        self.unit = unit
+    enum CodingKeys: String, CodingKey {
+            case id, keys, derivationCounter, active, unit
+        }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        unit = try container.decode(String.self, forKey: .unit)
+        
+        // This hacky solution allows us to use the Keyset object when decoded from `/v1/keys` and `/v1/keysets`
+        // without having to work with optionals
+        derivationCounter = try container.decodeIfPresent(Int.self, forKey: .derivationCounter) ?? 0
+        active = try container.decodeIfPresent(Bool.self, forKey: .active) ?? false
+        keys = try container.decodeIfPresent(Dictionary<String, String>.self, forKey: .keys) ?? ["none":"none"]
     }
 }
 
 class Mint: Identifiable, Hashable {
     
     let url: URL
-    var activeKeyset: Keyset
-    var allKeysets: [Keyset]
+    var keysets: [Keyset]
     var info:MintInfo
     var nickname:String?
     
@@ -40,10 +53,9 @@ class Mint: Identifiable, Hashable {
             // hasher.combine(name)
         }
     
-    init(url: URL, activeKeyset: Keyset, allKeysets: [Keyset], info: MintInfo, nickname:String? = nil) {
+    init(url: URL, allKeysets: [Keyset], info: MintInfo, nickname:String? = nil) {
         self.url = url
-        self.activeKeyset = activeKeyset
-        self.allKeysets = allKeysets
+        self.keysets = allKeysets
         self.info = info
         self.nickname = nickname
     }
@@ -87,15 +99,14 @@ class Mint: Identifiable, Hashable {
     
     ///Pings the mint for it's info to check wether it is online or not
     func isReachable() async -> Bool {
-//        do {
-//             if the network doesn't throw an error we can assume the mint is online
-//            let _ = try await Network.mintInfo(mintURL: self.url)
-//            and return true
-//            return true
-//        } catch {
-//            return false
-//        }
-        fatalError()
+        do {
+             //if the network doesn't throw an error we can assume the mint is online
+            let url = self.url.appending(path: "/v1/info")
+            let _ = try await Network.get(url: url)
+            return true
+        } catch {
+            return false
+        }
     }
 }
 
@@ -103,7 +114,37 @@ struct MintInfo: Codable {
     let name: String
     let pubkey: String
     let version: String
-    let contact: [[String]] //FIXME: array in array?
-    let nuts: [String]
-    let parameter:Dictionary<String,Bool>
+    let description: String
+    let descriptionLong: String
+    let contact: [[String]]
+    let motd: String
+    let nuts: [String: Nut]
+
+    enum CodingKeys: String, CodingKey {
+        case name, pubkey, version, description, contact, motd, nuts
+        case descriptionLong = "description_long"
+    }
+    
+    struct Nut: Codable {
+        let methods: [PaymentMethod]?
+        let disabled: Bool?
+        let supported: Bool?
+
+        enum CodingKeys: String, CodingKey {
+            case methods, disabled, supported
+        }
+    }
+    
+    struct PaymentMethod: Codable {
+        let method: String
+        let unit: String
+        let minAmount: Int
+        let maxAmount: Int
+
+        enum CodingKeys: String, CodingKey {
+            case method, unit
+            case minAmount = "min_amount"
+            case maxAmount = "max_amount"
+        }
+    }
 }
