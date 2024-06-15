@@ -7,14 +7,6 @@
 
 import Foundation
 
-// this class should:
-// make request
-// check if the response is
-// - ok
-// - network error local
-// - network error remote
-// - decoding error -> throw with data to filter for protocol errors
-
 struct Network {
     
     private init() {}

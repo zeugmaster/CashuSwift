@@ -18,7 +18,12 @@ let package = Package(
             targets: ["cashu-swift"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/GigaBitcoin/secp256k1.swift.git", from: "0.14.0"),
+        .package(url: "https://github.com/GigaBitcoin/secp256k1.swift.git", 
+                 from: "0.17.0"),
+        .package(url: "https://github.com/zeugmaster/BIP32.git",
+                 branch: "main"),
+        .package(url: "https://github.com/mkrd/Swift-BigInt.git",
+                 from: "2.0.0")
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
@@ -26,7 +31,9 @@ let package = Package(
         .target(
             name: "cashu-swift",
             dependencies: [
-                .product(name: "secp256k1", package: "secp256k1.swift")
+                .product(name: "secp256k1", package: "secp256k1.swift"),
+                .product(name: "BIP32", package: "BIP32"),
+                .product(name: "BigNumber", package: "Swift-BigInt")
             ]),
 
         .testTarget(

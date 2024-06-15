@@ -37,11 +37,19 @@ public struct Bolt11 {
         let expiry:Int
     }
 
-    struct MeltQuote:Quote {
+    struct MeltQuote: Quote {
         let quote: String
-        let amount:Int
-        let fee_reserve:Int
+        let amount: Int
+        var feeReserve: Int
         let paid: Bool
         let expiry: Int
+
+        enum CodingKeys: String, CodingKey {
+            case quote
+            case amount
+            case feeReserve = "fee_reserve"
+            case paid
+            case expiry
+        }
     }
 }
