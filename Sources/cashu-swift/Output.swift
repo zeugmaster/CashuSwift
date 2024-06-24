@@ -11,6 +11,7 @@ import Foundation
 struct Output: Codable {
     let amount: Int
     let B_: String
+    let id: String
 }
 
 // AKA BlindedSignature

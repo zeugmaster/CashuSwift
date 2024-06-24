@@ -1,40 +1,95 @@
 import Foundation
 import secp256k1
 
-public class Cashu {
-    struct V1 {
-        private init() {}
+public enum Cashu {
+    enum V1 {
         
         static func getQuote(mint:Mint, quoteRequest:QuoteRequest) async throws -> Quote {
             var url = mint.url
+            
+            guard mint.keysets.contains(where: { $0.unit == quoteRequest.unit }) else {
+                fatalError("the mint does not have a keyset that supports this unit")
+            }
+            
             switch quoteRequest {
-            case let qReq as Bolt11.RequestMintQuote:
+            case let quoteRequest as Bolt11.RequestMintQuote:
                 url.append(path: "/v1/mint/quote/bolt11")
-                return try await Network.get(url: url, expected: Bolt11.MintQuote.self)
-            case let qReq as Bolt11.RequestMeltQuote:
-                url.append(path: "/v1/mint/melt/bolt11")
-                return try await Network.get(url: url, expected: Bolt11.MeltQuote.self)
+                var result = try await Network.post(url: url, 
+                                                    body: quoteRequest,
+                                                    expected: Bolt11.MintQuote.self)
+                result.requestDetail = quoteRequest
+                return result
+            case let quoteRequest as Bolt11.RequestMeltQuote:
+                url.append(path: "/v1/melt/quote/bolt11")
+                return try await Network.post(url: url, 
+                                              body:quoteRequest,
+                                              expected: Bolt11.MeltQuote.self)
             default:
-                //TODO: make non fatal
                 fatalError("User tried to call getQuote using unsupported QuoteRequest type.")
             }
         }
         
-        static func issue(mint:Mint, for quote:Quote) async throws -> [Proof] {
-            // 1 generate deterministic blinded outputs for amount from quote
+        /// After paying the quote amount to the mint, use this function to issue the actual ecash as a list of `Proof`s
+        /// Leaving `seed` empty will give you proofs from non-deterministic outputs which cannot be recreated from a seed phrase backup
+        static func issue(mint:Mint, 
+                          for quote:Quote,
+                          seed:String? = nil,
+                          preferredDistribution:[Int]? = nil) async throws -> [Proof] {
             
-            // 1 a determine keyset (unit, active)
-            // 1 b 
+            guard let quote = quote as? Bolt11.MintQuote else {
+                fatalError("Quote to issue proofs for was not a Bolt11.MintQuote")
+            }
             
-            // 2 make post request with Quote and blinded outputs
+            guard let requestDetail = quote.requestDetail else {
+                fatalError("You need to set requestDetail associated with the quote.")
+            }
             
-            // 3 unblind signed outputs from mint
+            var distribution:[Int]
             
-            // 4 increment secret counter on keyset (???)
+            if let preferredDistribution = preferredDistribution {
+                guard preferredDistribution.reduce(0, +) == requestDetail.amount else {
+                    fatalError("Specified preferred distribution does not add up to the same amount as the quote.")
+                }
+                distribution = preferredDistribution
+            } else {
+                distribution = splitIntoBase2Numbers(requestDetail.amount)
+            }
             
-            // 5 return proofs
+            guard let keyset = mint.keysets.first(where: { $0.active == true &&
+                                                           $0.unit == requestDetail.unit }) else {
+                fatalError("Could not determine an ACTIVE keyset for this unit")
+            }
             
-            fatalError()
+            // tuple for outputs, blindingfactors, secrets
+            // swift does not allow uninitialized tuple declaration
+            var outputs = (outputs:[Output](), blindingFactors:[""], secrets:[""])
+            if let seed = seed {
+                outputs = try Crypto.generateOutputs(amounts: distribution,
+                                                     keysetID: keyset.id,
+                                                     deterministicFactors: (seed: seed,
+                                                                            counter: keyset.derivationCounter))
+            } else {
+                outputs = try Crypto.generateOutputs(amounts: distribution,
+                                                     keysetID: keyset.id)
+            }
+            
+            let mintRequest = Bolt11.MintRequest(quote: quote.quote, outputs: outputs.outputs)
+            
+            //TODO: PARSE COMMON ERRORS
+            let promises = try await Network.post(url: mint.url.appending(path: "/v1/mint/bolt11"),
+                                                  body: mintRequest,
+                                                  expected: Bolt11.MintResponse.self)
+            
+            print(promises.debugPretty())
+            
+            let proofs = try Crypto.unblindPromises(promises: promises.signatures,
+                                                    blindingFactors: outputs.blindingFactors,
+                                                    secrets: outputs.secrets,
+                                                    keyset: keyset)
+            
+            //keyset.derivationCounter += outputs.outputs.count
+            
+            return proofs
         }
         
         static func send(mint:Mint, amount:Int, proofs:[Proof]) async throws -> [Proof] {
@@ -50,3 +105,4 @@ public class Cashu {
         }
     }
 }
+

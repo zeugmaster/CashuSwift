@@ -17,17 +17,25 @@ public protocol Quote:Codable {
     var expiry:Int { get }
 }
 
-public struct Bolt11 {
-    private init() {}
-    
+enum Bolt11 {
     struct RequestMintQuote:QuoteRequest {
         let unit: String
         let amount:Int
     }
     
     struct RequestMeltQuote: QuoteRequest {
+        
+        struct Options:Codable {
+            struct MPP:Codable {
+                let amount:Int
+            }
+            let mpp:MPP
+        }
+        
         let unit: String
         let request:String
+        
+        let options:Options?
     }
     
     struct MintQuote:Quote {
@@ -35,6 +43,7 @@ public struct Bolt11 {
         let request: String
         let paid:Bool
         let expiry:Int
+        var requestDetail:RequestMintQuote?
     }
 
     struct MeltQuote: Quote {
@@ -43,7 +52,7 @@ public struct Bolt11 {
         var feeReserve: Int
         let paid: Bool
         let expiry: Int
-
+        
         enum CodingKeys: String, CodingKey {
             case quote
             case amount
@@ -51,5 +60,14 @@ public struct Bolt11 {
             case paid
             case expiry
         }
+    }
+    
+    struct MintRequest:Codable {
+        let quote:String
+        let outputs:[Output]
+    }
+    
+    struct MintResponse:Codable {
+        let signatures:[Promise]
     }
 }

@@ -28,12 +28,12 @@ class Token:Codable, Equatable {
     
     let token:[ProofContainer]
     let memo:String?
-    let unit:String?
-    let version:TokenVersion
+    var unit:String?
+    var version:TokenVersion
     
     init(token: [ProofContainer], 
          memo: String? = nil,
-         version:TokenVersion = .unknown,
+         version:TokenVersion = .unknown, //TODO: this is wonky and should be refactored
          unit:String? = nil) {
         self.token = token
         self.memo = memo

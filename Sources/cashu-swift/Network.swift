@@ -6,6 +6,9 @@
 //
 
 import Foundation
+import OSLog
+
+fileprivate let logger = Logger(subsystem: "cashu-swift", category: "Network")
 
 struct Network {
     
@@ -27,11 +30,14 @@ struct Network {
             throw Error.unavailable
         }
         
-        guard let decoded = try? JSONDecoder().decode(T.self, from: data) else {
+       do {
+           let decoded = try JSONDecoder().decode(T.self, from: data)
+           return decoded
+        } catch {
+            print(error)
+            print(String(data: data, encoding: .utf8)!)
             throw Error.decoding(data: data)
         }
-        
-        return decoded
     }
     
     ///Make a HTTP GET request to the specified URL, returns Data if available. 
@@ -64,11 +70,14 @@ struct Network {
         guard let (data, _) = try? await URLSession.shared.data(for: req) else {
             throw Error.unavailable
         }
-                
-        guard let decoded = try? JSONDecoder().decode(T.self, from: data) else {
-            throw Error.decoding(data: data)
-        }
         
-        return decoded
+        do {
+            let decoded = try JSONDecoder().decode(T.self, from: data)
+            return decoded
+        } catch {
+            print(error)
+            print(String(data: data, encoding: .utf8)!)
+            throw error
+        }
     }
 }

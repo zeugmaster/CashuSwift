@@ -114,10 +114,10 @@ struct MintInfo: Codable {
     let name: String
     let pubkey: String
     let version: String
-    let description: String
-    let descriptionLong: String
+    let description: String?
+    let descriptionLong: String?
     let contact: [[String]]
-    let motd: String
+    let motd: String?
     let nuts: [String: Nut]
 
     enum CodingKeys: String, CodingKey {
@@ -135,11 +135,13 @@ struct MintInfo: Codable {
         }
     }
     
+    //TODO: ADD MPP SETTINGS STRUCT
+    
     struct PaymentMethod: Codable {
         let method: String
         let unit: String
-        let minAmount: Int
-        let maxAmount: Int
+        let minAmount: Int?
+        let maxAmount: Int?
 
         enum CodingKeys: String, CodingKey {
             case method, unit
