@@ -34,6 +34,14 @@ struct Keyset: Codable {
         active = try container.decodeIfPresent(Bool.self, forKey: .active) ?? false
         keys = try container.decodeIfPresent(Dictionary<String, String>.self, forKey: .keys) ?? ["none":"none"]
     }
+    
+    init(id:String, keys:Dictionary<String,String>, derivationCounter:Int = 0, active:Bool = true, unit:String = "sat") {
+        self.id = id
+        self.keys = keys
+        self.derivationCounter = derivationCounter
+        self.active = active
+        self.unit = unit
+    }
 }
 
 class Mint: Identifiable, Hashable {

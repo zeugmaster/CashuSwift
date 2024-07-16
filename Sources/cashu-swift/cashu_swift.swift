@@ -29,11 +29,12 @@ public enum Cashu {
             }
         }
         
-        /// After paying the quote amount to the mint, use this function to issue the actual ecash as a list of `Proof`s
+        /// After paying the quote amount to the mint, use this function to issue the actual ecash as a list of `Proof`s \n
         /// Leaving `seed` empty will give you proofs from non-deterministic outputs which cannot be recreated from a seed phrase backup
         static func issue(mint:Mint, 
                           for quote:Quote,
                           seed:String? = nil,
+                          duplicateRetry:Int = 0,
                           preferredDistribution:[Int]? = nil) async throws -> [Proof] {
             
             guard let quote = quote as? Bolt11.MintQuote else {
@@ -55,7 +56,7 @@ public enum Cashu {
                 distribution = splitIntoBase2Numbers(requestDetail.amount)
             }
             
-            guard let keyset = mint.keysets.first(where: { $0.active == true &&
+            guard var keyset = mint.keysets.first(where: { $0.active == true &&
                                                            $0.unit == requestDetail.unit }) else {
                 fatalError("Could not determine an ACTIVE keyset for this unit")
             }
@@ -80,14 +81,12 @@ public enum Cashu {
                                                   body: mintRequest,
                                                   expected: Bolt11.MintResponse.self)
             
-            print(promises.debugPretty())
-            
             let proofs = try Crypto.unblindPromises(promises: promises.signatures,
                                                     blindingFactors: outputs.blindingFactors,
                                                     secrets: outputs.secrets,
                                                     keyset: keyset)
             
-            //keyset.derivationCounter += outputs.outputs.count
+            keyset.derivationCounter += outputs.outputs.count
             
             return proofs
         }

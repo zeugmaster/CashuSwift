@@ -116,30 +116,6 @@ enum Crypto {
     static func unblindPromises(promises:[Promise],
                          blindingFactors:[String],
                          secrets:[String],
-                         mintPublicKeys:Dictionary<String,String>) -> [Proof] {
-        print("unblinding; promise: \(promises), blindingfactor: \(blindingFactors), secrets: \(secrets)")
-        
-        var proofs = [Proof]()
-        for i in 0..<promises.count {
-            let pubBytes = try! mintPublicKeys[String(promises[i].amount)]!.bytes
-            let mintPubKey = try! secp256k1.Signing.PublicKey(dataRepresentation: pubBytes, format: .compressed)
-            print("Mint pubkey for 1: \(mintPubKey.stringRepresentation)")
-            let pK = try! secp256k1.Signing.PrivateKey(dataRepresentation: blindingFactors[i].bytes)
-            let product = try! mintPubKey.multiply(pK.dataRepresentation.bytes)
-            let neg = Crypto.negatePublicKey(key: product)
-
-            // C = C_ - A.mult(r)
-            let p = try! secp256k1.Signing.PublicKey(dataRepresentation: promises[i].C_.bytes, format: .compressed)
-            let unblindedPromise = try! p.combine([neg])
-            
-            proofs.append(Proof(id: promises[i].id, amount: promises[i].amount, secret: secrets[i], C: String(bytes: unblindedPromise.dataRepresentation)))
-        }
-        return proofs
-    }
-    
-    static func unblindPromises(promises:[Promise],
-                         blindingFactors:[String],
-                         secrets:[String],
                          keyset:Keyset) throws -> [Proof] {
         
         var proofs = [Proof]()
@@ -150,18 +126,14 @@ enum Crypto {
             }
             
             let mintPubKey = try PublicKey(dataRepresentation: pubkeyData, format: .compressed)
-            let pK = try PrivateKey(dataRepresentation: blindingFactors[i].bytes)
-            let product = try mintPubKey.multiply(pK.dataRepresentation.bytes)
-            let neg = Crypto.negatePublicKey(key: product)
-
-            // C = C_ - A.mult(r)
-            let p = try PublicKey(dataRepresentation: promises[i].C_.bytes, format: .compressed)
-            let unblindedPromise = try p.combine([neg])
+            let r = try PrivateKey(dataRepresentation: blindingFactors[i].bytes)
+            let C_ = try PublicKey(dataRepresentation: promise.C_.bytes, format: .compressed)
+            let C = try unblind(C_: C_, r: r, A: mintPubKey)
             
             proofs.append(Proof(id: promises[i].id, 
                                 amount: promises[i].amount,
                                 secret: secrets[i],
-                                C: String(bytes: unblindedPromise.dataRepresentation)))
+                                C: String(bytes: C.dataRepresentation)))
         }
         return proofs
     }

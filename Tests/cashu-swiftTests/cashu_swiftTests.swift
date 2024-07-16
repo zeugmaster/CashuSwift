@@ -26,8 +26,6 @@ final class cashu_swiftTests: XCTestCase {
         let testToken = try token.serialize()
         
         XCTAssertEqual(token, try testToken.deserializeToken())
-        
-        
     }
     
     func testSecretSerialization() throws {
@@ -133,24 +131,16 @@ final class cashu_swiftTests: XCTestCase {
         }
     }
     
-//    func testBlinding() throws {
-//        
-//        do {
-//            let x = try "d341ee4871f1f889041e63cf0d3823c713eea6aff01e80f1719f08f9e5be98f6".bytes
-//            let r = try Crypto.PrivateKey(dataRepresentation: "99fce58439fc37412ab3468b73db0569322588f62fb3a49182d67e23d877824a".bytes)
-//            let Y = try Crypto.secureHashToCurve(message: String(bytes: x))
-//            let B_ = try Y.combine([r.publicKey])
-//            XCTAssertEqual(B_.stringRepresentation, "033b1a9737a40cc3fd9b6af4b723632b76a67a36782596304612a6c2bfb5197e6d")
-//        }
-//        
-//        do {
-//            let x = try "f1aaf16c2239746f369572c0784d9dd3d032d952c2d992175873fb58fae31a60".bytes
-//            let r = try Crypto.PrivateKey(dataRepresentation: try "f78476ea7cc9ade20f9e05e58a804cf19533f03ea805ece5fee88c8e2874ba50".bytes)
-//            let Y = try Crypto.secureHashToCurve(message: Data(x))
-//            let B_ = try Y.combine([r.publicKey])
-//            XCTAssertEqual(B_.stringRepresentation, "029bdf2d716ee366eddf599ba252786c1033f47e230248a4612a5670ab931f1763")
-//        }
-//    }
+    func testBlinding() throws {
+        
+        do {
+            // let x = try "d341ee4871f1f889041e63cf0d3823c713eea6aff01e80f1719f08f9e5be98f6".bytes
+            let r = try Crypto.PrivateKey(dataRepresentation: "0000000000000000000000000000000000000000000000000000000000000001".bytes)
+            let Y = try Crypto.secureHashToCurve(message: "test_message")
+            let B_ = try Y.combine([r.publicKey])
+            XCTAssertEqual(B_.stringRepresentation, "025cc16fe33b953e2ace39653efb3e7a7049711ae1d8a2f7a9108753f1cdea742b")
+        }
+    }
     
     func testSigning() throws {
         do {
@@ -243,10 +233,6 @@ final class cashu_swiftTests: XCTestCase {
                                                 quoteRequest: Bolt11.RequestMintQuote(unit: "sat",
                                                                                       amount: amount))
         
-        //        print(quote)
-        
-//        let seed = String(bytes: BIP39.Mnemonic().seed)
-        
         let proofs = try await Cashu.V1.issue(mint: mint, for: quote)
         
         let token = Token(token: [ProofContainer(mint: mint.url.absoluteString, proofs: proofs)])
@@ -254,31 +240,26 @@ final class cashu_swiftTests: XCTestCase {
         token.unit = "sat"
         
         print(try token.serialize())
+        print("keyset derivation counter: \(mint.keysets.map({$0.derivationCounter}))")
     }
     
     func testUnblind() throws {
         let C_ = try Crypto.PublicKey(dataRepresentation: "026ec253e4a3f43b44f33b78823e0a6a515bbe3cf3e99eda93c584eb858235576a".bytes, format: .compressed)
         let r = try Crypto.PrivateKey(dataRepresentation: "ab8b2ff87672e4918cc431b02c057c260ef7935396026c6e3fd21dacef6dae2a".bytes)
-        let A = try Crypto.PublicKey(dataRepresentation: "02c8092ec2daa7eb3bf6dd3efc4e87bb5c2755c014c8fc9dc4d023938df16f5ca3".bytes, format: .compressed)
+        let A = "02c8092ec2daa7eb3bf6dd3efc4e87bb5c2755c014c8fc9dc4d023938df16f5ca3"
+        let keyset = Keyset(id: "", keys: ["1":A])
         
-//        print(C_)
-        
-        print("result from unblind function: \(try Crypto.unblind(C_: C_, r: r, A: A).stringRepresentation) \n")
-        
-        
-        let proofs = Crypto.unblindPromises(promises: [Promise(id: "", amount: 1, C_: C_.stringRepresentation)],
+        let proofs = try Crypto.unblindPromises(promises: [Promise(id: "", amount: 1, C_: C_.stringRepresentation)],
                                             blindingFactors: [r.stringRepresentation],
                                             secrets: [""],
-                                            mintPublicKeys: ["1":A.stringRepresentation])
+                                            keyset: keyset)
         
-        print(proofs.first ?? "no proof")
+        //TODO: NEEDS REFERENCE VECTOR FOR COMPARISON
     }
     
     func testNegateKey() throws {
         let k = try Crypto.PublicKey(dataRepresentation: "0299c661b9032754db2812d7fe7d50d693e56fc4799d0b87a328e3e4e47640adbf".bytes, format: .compressed)
         print(k.stringRepresentation)
         print("original key: \(k.stringRepresentation), negated: \(Crypto.negatePublicKey(key: k).stringRepresentation)")
-        
-        
     }
 }
