@@ -203,6 +203,9 @@ final class cashu_swiftTests: XCTestCase {
      32:    aa355eb85a63e80926f9d808ab1419db5a3682361749e8e754a8c488e22e9ada
      */
     
+    // proofs to be tested with swap
+    var proofs = [Proof]()
+    
     func testMinting() async throws {
         
         let mintURL = URL(string: "https://testmint.macadamia.cash")!
@@ -233,7 +236,7 @@ final class cashu_swiftTests: XCTestCase {
                                                 quoteRequest: Bolt11.RequestMintQuote(unit: "sat",
                                                                                       amount: amount))
         
-        let proofs = try await Cashu.V1.issue(mint: mint, for: quote)
+        proofs = try await Cashu.V1.issue(mint: mint, for: quote)
         
         let token = Token(token: [ProofContainer(mint: mint.url.absoluteString, proofs: proofs)])
         token.version = .V3
@@ -244,9 +247,10 @@ final class cashu_swiftTests: XCTestCase {
     }
     
     func testUnblind() throws {
-        let C_ = try Crypto.PublicKey(dataRepresentation: "026ec253e4a3f43b44f33b78823e0a6a515bbe3cf3e99eda93c584eb858235576a".bytes, format: .compressed)
-        let r = try Crypto.PrivateKey(dataRepresentation: "ab8b2ff87672e4918cc431b02c057c260ef7935396026c6e3fd21dacef6dae2a".bytes)
-        let A = "02c8092ec2daa7eb3bf6dd3efc4e87bb5c2755c014c8fc9dc4d023938df16f5ca3"
+        let C_ = try Crypto.PublicKey(dataRepresentation: "031c14eed30e32a060030bc9784ed34db7de91ce188ea0cce6f48a84b47ddbd875".bytes, format: .compressed)
+        let r = try Crypto.PrivateKey(dataRepresentation: "c551bd0a48e3a069d8a02dc8b1783923da0d9af015f575c0a521237e10316580".bytes)
+        // we only test for the amount 1 and the corresponding mint public key
+        let A = "02221e05e446782ba13bb41a8b74ac344a4829cf8417d8e7d32c0152a64755bfae"
         let keyset = Keyset(id: "", keys: ["1":A])
         
         let proofs = try Crypto.unblindPromises(promises: [Promise(id: "", amount: 1, C_: C_.stringRepresentation)],
@@ -254,7 +258,7 @@ final class cashu_swiftTests: XCTestCase {
                                             secrets: [""],
                                             keyset: keyset)
         
-        //TODO: NEEDS REFERENCE VECTOR FOR COMPARISON
+        XCTAssertEqual(proofs[0].C, "0218b90f0de65ae3447624fc8895c31302e61cef56dbca927717cb501cf591ce32")
     }
     
     func testNegateKey() throws {
