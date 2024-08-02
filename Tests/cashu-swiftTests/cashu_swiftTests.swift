@@ -19,11 +19,11 @@ final class cashu_swiftTests: XCTestCase {
         let proofContainer = ProofContainer(mint: "https://8333.space:8333",
                                             proofs: [proof1, proof2])
         
-        let token = Token(token: [proofContainer], memo: "Thank you.", version: .V3, unit: "sat")
+        let token = Token(token: [proofContainer], memo: "Thank you.", unit: "sat")
         
         print(token.prettyJSON())
         
-        let testToken = try token.serialize()
+        let testToken = try token.serialize(.V3)
         
         XCTAssertEqual(token, try testToken.deserializeToken())
     }
@@ -85,26 +85,12 @@ final class cashu_swiftTests: XCTestCase {
     func testMintCheckReachable() async throws {
         let mintUrl = URL(string: "https://mint.macadamia.cash")!
         
-        let mintInfo = try await Network.get(url: mintUrl.appending(path: "/v1/info"), expected: MintInfo.self)
-        
-        let keysetList = try await Network.get(url: mintUrl.appending(path: "/v1/keys"), expected: KeysetList.self)
-        let keysetStateList = try await Network.get(url: mintUrl.appending(path: "/v1/keysets"), expected: KeysetList.self)
-        
-        let combined = keysetList.keysets.map { keyset in
-            var updated = keyset
-            updated.active = keysetStateList.keysets.first(where: { $0.id == keyset.id })!.active
-            return updated
-        }
-        
-        let mint = Mint(url: mintUrl,
-                        allKeysets: combined,
-                        info: mintInfo,
-                        nickname: "Macadamia Mint")
+        let mint = try await Mint(with: mintUrl)
         
         let reachable = await mint.isReachable()
         
         // check that the mint's keysets contain at least one active one (required)
-        let oneKeysetActive = combined.contains { $0.active == true }
+        let oneKeysetActive = mint.keysets.contains { $0.active == true }
         
         XCTAssert(reachable)
         XCTAssert(oneKeysetActive)
@@ -208,27 +194,9 @@ final class cashu_swiftTests: XCTestCase {
     
     func testMinting() async throws {
         
-        let mintURL = URL(string: "https://testmint.macadamia.cash")!
+        let mintURL = URL(string: "http://localhost:3338")!
         
-        let mintInfo = try await Network.get(url: mintURL.appending(path: "/v1/info"), expected: MintInfo.self)
-        
-        let keysetList = try await Network.get(url: mintURL.appending(path: "/v1/keys"), expected: KeysetList.self)
-        let keysetStateList = try await Network.get(url: mintURL.appending(path: "/v1/keysets"), expected: KeysetList.self)
-        
-        let combined = keysetList.keysets.map { keyset in
-            var updated = keyset
-            updated.active = keysetStateList.keysets.first(where: { $0.id == keyset.id })!.active
-            return updated
-        }
-        
-        let mint = Mint(url: mintURL,
-                        allKeysets: combined,
-                        info: mintInfo,
-                        nickname: "mint")
-        
-        let reachable = await mint.isReachable()
-        
-        assert(reachable)
+        let mint = try await Mint(with: mintURL)
         
         let amount = 1
         
@@ -239,10 +207,10 @@ final class cashu_swiftTests: XCTestCase {
         proofs = try await Cashu.V1.issue(mint: mint, for: quote)
         
         let token = Token(token: [ProofContainer(mint: mint.url.absoluteString, proofs: proofs)])
-        token.version = .V3
+        
         token.unit = "sat"
         
-        print(try token.serialize())
+        print(try token.serialize(.V3))
         print("keyset derivation counter: \(mint.keysets.map({$0.derivationCounter}))")
     }
     
@@ -251,7 +219,7 @@ final class cashu_swiftTests: XCTestCase {
         let r = try Crypto.PrivateKey(dataRepresentation: "c551bd0a48e3a069d8a02dc8b1783923da0d9af015f575c0a521237e10316580".bytes)
         // we only test for the amount 1 and the corresponding mint public key
         let A = "02221e05e446782ba13bb41a8b74ac344a4829cf8417d8e7d32c0152a64755bfae"
-        let keyset = Keyset(id: "", keys: ["1":A])
+        let keyset = Keyset(id: "", keys: ["1":A], inputFeePPK: 0)
         
         let proofs = try Crypto.unblindPromises(promises: [Promise(id: "", amount: 1, C_: C_.stringRepresentation)],
                                             blindingFactors: [r.stringRepresentation],

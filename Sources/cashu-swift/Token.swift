@@ -18,7 +18,6 @@ enum CashuError:Error {
 enum TokenVersion:Codable {
     case V3
     case V4
-    case unknown
 }
 
 class Token:Codable, Equatable {
@@ -29,15 +28,12 @@ class Token:Codable, Equatable {
     let token:[ProofContainer]
     let memo:String?
     var unit:String?
-    var version:TokenVersion
     
     init(token: [ProofContainer], 
          memo: String? = nil,
-         version:TokenVersion = .unknown, //TODO: this is wonky and should be refactored
          unit:String? = nil) {
         self.token = token
         self.memo = memo
-        self.version = version
         self.unit = unit
     }
     
@@ -47,31 +43,11 @@ class Token:Codable, Equatable {
         case unit
     }
     
-    func encode(to encoder: any Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(self.token, forKey: .token)
-        try container.encodeIfPresent(self.memo, forKey: .memo)
-        try container.encodeIfPresent(self.unit, forKey: .unit)
-    }
-    
-    required init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        // Decode each property
-        token = try container.decode([ProofContainer].self, forKey: .token)
-        memo = try container.decodeIfPresent(String.self, forKey: .memo)
-        unit = try container.decodeIfPresent(String.self, forKey: .unit)
-
-        // Assume `version` is not part of the JSON and is set internally or via some logic
-        version = .unknown  // Adjust according to your needs
-    }
-    
-    func serialize() throws -> String {
-        switch self.version {
+    func serialize(_ toVersion:TokenVersion = .V4) throws -> String {
+        switch toVersion {
         case .V3:
             try encodeV3(token: self)
         case .V4:
-            fatalError()
-        case .unknown:
             fatalError()
         }
     }

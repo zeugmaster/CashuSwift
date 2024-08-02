@@ -76,7 +76,8 @@ public enum Cashu {
             
             let mintRequest = Bolt11.MintRequest(quote: quote.quote, outputs: outputs.outputs)
             
-            //TODO: PARSE COMMON ERRORS
+            // TODO: PARSE COMMON ERRORS
+            // TODO: CHECK FOR DUPLICATE OUTPUT ERROR, RETRY ACC TO `duplicateRetry`
             let promises = try await Network.post(url: mint.url.appending(path: "/v1/mint/bolt11"),
                                                   body: mintRequest,
                                                   expected: Bolt11.MintResponse.self)
@@ -102,6 +103,21 @@ public enum Cashu {
         static func melt(mint:Mint, quote:Quote, proofs:[Proof]) async throws -> [Proof] {
             fatalError()
         }
+        
+        func restore() async throws -> [Proof] {
+            fatalError()
+        }
     }
 }
 
+extension Mint {
+    enum V1 {
+        func swap(inputs:[Proof], amount:Int, preferredReturnDistribution:[Int]? = nil) async throws -> (new:[Proof], change:[Proof]) {
+            fatalError()
+        }
+        
+        func calculateFees(unit:String) throws -> Int {
+            fatalError()
+        }
+    }
+}

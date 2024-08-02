@@ -12,47 +12,79 @@ struct KeysetList: Codable {
     let keysets:[Keyset]
 }
 
+#warning("Make sure derivation counter is not being reset when updating keyset info from mint.")
+
 struct Keyset: Codable {
     let id: String
-    let keys: Dictionary<String, String>
+    var keys: Dictionary<String, String>
     var derivationCounter:Int
     var active:Bool
     let unit:String
+    let inputFeePPK:Int
     
     enum CodingKeys: String, CodingKey {
-            case id, keys, derivationCounter, active, unit
-        }
+        case id, keys, derivationCounter, active, unit
+        case inputFeePPK = "input_fee_ppk"
+    }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
         unit = try container.decode(String.self, forKey: .unit)
         
-        // This hacky solution allows us to use the Keyset object when decoded from `/v1/keys` and `/v1/keysets`
-        // without having to work with optionals
-        derivationCounter = try container.decodeIfPresent(Int.self, forKey: .derivationCounter) ?? 0
-        active = try container.decodeIfPresent(Bool.self, forKey: .active) ?? false
-        keys = try container.decodeIfPresent(Dictionary<String, String>.self, forKey: .keys) ?? ["none":"none"]
+        derivationCounter = try container.decodeIfPresent(Int.self, 
+                                                          forKey: .derivationCounter) ?? 0
+        active = try container.decodeIfPresent(Bool.self,
+                                               forKey: .active) ?? false
+        keys = try container.decodeIfPresent(Dictionary<String, String>.self,
+                                             forKey: .keys) ?? ["none":"none"]
+        inputFeePPK = try container.decodeIfPresent(Int.self, 
+                                                    forKey: .inputFeePPK) ?? 0
     }
     
-    init(id:String, keys:Dictionary<String,String>, derivationCounter:Int = 0, active:Bool = true, unit:String = "sat") {
+    init(id:String, 
+         keys:Dictionary<String,String>,
+         derivationCounter:Int = 0,
+         active:Bool = true,
+         unit:String = "sat",
+         inputFeePPK:Int) {
         self.id = id
         self.keys = keys
         self.derivationCounter = derivationCounter
         self.active = active
         self.unit = unit
+        self.inputFeePPK = inputFeePPK
     }
 }
 
-class Mint: Identifiable, Hashable {
+class Mint: Identifiable, Hashable, Codable {
     
     let url: URL
     var keysets: [Keyset]
-    var info:MintInfo
+    var info:MintInfo?
     var nickname:String?
     
     static func == (lhs: Mint, rhs: Mint) -> Bool {
         lhs.url == rhs.url
+    }
+    
+    init(with url:URL) async throws {
+        self.url = url
+        
+        // load keysets or fail with error propagating up
+        let keysetList = try await Network.get(url: url.appending(path: "/v1/keysets"),
+                                               expected: KeysetList.self)
+        var keysetsWithKeys = [Keyset]()
+        for keyset in keysetList.keysets {
+            var new = keyset
+            new.keys = try await Network.get(url: url.appending(path: "/v1/keys/\(keyset.id.makeURLSafe())"),
+                                                expected: KeysetList.self).keysets[0].keys
+            keysetsWithKeys.append(new)
+        }
+        
+        // TODO: load mint info
+        
+        self.keysets = keysetsWithKeys
     }
     
     func hash(into hasher: inout Hasher) {
@@ -60,13 +92,6 @@ class Mint: Identifiable, Hashable {
             // If needed, combine more properties:
             // hasher.combine(name)
         }
-    
-    init(url: URL, allKeysets: [Keyset], info: MintInfo, nickname:String? = nil) {
-        self.url = url
-        self.keysets = allKeysets
-        self.info = info
-        self.nickname = nickname
-    }
     
     static func calculateKeysetID(keyset:Dictionary<String,String>) -> String {
         let sortedValues = keyset.sorted { (firstElement, secondElement) -> Bool in
