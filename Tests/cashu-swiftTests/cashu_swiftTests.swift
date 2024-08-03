@@ -190,7 +190,6 @@ final class cashu_swiftTests: XCTestCase {
      */
     
     // proofs to be tested with swap
-    var proofs = [Proof]()
     
     func testMinting() async throws {
         
@@ -198,20 +197,47 @@ final class cashu_swiftTests: XCTestCase {
         
         let mint = try await Mint(with: mintURL)
         
-        let amount = 1
+        let amount = 22
         
-        let quote = try await Cashu.V1.getQuote(mint: mint,
-                                                quoteRequest: Bolt11.RequestMintQuote(unit: "sat",
+        let quote = try await mint.getQuote(quoteRequest: Bolt11.RequestMintQuote(unit: "sat",
                                                                                       amount: amount))
         
-        proofs = try await Cashu.V1.issue(mint: mint, for: quote)
+        let proofs = try await mint.issue(for: quote)
         
         let token = Token(token: [ProofContainer(mint: mint.url.absoluteString, proofs: proofs)])
         
         token.unit = "sat"
         
         print(try token.serialize(.V3))
-        print("keyset derivation counter: \(mint.keysets.map({$0.derivationCounter}))")
+        
+        _ = try await mint.swap(proofs: proofs, amount: 5)
+    }
+    
+    // TODO: only works with persistent derivation counter or manual incrementing
+    func testMintingWithDetSec() async throws {
+        let mintURL = URL(string: "http://localhost:3338")!
+        
+        let mint = try await Mint(with: mintURL)
+        
+        let amount = 31
+        
+        let quote = try await mint.getQuote(quoteRequest: Bolt11.RequestMintQuote(unit: "sat",
+                                                                                  amount: amount))
+        
+        let mnemmonic = Mnemonic()
+        let seed = String(bytes: mnemmonic.seed)
+        
+        var proofs = try await mint.issue(for: quote, seed: seed)
+        
+        let token = Token(token: [ProofContainer(mint: mint.url.absoluteString, proofs: proofs)])
+        
+        token.unit = "sat"
+        
+        // triple swap to make sure detsec counter increments correctly
+        for _ in 0...3 {
+            (proofs, _) = try await mint.swap(proofs: proofs)
+        }
+        print(proofs)
     }
     
     func testUnblind() throws {
@@ -221,7 +247,7 @@ final class cashu_swiftTests: XCTestCase {
         let A = "02221e05e446782ba13bb41a8b74ac344a4829cf8417d8e7d32c0152a64755bfae"
         let keyset = Keyset(id: "", keys: ["1":A], inputFeePPK: 0)
         
-        let proofs = try Crypto.unblindPromises(promises: [Promise(id: "", amount: 1, C_: C_.stringRepresentation)],
+        let proofs = try Crypto.unblindPromises([Promise(id: "", amount: 1, C_: C_.stringRepresentation)],
                                             blindingFactors: [r.stringRepresentation],
                                             secrets: [""],
                                             keyset: keyset)

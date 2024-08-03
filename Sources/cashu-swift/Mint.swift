@@ -55,6 +55,43 @@ struct Keyset: Codable {
         self.unit = unit
         self.inputFeePPK = inputFeePPK
     }
+    
+    static func calculateKeysetID(keyset:Dictionary<String,String>) -> String {
+        let sortedValues = keyset.sorted { (firstElement, secondElement) -> Bool in
+            guard let firstKey = UInt(firstElement.key),
+                  let secondKey = UInt(secondElement.key) else {
+                return false
+            }
+            return firstKey < secondKey
+        }.map { $0.value }
+        
+        let concat = sortedValues.joined()
+        let hashData = Data(SHA256.hash(data: concat.data(using: .utf8)!))
+        
+        let id = String(hashData.base64EncodedString().prefix(12))
+        
+        return id
+    }
+    
+    static func calculateHexKeysetID(keyset:Dictionary<String,String>) -> String {
+        let sortedValues = keyset.sorted { (firstElement, secondElement) -> Bool in
+            guard let firstKey = UInt(firstElement.key),
+                  let secondKey = UInt(secondElement.key) else {
+                return false
+            }
+            return firstKey < secondKey
+        }.map { $0.value }
+        
+        var concatData = [UInt8]()
+        for stringKey in sortedValues {
+            try! concatData.append(contentsOf: stringKey.bytes)
+        }
+        
+        let hashData = Data(SHA256.hash(data: concatData))
+        let result = String(bytes: hashData).prefix(14)
+        
+        return "00" + result
+    }
 }
 
 class Mint: Identifiable, Hashable, Codable {
@@ -92,43 +129,6 @@ class Mint: Identifiable, Hashable, Codable {
             // If needed, combine more properties:
             // hasher.combine(name)
         }
-    
-    static func calculateKeysetID(keyset:Dictionary<String,String>) -> String {
-        let sortedValues = keyset.sorted { (firstElement, secondElement) -> Bool in
-            guard let firstKey = UInt(firstElement.key), 
-                  let secondKey = UInt(secondElement.key) else {
-                return false
-            }
-            return firstKey < secondKey
-        }.map { $0.value }
-        
-        let concat = sortedValues.joined()
-        let hashData = Data(SHA256.hash(data: concat.data(using: .utf8)!))
-        
-        let id = String(hashData.base64EncodedString().prefix(12))
-        
-        return id
-    }
-    
-    static func calculateHexKeysetID(keyset:Dictionary<String,String>) -> String {
-        let sortedValues = keyset.sorted { (firstElement, secondElement) -> Bool in
-            guard let firstKey = UInt(firstElement.key), 
-                  let secondKey = UInt(secondElement.key) else {
-                return false
-            }
-            return firstKey < secondKey
-        }.map { $0.value }
-        
-        var concatData = [UInt8]()
-        for stringKey in sortedValues {
-            try! concatData.append(contentsOf: stringKey.bytes)
-        }
-        
-        let hashData = Data(SHA256.hash(data: concatData))
-        let result = String(bytes: hashData).prefix(14)
-        
-        return "00" + result
-    }
     
     ///Pings the mint for it's info to check wether it is online or not
     func isReachable() async -> Bool {

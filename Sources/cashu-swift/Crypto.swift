@@ -113,7 +113,7 @@ enum Crypto {
     
     //MARK: - UNBLINDING
     
-    static func unblindPromises(promises:[Promise],
+    static func unblindPromises(_ promises:[Promise],
                          blindingFactors:[String],
                          secrets:[String],
                          keyset:Keyset) throws -> [Proof] {
