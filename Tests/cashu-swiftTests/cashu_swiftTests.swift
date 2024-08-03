@@ -240,6 +240,15 @@ final class cashu_swiftTests: XCTestCase {
         print(proofs)
     }
     
+    func testFeeCalculation() async throws {
+        let mint = try await Mint(with: URL(string: "http://localhost:3339")!)
+        let quoteRequest = Bolt11.RequestMintQuote(unit: "sat", amount: 7)
+        let quote = try await mint.getQuote(quoteRequest: quoteRequest)
+        let proofs = try await mint.issue(for: quote)
+        let fees = try mint.calculateFee(for: proofs)
+        print("Number of inputs \(proofs.count), fees: \(fees)")
+    }
+    
     func testUnblind() throws {
         let C_ = try Crypto.PublicKey(dataRepresentation: "031c14eed30e32a060030bc9784ed34db7de91ce188ea0cce6f48a84b47ddbd875".bytes, format: .compressed)
         let r = try Crypto.PrivateKey(dataRepresentation: "c551bd0a48e3a069d8a02dc8b1783923da0d9af015f575c0a521237e10316580".bytes)

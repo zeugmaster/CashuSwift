@@ -199,15 +199,11 @@ extension Mint {
     
     // MARK: - RESTORE
     
-    func restore(with seed:String) async throws -> [Proof] {
+    func restore(with seed:String, batchSize:Int = 10) async throws -> [Proof] {
         fatalError()
     }
     
     // MARK: - MISC
-    
-    func calculateFees(unit:String) throws -> Int {
-        fatalError()
-    }
     
     func activeKeysetForUnit(_ unit:String) -> Keyset? {
         self.keysets.first(where: {
@@ -222,7 +218,7 @@ public enum Cashu {
 }
 
 extension Array where Element == Mint {
-    func restore(with seed:String) async throws -> [Proof] {
+    func restore(with seed:String, batchSize:Int = 10) async throws -> [Proof] {
         // call mint.restore on each of the mints
         fatalError()
     }
