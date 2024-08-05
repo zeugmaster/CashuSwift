@@ -57,7 +57,6 @@ class Mint: Identifiable, Hashable, Codable {
     
     func calculateFee(for proofs:[Proof]) throws -> Int {
         var sumFees = 0
-        // FIXME: UNSAFE UNWRAPPING
         for proof in proofs {
             if let feeRate = self.keysets.first(where: { $0.id == proof.id })?.inputFeePPK {
                 sumFees += feeRate

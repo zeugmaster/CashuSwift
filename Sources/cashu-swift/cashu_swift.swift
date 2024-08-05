@@ -119,13 +119,14 @@ extension Mint {
               seed:String? = nil,
               preferredReturnDistribution:[Int]? = nil) async throws -> (new:[Proof],
                                                                          change:[Proof]) {
+        let fee = try calculateFee(for: proofs)
         let proofSum = proofs.reduce(0) { $0 + $1.amount }
-        let amount = amount ?? proofSum
+        let amount = amount ?? (proofSum-fee)
         
-        // case input < amount -> error
+        let amountAfterFee = amount + fee
         
-        guard proofSum >= amount else {
-            fatalError()
+        guard proofSum >= amountAfterFee else {
+            fatalError("target swap amount is larger than sum of proof amounts")
         }
         
         // the number of units from potentially mutliple keysets across input proofs must be 1:
@@ -133,12 +134,11 @@ extension Mint {
         // more than one would imply multiple unit input proofs, which is not supported
         var units:Set<String> = []
         for proof in proofs {
-            // check that proof keysets are present on this mint, REDUNDANT?
-            guard self.keysets.contains(where: {$0.id == proof.id}) else {
-                fatalError("proofs form keysets that do not belong to this mint")
-            }
             if let keysetForID = self.keysets.first(where: { $0.id == proof.id }) {
                 units.insert(keysetForID.unit)
+            } else {
+                // found a proof that belongs to a keyset not from this mint
+                fatalError("proofs from keysets that do not belong to this mint")
             }
         }
         
@@ -153,8 +153,8 @@ extension Mint {
         // TODO: implement true output selection
         // TODO: INCLUDE FEE CALCULATION
         
-        let swapDistribution = Cashu.splitIntoBase2Numbers(amount)
-        let changeDistribution = Cashu.splitIntoBase2Numbers(proofSum - amount)
+        let swapDistribution = Cashu.splitIntoBase2Numbers(proofSum - fee)
+        let changeDistribution = Cashu.splitIntoBase2Numbers(proofSum - amountAfterFee)
         
         let combinedDistribution = (swapDistribution + changeDistribution).sorted()
         

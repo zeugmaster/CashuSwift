@@ -177,20 +177,7 @@ final class cashu_swiftTests: XCTestCase {
         XCTAssertEqual(Set(output.blindingFactors), blindingFactors)
     }
     
-    
-    /*
-     testmint private keys
      
-     1:     ab0008c5492a498eaf7cc5b13e3bdbca63bdefdde66c96bf3cf42b464bb2d35e
-     2:     b06a292cff5991f6c8626e5c51cf92d478f76db9b2ad3ebba75f6159a547d6dc
-     4:     27cba57886176546e45c160162ef6d583ea7a1f242e48a59e25d7053dd0aa7b6
-     8:     822ac56f939e58f2295c77453cb46530265bdb351b02597fb0994669a07782fa
-     16:    e4ea226bfeaef183fa2d0861669dd48c7d5a8208efacf06c24f84708929ce999
-     32:    aa355eb85a63e80926f9d808ab1419db5a3682361749e8e754a8c488e22e9ada
-     */
-    
-    // proofs to be tested with swap
-    
     func testMinting() async throws {
         
         let mintURL = URL(string: "http://localhost:3338")!
@@ -213,7 +200,6 @@ final class cashu_swiftTests: XCTestCase {
         _ = try await mint.swap(proofs: proofs, amount: 5)
     }
     
-    // TODO: only works with persistent derivation counter or manual incrementing
     func testMintingWithDetSec() async throws {
         let mintURL = URL(string: "http://localhost:3338")!
         
@@ -242,11 +228,15 @@ final class cashu_swiftTests: XCTestCase {
     
     func testFeeCalculation() async throws {
         let mint = try await Mint(with: URL(string: "http://localhost:3339")!)
-        let quoteRequest = Bolt11.RequestMintQuote(unit: "sat", amount: 7)
+        let quoteRequest = Bolt11.RequestMintQuote(unit: "sat", amount: 511)
         let quote = try await mint.getQuote(quoteRequest: quoteRequest)
         let proofs = try await mint.issue(for: quote)
         let fees = try mint.calculateFee(for: proofs)
         print("Number of inputs \(proofs.count), fees: \(fees)")
+        
+        let swapped = try await mint.swap(proofs: proofs)
+        let swappedNewSum = swapped.new.reduce(0) { $0 + $1.amount }
+        print("Number of outputs \(swapped.new.count), sum: \(swappedNewSum)")
     }
     
     func testUnblind() throws {
