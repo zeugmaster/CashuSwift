@@ -123,7 +123,9 @@ extension Mint {
         let proofSum = proofs.reduce(0) { $0 + $1.amount }
         let amount = amount ?? (proofSum-fee)
         
-        let amountAfterFee = amount + fee
+        let amountAfterFee = amount - fee
+        
+        print("fee: \(fee), \nproofSum:\(proofSum), \namounr:\(amount), \namountAfterFee:\(amountAfterFee)")
         
         guard proofSum >= amountAfterFee else {
             fatalError("target swap amount is larger than sum of proof amounts")
@@ -153,8 +155,8 @@ extension Mint {
         // TODO: implement true output selection
         // TODO: INCLUDE FEE CALCULATION
         
-        let swapDistribution = Cashu.splitIntoBase2Numbers(proofSum - fee)
-        let changeDistribution = Cashu.splitIntoBase2Numbers(proofSum - amountAfterFee)
+        let swapDistribution = Cashu.splitIntoBase2Numbers(amountAfterFee)
+        let changeDistribution = Cashu.splitIntoBase2Numbers(proofSum - amount)
         
         let combinedDistribution = (swapDistribution + changeDistribution).sorted()
         

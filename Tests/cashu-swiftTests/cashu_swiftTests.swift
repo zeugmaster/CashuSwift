@@ -177,18 +177,16 @@ final class cashu_swiftTests: XCTestCase {
         XCTAssertEqual(Set(output.blindingFactors), blindingFactors)
     }
     
-     
     func testMinting() async throws {
         
         let mintURL = URL(string: "http://localhost:3338")!
         
         let mint = try await Mint(with: mintURL)
         
-        let amount = 22
+        let amount = 511
         
         let quote = try await mint.getQuote(quoteRequest: Bolt11.RequestMintQuote(unit: "sat",
                                                                                       amount: amount))
-        
         let proofs = try await mint.issue(for: quote)
         
         let token = Token(token: [ProofContainer(mint: mint.url.absoluteString, proofs: proofs)])
@@ -197,7 +195,7 @@ final class cashu_swiftTests: XCTestCase {
         
         print(try token.serialize(.V3))
         
-        _ = try await mint.swap(proofs: proofs, amount: 5)
+        _ = try await mint.swap(proofs: proofs, amount: 400)
     }
     
     func testMintingWithDetSec() async throws {
@@ -234,7 +232,7 @@ final class cashu_swiftTests: XCTestCase {
         let fees = try mint.calculateFee(for: proofs)
         print("Number of inputs \(proofs.count), fees: \(fees)")
         
-        let swapped = try await mint.swap(proofs: proofs)
+        let swapped = try await mint.swap(proofs: proofs, amount: 400)
         let swappedNewSum = swapped.new.reduce(0) { $0 + $1.amount }
         print("Number of outputs \(swapped.new.count), sum: \(swappedNewSum)")
     }
