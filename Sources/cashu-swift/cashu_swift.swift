@@ -36,7 +36,7 @@ extension Mint {
     /// Leaving `seed` empty will give you proofs from non-deterministic outputs which cannot be recreated from a seed phrase backup
     func issue(for quote:Quote,
                seed:String? = nil,
-               duplicateRetry:Int = 0,
+               skipDuplicateOutputs:Int = 0,
                preferredDistribution:[Int]? = nil) async throws -> [Proof] {
         
         guard let quote = quote as? Bolt11.MintQuote else {
@@ -79,7 +79,7 @@ extension Mint {
         let mintRequest = Bolt11.MintRequest(quote: quote.quote, outputs: outputs.outputs)
         
         // TODO: PARSE COMMON ERRORS
-        // TODO: CHECK FOR DUPLICATE OUTPUT ERROR, RETRY ACC TO `duplicateRetry`
+        // TODO: CHECK FOR DUPLICATE OUTPUT ERROR, RETRY ACC TO `skipDuplicateOutputs`
         let promises = try await Network.post(url: self.url.appending(path: "/v1/mint/bolt11"),
                                               body: mintRequest,
                                               expected: Bolt11.MintResponse.self)
@@ -153,10 +153,18 @@ extension Mint {
         }
         
         // TODO: implement true output selection
-        // TODO: INCLUDE FEE CALCULATION
         
         let swapDistribution = Cashu.splitIntoBase2Numbers(amountAfterFee)
-        let changeDistribution = Cashu.splitIntoBase2Numbers(proofSum - amount)
+        let changeDistribution:[Int]
+        
+        if preferredReturnDistribution == nil {
+            changeDistribution = Cashu.splitIntoBase2Numbers(proofSum - amount)
+        } else {
+            guard preferredReturnDistribution!.reduce(0, +) == (proofSum - amount) else {
+                fatalError("preferredReturnDistribution does not add up to expected change amount")
+            }
+            changeDistribution = preferredReturnDistribution!
+        }
         
         let combinedDistribution = (swapDistribution + changeDistribution).sorted()
         

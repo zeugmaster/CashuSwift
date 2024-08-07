@@ -193,9 +193,10 @@ final class cashu_swiftTests: XCTestCase {
         
         token.unit = "sat"
         
-        print(try token.serialize(.V3))
+//        print(try token.serialize(.V3))
         
-        _ = try await mint.swap(proofs: proofs, amount: 400)
+        let (new, change) = try await mint.swap(proofs: proofs, amount: 500)
+        
     }
     
     func testMintingWithDetSec() async throws {
@@ -231,10 +232,10 @@ final class cashu_swiftTests: XCTestCase {
         let proofs = try await mint.issue(for: quote)
         let fees = try mint.calculateFee(for: proofs)
         print("Number of inputs \(proofs.count), fees: \(fees)")
-        
-        let swapped = try await mint.swap(proofs: proofs, amount: 400)
+        let swapped = try await mint.swap(proofs: proofs, amount: 400, preferredReturnDistribution: Array(repeating: 1, count: 10))
         let swappedNewSum = swapped.new.reduce(0) { $0 + $1.amount }
-        print("Number of outputs \(swapped.new.count), sum: \(swappedNewSum)")
+        let swappedChangeSum = swapped.change.reduce(0) { $0 + $1.amount }
+        print("Number of outputs \(swapped.new.count),  new sum: \(swappedNewSum), change sum:\(swappedChangeSum)")
     }
     
     func testUnblind() throws {

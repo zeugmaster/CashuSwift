@@ -14,6 +14,12 @@ fileprivate let logger = Logger(subsystem: "cashu-swift", category: "cryptograph
 
 enum Crypto {
     
+    enum Error: Swift.Error {
+        case secretDerivation(String?)
+        case unblinding(String?)
+        case hashToCurve(String?)
+    }
+    
     typealias PrivateKey = secp256k1.Signing.PrivateKey
     typealias PublicKey = secp256k1.Signing.PublicKey
     
@@ -70,7 +76,6 @@ enum Crypto {
         
         logger.debug("Created random Output, blindingFactor and secret")
         
-        print("generating output: \(B_.stringRepresentation), r: \(r.stringRepresentation), x: \(x.stringRepresentation)")
         return (B_, r, xString)
     }
     
@@ -79,7 +84,6 @@ enum Crypto {
                                              index:Int) throws -> (output:PublicKey,
                                                                    blindingFactor: PrivateKey,
                                                                    secret:String) {
-        
         
         let keysetInt:Int
         if keysetID.count == 16 {
@@ -165,7 +169,7 @@ enum Crypto {
         }
         
         // If no valid point is found, throw an error
-        throw NSError(domain: "No valid point found", code: -1, userInfo: nil)
+        throw Error.hashToCurve("No point on the secp256k1 curve could be found.")
     }
     
     //MARK: - HELPER
@@ -212,8 +216,8 @@ enum Crypto {
             if let i = Int(part) {
                  index += i
             } else {
-                print("could not read index from string")
-                throw NSError(domain: "cashu crypto error", code: 1)
+                logger.error("Secret derivation: Unable to calculate child private key from derivation path string.")
+                throw Error.secretDerivation("Unable to calculate child private key from derivation path string.")
             }
             //derive child for current key and set current = new
             let new = try! PrivateChildKeyDerivator().privateKey(privateParentKey: current, index: UInt32(index))
