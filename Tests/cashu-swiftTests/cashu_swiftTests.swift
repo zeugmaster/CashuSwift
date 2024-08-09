@@ -1,5 +1,5 @@
 import XCTest
-@testable import cashu_swift
+@testable import CashuSwift
 import secp256k1
 import BIP39
 
@@ -244,7 +244,7 @@ final class cashu_swiftTests: XCTestCase {
         let proofs = try await mint.issue(for: quote)
         let fees = try mint.calculateFee(for: proofs)
         print("Number of inputs \(proofs.count), fees: \(fees)")
-        let swapped = try await mint.swap(proofs: proofs, amount: 400, preferredReturnDistribution: Array(repeating: 1, count: 10))
+        let swapped = try await mint.swap(proofs: proofs, amount: 400, preferredReturnDistribution: Array(repeating: 1, count: 111))
         let swappedNewSum = swapped.new.reduce(0) { $0 + $1.amount }
         let swappedChangeSum = swapped.change.reduce(0) { $0 + $1.amount }
         print("Number of outputs \(swapped.new.count),  new sum: \(swappedNewSum), change sum:\(swappedChangeSum)")
