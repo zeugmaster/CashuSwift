@@ -7,14 +7,15 @@
 
 import Foundation
 
-class Mint: Identifiable, Hashable, Codable {
+/// This is the mint object 
+public class Mint: Identifiable, Hashable, Codable {
     
     let url: URL
     var keysets: [Keyset]
     var info:MintInfo?
     var nickname:String?
     
-    static func == (lhs: Mint, rhs: Mint) -> Bool {
+    public static func == (lhs: Mint, rhs: Mint) -> Bool {
         lhs.url == rhs.url
     }
     
@@ -37,7 +38,7 @@ class Mint: Identifiable, Hashable, Codable {
         self.keysets = keysetsWithKeys
     }
     
-    func hash(into hasher: inout Hasher) {
+    public func hash(into hasher: inout Hasher) {
             hasher.combine(url) // Combine all properties that contribute to the object's uniqueness
             // If needed, combine more properties:
             // hasher.combine(name)

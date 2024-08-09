@@ -17,14 +17,14 @@ class Proof: Codable, Equatable, CustomStringConvertible {
     
     let id: String
     let amount: Int
-    let secret: String?
+    let secret: String
     let C: String
     
     var description: String {
         return "C: ...\(C.suffix(6)), amount: \(amount)"
     }
     
-    init(id: String, amount: Int, secret: String? = nil, C: String) {
+    init(id: String, amount: Int, secret: String, C: String) {
         self.id = id
         self.amount = amount
         self.secret = secret

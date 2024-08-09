@@ -32,7 +32,8 @@ extension Mint {
     
     // MARK: - ISSUE
     
-    /// After paying the quote amount to the mint, use this function to issue the actual ecash as a list of `Proof`s \n
+    ///# Lekker
+    /// After paying the quote amount to the mint, use this function to issue the actual ecash as a list of [`String`]s
     /// Leaving `seed` empty will give you proofs from non-deterministic outputs which cannot be recreated from a seed phrase backup
     func issue(for quote:Quote,
                seed:String? = nil,
@@ -96,19 +97,52 @@ extension Mint {
     
     // MARK: - SEND
     
-    func send(amount:Int, proofs:[Proof], seed:String? = nil) async throws -> (token:Token, change:[Proof]) {
-        fatalError()
+    func send(proofs:[Proof], 
+              amount:Int? = nil,
+              seed:String? = nil,
+              memo:String? = nil) async throws -> (token:Token,
+                                                   change:[Proof]) {
+        
+        let amount = amount ?? proofs.sum
+        
+        guard amount <= proofs.sum else {
+            fatalError("amount must not be larger than input proofs")
+        }
+        
+        let sendProofs:[Proof]
+        let changeProofs:[Proof]
+        
+        if let selection = proofs.select(amount: amount) {
+            sendProofs = selection.selected
+            changeProofs = selection.rest
+        } else {
+            let swapped = try await swap(proofs: proofs, amount: amount)
+            sendProofs = swapped.new
+            changeProofs = swapped.change
+        }
+        
+        let units = try units(for: sendProofs)
+        guard units.count == 1 else {
+            fatalError("units needs to contain exactly ONE entry, more means multi unit, less means none found - no bueno")
+        }
+        
+        let proofContainer = ProofContainer(mint: self.url.absoluteString, proofs: sendProofs)
+        let token = Token(token: [proofContainer], memo: memo, unit: units.first)
+        
+        return (token, changeProofs)
     }
     
     // MARK: - RECEIVE
     
-    func receive(token:Token, seed:String? = nil) async throws -> [Proof] {
+    func receive(token:Token, 
+                 seed:String? = nil) async throws -> [Proof] {
         fatalError()
     }
     
     // MARK: - MELT
     
-    func melt(quote:Quote, proofs:[Proof]) async throws -> [Proof] {
+    func melt(quote:Quote, 
+              proofs:[Proof]) async throws -> [Proof] {
         fatalError()
     }
     
@@ -134,15 +168,8 @@ extension Mint {
         // the number of units from potentially mutliple keysets across input proofs must be 1:
         // less than 1 would mean no matching keyset/unit
         // more than one would imply multiple unit input proofs, which is not supported
-        var units:Set<String> = []
-        for proof in proofs {
-            if let keysetForID = self.keysets.first(where: { $0.id == proof.id }) {
-                units.insert(keysetForID.unit)
-            } else {
-                // found a proof that belongs to a keyset not from this mint
-                fatalError("proofs from keysets that do not belong to this mint")
-            }
-        }
+        
+        let units = try units(for: proofs)
         
         guard units.count == 1 else {
             fatalError("mixed unit inputs or other problem with composition of inputs")
@@ -209,7 +236,8 @@ extension Mint {
     
     // MARK: - RESTORE
     
-    func restore(with seed:String, batchSize:Int = 10) async throws -> [Proof] {
+    func restore(with seed:String, 
+                 batchSize:Int = 10) async throws -> [Proof] {
         fatalError()
     }
     
@@ -220,6 +248,19 @@ extension Mint {
             $0.active == true &&
             $0.unit == unit
         })
+    }
+    
+    func units(for proofs:[Proof]) throws -> Set<String> {
+        var units:Set<String> = []
+        for proof in proofs {
+            if let keysetForID = self.keysets.first(where: { $0.id == proof.id }) {
+                units.insert(keysetForID.unit)
+            } else {
+                // found a proof that belongs to a keyset not from this mint
+                fatalError("proofs from keysets that do not belong to this mint")
+            }
+        }
+        return units
     }
 }
 
@@ -244,4 +285,45 @@ extension Array where Element == Mint {
         // make sure quote is Bolt11
         fatalError()
     }
+}
+
+extension Array where Element == Proof {
+    func select(amount: Int) -> (selected: [Proof], rest: [Proof])? {
+        func backtrack(_ index: Int, _ currentSum: Int, _ currentSelection: [Proof]) -> [Proof]? {
+            if currentSum == amount {
+                return currentSelection
+            }
+            if index >= self.count || currentSum > amount {
+                return nil
+            }
+            
+            if let result = backtrack(index + 1, currentSum + self[index].amount, currentSelection + [self[index]]) {
+                return result
+            }
+            return backtrack(index + 1, currentSum, currentSelection)
+        }
+        
+        if let selected = backtrack(0, 0, []) {
+            let rest = self.filter { !selected.contains($0) }
+            return (selected, rest)
+        }
+        
+        return nil
+    }
+    
+    var sum:Int {
+        self.reduce(0) { $0 + $1.amount }
+    }
+}
+
+/// This is a description of MyClass.
+///
+/// It works closely with [`AnotherClass`].
+class MyClass {
+    // ...
+}
+
+/// AnotherClass does something interesting.
+class AnotherClass {
+    // ...
 }

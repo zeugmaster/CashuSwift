@@ -225,6 +225,18 @@ final class cashu_swiftTests: XCTestCase {
         print(proofs)
     }
     
+    func testSend() async throws {
+        let url = URL(string: "http://localhost:3339")!
+        let mint = try await Mint(with:url)
+        let qr = Bolt11.RequestMintQuote(unit: "sat", amount: 32)
+        let q = try await mint.getQuote(quoteRequest: qr)
+        let proofs = try await mint.issue(for: q)
+        
+        let (token, change) = try await mint.send(proofs: proofs, amount: 15)
+        print(try token.serialize(.V3))
+        print(change)
+    }
+    
     func testFeeCalculation() async throws {
         let mint = try await Mint(with: URL(string: "http://localhost:3339")!)
         let quoteRequest = Bolt11.RequestMintQuote(unit: "sat", amount: 511)
@@ -257,5 +269,32 @@ final class cashu_swiftTests: XCTestCase {
         let k = try Crypto.PublicKey(dataRepresentation: "0299c661b9032754db2812d7fe7d50d693e56fc4799d0b87a328e3e4e47640adbf".bytes, format: .compressed)
         print(k.stringRepresentation)
         print("original key: \(k.stringRepresentation), negated: \(Crypto.negatePublicKey(key: k).stringRepresentation)")
+    }
+    
+    func testProofSelection() {
+        let proofs =   [Proof(id: "", amount: 1, secret: "", C: ""),
+                        Proof(id: "", amount: 1, secret: "", C: ""),
+                        Proof(id: "", amount: 8, secret: "", C: ""),
+                        Proof(id: "", amount: 4, secret: "", C: ""),
+                        Proof(id: "", amount: 32, secret: "", C: ""),
+                        Proof(id: "", amount: 2, secret: "", C: ""),
+                        Proof(id: "", amount: 16, secret: "", C: ""),
+                        Proof(id: "", amount: 128, secret: "", C: "")]
+        
+        let selection1 = proofs.select(amount: 50)
+        print(selection1)
+        
+        let selection2 = proofs.select(amount: 1)
+        print(selection2)
+        
+        let total = proofs.reduce(0) { $0 + $1.amount }
+        let selection3 = proofs.select(amount: total)
+        print(selection3)
+        
+        let invalidSelection = proofs.select(amount: 3000)
+        print(invalidSelection)
+        
+        let mtProofs = [Proof]()
+        print(mtProofs.sum)
     }
 }
