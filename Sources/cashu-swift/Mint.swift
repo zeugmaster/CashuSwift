@@ -45,7 +45,7 @@ public class Mint: Identifiable, Hashable, Codable {
         }
     
     ///Pings the mint for it's info to check wether it is online or not
-    func isReachable() async -> Bool {
+    public func isReachable() async -> Bool {
         do {
              //if the network doesn't throw an error we can assume the mint is online
             let url = self.url.appending(path: "/v1/info")
@@ -56,7 +56,7 @@ public class Mint: Identifiable, Hashable, Codable {
         }
     }
     
-    func calculateFee(for proofs:[Proof]) throws -> Int {
+    public func calculateFee(for proofs:[Proof]) throws -> Int {
         var sumFees = 0
         for proof in proofs {
             if let feeRate = self.keysets.first(where: { $0.id == proof.id })?.inputFeePPK {

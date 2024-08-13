@@ -15,13 +15,13 @@ enum CashuError:Error {
     case TokenEncodingError
 }
 
-enum TokenVersion:Codable {
+public enum TokenVersion:Codable {
     case V3
     case V4
 }
 
-class Token:Codable, Equatable {
-    static func == (lhs: Token, rhs: Token) -> Bool {
+public class Token:Codable, Equatable {
+    public static func == (lhs: Token, rhs: Token) -> Bool {
         lhs.token == rhs.token && lhs.memo == rhs.memo && lhs.unit == rhs.unit
     }
     
@@ -43,7 +43,7 @@ class Token:Codable, Equatable {
         case unit
     }
     
-    func serialize(_ toVersion:TokenVersion = .V4) throws -> String {
+    public func serialize(_ toVersion:TokenVersion = .V4) throws -> String {
         switch toVersion {
         case .V3:
             try encodeV3(token: self)
@@ -95,7 +95,7 @@ class Token:Codable, Equatable {
 }
 
 extension String {
-    func deserializeToken() throws -> Token {
+    public func deserializeToken() throws -> Token {
         var noPrefix = self
         // needs to be in the right order to avoid only stripping cashu: and leaving //
         if self.hasPrefix("cashu://") {

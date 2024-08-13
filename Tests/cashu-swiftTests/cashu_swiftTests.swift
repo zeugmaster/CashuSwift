@@ -282,17 +282,17 @@ final class cashu_swiftTests: XCTestCase {
                         Proof(id: "", amount: 128, secret: "", C: "")]
         
         let selection1 = proofs.select(amount: 50)
-        print(selection1)
+        print(selection1 ?? "")
         
         let selection2 = proofs.select(amount: 1)
-        print(selection2)
+        print(selection2 ?? "")
         
         let total = proofs.reduce(0) { $0 + $1.amount }
         let selection3 = proofs.select(amount: total)
-        print(selection3)
+        print(selection3 ?? "")
         
         let invalidSelection = proofs.select(amount: 3000)
-        print(invalidSelection)
+        print(invalidSelection ?? "")
         
         let mtProofs = [Proof]()
         print(mtProofs.sum)

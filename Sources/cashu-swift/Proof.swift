@@ -7,10 +7,10 @@
 
 import Foundation
 
-class Proof: Codable, Equatable, CustomStringConvertible {
+public class Proof: Codable, Equatable, CustomStringConvertible {
     
-    static func == (lhs: Proof, rhs: Proof) -> Bool {
-        lhs.C == rhs.C && 
+    public static func == (lhs: Proof, rhs: Proof) -> Bool {
+        lhs.C == rhs.C &&
         lhs.id == rhs.id &&
         lhs.amount == rhs.amount
     }
@@ -20,7 +20,7 @@ class Proof: Codable, Equatable, CustomStringConvertible {
     let secret: String
     let C: String
     
-    var description: String {
+    public var description: String {
         return "C: ...\(C.suffix(6)), amount: \(amount)"
     }
     

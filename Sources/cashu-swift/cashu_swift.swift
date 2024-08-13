@@ -5,7 +5,7 @@ extension Mint {
     
     // MARK: - GET QUOTE
     
-    func getQuote(quoteRequest:QuoteRequest) async throws -> Quote {
+    public func getQuote(quoteRequest:QuoteRequest) async throws -> Quote {
         var url = self.url
         
         guard self.keysets.contains(where: { $0.unit == quoteRequest.unit }) else {
@@ -32,10 +32,10 @@ extension Mint {
     
     // MARK: - ISSUE
     
-    ///# Lekker
+    /// # Headline
     /// After paying the quote amount to the mint, use this function to issue the actual ecash as a list of [`String`]s
     /// Leaving `seed` empty will give you proofs from non-deterministic outputs which cannot be recreated from a seed phrase backup
-    func issue(for quote:Quote,
+    public func issue(for quote:Quote,
                seed:String? = nil,
                skipDuplicateOutputs:Int = 0,
                preferredDistribution:[Int]? = nil) async throws -> [Proof] {
@@ -97,7 +97,7 @@ extension Mint {
     
     // MARK: - SEND
     
-    func send(proofs:[Proof], 
+    public func send(proofs:[Proof],
               amount:Int? = nil,
               seed:String? = nil,
               memo:String? = nil) async throws -> (token:Token,
@@ -134,21 +134,21 @@ extension Mint {
     
     // MARK: - RECEIVE
     
-    func receive(token:Token, 
+    public func receive(token:Token,
                  seed:String? = nil) async throws -> [Proof] {
         fatalError()
     }
     
     // MARK: - MELT
     
-    func melt(quote:Quote, 
+    public func melt(quote:Quote,
               proofs:[Proof]) async throws -> [Proof] {
         fatalError()
     }
     
     // MARK: - SWAP
     
-    func swap(proofs:[Proof], 
+    public func swap(proofs:[Proof],
               amount:Int? = nil,
               seed:String? = nil,
               preferredReturnDistribution:[Int]? = nil) async throws -> (new:[Proof],
@@ -236,7 +236,7 @@ extension Mint {
     
     // MARK: - RESTORE
     
-    func restore(with seed:String, 
+    public func restore(with seed:String,
                  batchSize:Int = 10) async throws -> [Proof] {
         fatalError()
     }
@@ -269,17 +269,17 @@ public enum Cashu {
 }
 
 extension Array where Element == Mint {
-    func restore(with seed:String, batchSize:Int = 10) async throws -> [Proof] {
+    public func restore(with seed:String, batchSize:Int = 10) async throws -> [Proof] {
         // call mint.restore on each of the mints
         fatalError()
     }
     
-    func getQuote(request:QuoteRequest) async throws -> [Quote] {
+    public func getQuote(request:QuoteRequest) async throws -> [Quote] {
         // intended for melt quote request before MPP
         fatalError()
     }
     
-    func melt(quote:Quote, proofs:[Proof]) async throws -> [Proof] {
+    public func melt(quote:Quote, proofs:[Proof]) async throws -> [Proof] {
         // intended for multi nut payment (MPP)
         // check input proofs against mint info and keysets
         // make sure quote is Bolt11
@@ -288,7 +288,7 @@ extension Array where Element == Mint {
 }
 
 extension Array where Element == Proof {
-    func select(amount: Int) -> (selected: [Proof], rest: [Proof])? {
+    public func select(amount: Int) -> (selected: [Proof], rest: [Proof])? {
         func backtrack(_ index: Int, _ currentSum: Int, _ currentSelection: [Proof]) -> [Proof]? {
             if currentSum == amount {
                 return currentSelection
