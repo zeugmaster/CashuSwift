@@ -205,7 +205,7 @@ enum Crypto {
         }
         
         let privateMasterKeyDerivator: PrivateMasterKeyDerivating = PrivateMasterKeyDerivator()
-        var current = try! privateMasterKeyDerivator.privateKey(seed: Data(seed.bytes))
+        var current = try privateMasterKeyDerivator.privateKey(seed: Data(seed.bytes))
 
         for var part in parts {
             var index:Int = 0
@@ -220,7 +220,7 @@ enum Crypto {
                 throw Error.secretDerivation("Unable to calculate child private key from derivation path string.")
             }
             //derive child for current key and set current = new
-            let new = try! PrivateChildKeyDerivator().privateKey(privateParentKey: current, index: UInt32(index))
+            let new = try PrivateChildKeyDerivator().privateKey(privateParentKey: current, index: UInt32(index))
             current = new
         }
 

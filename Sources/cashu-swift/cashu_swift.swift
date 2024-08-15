@@ -1,5 +1,8 @@
 import Foundation
 import secp256k1
+import OSLog
+
+fileprivate let logger = Logger.init(subsystem: "CashuSwift", category: "wallet")
 
 extension Mint {
     
@@ -167,11 +170,26 @@ extension Mint {
         
         // TODO: PERFORM ACTUAL CHANGE CALCULATION AND RETURN CORRECT PROOFS
         
-        return (meltResponse.paid, [])
+        // TODO: refactor and improve function design
+        
+        if let paid = meltResponse.paid {
+            return (paid, [])
+        } else if let state = meltResponse.state {
+            switch state {
+            case .paid:
+                return (true, [])
+            case .unpaid:
+                return (false, [])
+            case .pending:
+                return (false, [])
+            }
+        } else {
+            fatalError("could not find quote state information in response.")
+        }
     }
     
     // MARK: - SWAP
-    
+    #warning("NEEDS TO DO REAL PROOF SELECTION INSTEAD OF ALWAYS SWAPPING WHOLE LIST")
     public func swap(proofs:[Proof],
                      amount:Int? = nil,
                      seed:String? = nil,
@@ -259,11 +277,112 @@ extension Mint {
     }
     
     // MARK: - RESTORE
-    
-    public func restore(with seed:String,
-                 batchSize:Int = 10) async throws -> [Proof] {
+    // TODO: should increase batch size, default 10 is way to small
+//    public func restore(with seed:String,
+//                        batchSize:Int = 10) async throws -> [Proof] {
+//        // no need to check validity of seed as function would otherwise crash during first det sec generation
+//        
+//        for keyset in self.keysets {
+//            logger.info("Attempting restore for keyset: \(keyset.id) of mint: \(self.url.absoluteString)")
+//            let (proofs, _, lastMatchCounter) = await restoreProofs(mint: mint, keysetID: keyset.id, seed: self.database.seed!)
+//            print("last match counter: \(String(describing: lastMatchCounter))")
+//            keyset.derivationCounter = lastMatchCounter + 1
+//            
+//            if keyset.id == mint.activeKeyset.id {
+//                mint.activeKeyset.derivationCounter = lastMatchCounter + 1
+//            }
+//            
+//            let (spendable, _) = try await check(mint: mint, proofs: proofs) // ignores pending but should not
+//            guard spendable.count == proofs.count else {
+//                fatalError("could not filter: proofs, spendable need matching count")
+//            }
+//            var spendableProofs = [Proof]()
+//            for i in 0..<spendable.count {
+//                if spendable[i] { spendableProofs.append(proofs[i]) }
+//            }
+//            logger.info("Found \(spendableProofs.count) spendable proofs for keyset \(keyset.id)")
+//        }
+//    }
+//    
+    func restoreForKeyset(_ keyset:Keyset, 
+                          with seed:String,
+                          batchSize:Int) async throws -> (proofs:[Proof],
+                                                          totalRestored:Int,
+                                                          lastMatchCounter:Int) {
         fatalError()
     }
+    
+    public func check(_ proofs:[Proof]) async throws -> [Proof.ProofState] {
+        let ys = try proofs.map { proof in
+            try Crypto.secureHashToCurve(message: proof.secret).stringRepresentation
+        }
+        let request = Proof.StateCheckRequest(Ys: ys)
+        let response = try await Network.post(url: self.url.appending(path: "/v1/checkstate"),
+                                              body: request,
+                                              expected: Proof.StateCheckResponse.self)
+        return response.states.map { entry in
+            entry.state
+        }
+    }
+    
+    /*
+     private func restoreProofs(mint:Mint, keysetID:String, seed:String, batchSize:Int = 25) async -> (proofs:[Proof], totalRestored:Int, lastMatchCounter:Int) {
+         
+         guard let mintPubkeys = mint.allKeysets.first(where: {$0.id == keysetID})?.keys else {
+             print("ERROR: could not find public keys for keyset: \(keysetID)")
+             return ([], 0, 0) //FIXME: should be error handling instead
+         }
+         var proofs = [Proof]()
+         var emtpyResponses = 0
+         var currentCounter = 0
+         var batchLastMatchIndex = 0
+         let emptyRuns = 2
+         while emtpyResponses < emptyRuns {
+             let (outputs,
+                  blindingFactors,
+                  secrets) = generateDeterministicOutputs(counter: currentCounter,
+                                                          seed: self.database.seed!,
+                                                          amounts: Array(repeating: 1, count: batchSize),
+                                                          keysetID: keysetID)
+             
+             guard let restoreRespone = try? await Network.restoreRequest(mintURL: mint.url, outputs: outputs) else {
+                 print("unable to decode restoreResponse from Mint")
+                 return ([], 0, 0)
+             }
+ //            print(restoreRespone)
+             currentCounter += batchSize
+             
+             if restoreRespone.promises.isEmpty {
+                 emtpyResponses += 1
+                 continue
+             } else {
+                 //reset counter to ensure they are CONSECUTIVE empty responses
+                 emtpyResponses = 0
+                 batchLastMatchIndex = outputs.lastIndex(where: { oldOutput in
+                     restoreRespone.outputs.contains(where: {newOut in oldOutput.B_ == newOut.B_})
+                 }) ?? 0
+             }
+             var rs = [String]()
+             var xs = [String]()
+             for i in 0..<outputs.count {
+                 if restoreRespone.outputs.contains(where: {$0.B_ == outputs[i].B_}) {
+                     rs.append(blindingFactors[i])
+                     xs.append(secrets[i])
+                 }
+             }
+             
+             let batchProofs = unblindPromises(promises: restoreRespone.promises,
+                                               blindingFactors: rs,
+                                               secrets: xs,
+                                               mintPublicKeys: mintPubkeys)
+             proofs.append(contentsOf: batchProofs)
+         }
+         currentCounter -= (emptyRuns + 1) * batchSize
+         currentCounter += batchLastMatchIndex
+         if currentCounter < 0 { currentCounter = 0 }
+         return (proofs, proofs.count, currentCounter)
+     }
+     */
     
     // MARK: - MISC
     

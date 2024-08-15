@@ -258,6 +258,19 @@ final class cashu_swiftTests: XCTestCase {
         print(response)
     }
     
+    func testTokenStateCheck() async throws {
+        let mint = try await Mint(with: URL(string: "http://localhost:3338")!)
+        let quoteRequest = Bolt11.RequestMintQuote(unit: "sat", amount: 9)
+        let quote = try await mint.getQuote(quoteRequest: quoteRequest)
+        let proofs = try await mint.issue(for: quote)
+        
+        let (token, _) = try await mint.send(proofs: proofs, amount: 1)
+        _ = try await mint.swap(proofs: token.token.first!.proofs)
+        
+        let states = try await mint.check(proofs)
+        print(states.debugPretty())
+    }
+    
     func testFeeCalculation() async throws {
         let mint = try await Mint(with: URL(string: "http://localhost:3339")!)
         let quoteRequest = Bolt11.RequestMintQuote(unit: "sat", amount: 511)

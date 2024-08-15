@@ -7,7 +7,7 @@
 
 import Foundation
 
-public class Proof: Codable, Equatable, CustomStringConvertible {
+public struct Proof: Codable, Equatable, CustomStringConvertible {
     
     public static func == (lhs: Proof, rhs: Proof) -> Bool {
         lhs.C == rhs.C &&
@@ -24,11 +24,24 @@ public class Proof: Codable, Equatable, CustomStringConvertible {
         return "C: ...\(C.suffix(6)), amount: \(amount)"
     }
     
-    init(id: String, amount: Int, secret: String, C: String) {
-        self.id = id
-        self.amount = amount
-        self.secret = secret
-        self.C = C
+    public enum ProofState: String, Codable {
+        case unspent = "UNSPENT"
+        case pending = "PENDING"
+        case spent = "SPENT"
+    }
+    
+    struct ProofStateListEntry: Codable {
+        let Y:String
+        let state:ProofState
+        let witness:String?
+    }
+    
+    struct StateCheckRequest: Codable {
+        let Ys:[String]
+    }
+    
+    public struct StateCheckResponse: Codable {
+        let states: [ProofStateListEntry]
     }
 }
 

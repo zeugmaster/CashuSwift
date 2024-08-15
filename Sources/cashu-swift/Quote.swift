@@ -13,8 +13,15 @@ public protocol QuoteRequest:Codable {
 
 public protocol Quote:Codable {
     var quote:String { get }
-    var paid:Bool { get }
+    var paid:Bool? { get }          // paid and state are both optional for compatibility
+    var state:QuoteState? { get }   // TODO: use custom decoding to unify
     var expiry:Int { get }
+}
+
+public enum QuoteState: String,Codable {
+    case paid = "PAID"
+    case unpaid = "UNPAID"
+    case pending = "PENDING"
 }
 
 enum Bolt11 {
@@ -41,16 +48,20 @@ enum Bolt11 {
     struct MintQuote:Quote {
         let quote:String
         let request: String
-        let paid:Bool
+        let paid:Bool?
+        let state:QuoteState?
         let expiry:Int
         var requestDetail:RequestMintQuote?
     }
 
     struct MeltQuote: Quote {
+        var paid: Bool?
+        
+        var state: QuoteState?
+        
         let quote: String
         let amount: Int
         var feeReserve: Int
-        let paid: Bool
         let expiry: Int
         let paymentPreimage: String?
         
