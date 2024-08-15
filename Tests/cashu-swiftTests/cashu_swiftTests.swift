@@ -225,7 +225,7 @@ final class cashu_swiftTests: XCTestCase {
         print(proofs)
     }
     
-    func testSend() async throws {
+    func testSendReceive() async throws {
         let url = URL(string: "http://localhost:3339")!
         let mint = try await Mint(with:url)
         let qr = Bolt11.RequestMintQuote(unit: "sat", amount: 32)
@@ -233,8 +233,29 @@ final class cashu_swiftTests: XCTestCase {
         let proofs = try await mint.issue(for: q)
         
         let (token, change) = try await mint.send(proofs: proofs, amount: 15)
-        print(try token.serialize(.V3))
-        print(change)
+        print(token.token.first!.proofs.sum)
+        print(change.sum)
+        
+        let received = try await mint.receive(token: token)
+        print(received.sum)
+    }
+    
+    func testMelt() async throws {
+        let url = URL(string: "http://localhost:3339")!
+        let mint = try await Mint(with:url)
+        let qr = Bolt11.RequestMintQuote(unit: "sat", amount: 128)
+        let q = try await mint.getQuote(quoteRequest: qr)
+        let proofs = try await mint.issue(for: q)
+        
+        let q2 = try await mint.getQuote(quoteRequest: Bolt11.RequestMintQuote(unit: "sat", amount: 64)) as! Bolt11.MintQuote
+        let meltqr = Bolt11.RequestMeltQuote(unit: "sat", request: q2.request, options: nil)
+        print(meltqr.debugPretty())
+        
+        let meltQ = try await mint.getQuote(quoteRequest: meltqr)
+        print(meltQ.debugPretty())
+        
+        let response = try await mint.melt(quote: meltQ, proofs: proofs)
+        print(response)
     }
     
     func testFeeCalculation() async throws {

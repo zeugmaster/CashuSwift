@@ -36,9 +36,9 @@ extension Mint {
     /// After paying the quote amount to the mint, use this function to issue the actual ecash as a list of [`String`]s
     /// Leaving `seed` empty will give you proofs from non-deterministic outputs which cannot be recreated from a seed phrase backup
     public func issue(for quote:Quote,
-               seed:String? = nil,
-               skipDuplicateOutputs:Int = 0,
-               preferredDistribution:[Int]? = nil) async throws -> [Proof] {
+                      seed:String? = nil,
+                      preferredDistribution:[Int]? = nil,
+                      duplicateHandling:Cashu.DuplicateOutputHandling = .fail) async throws -> [Proof] {
         
         guard let quote = quote as? Bolt11.MintQuote else {
             fatalError("Quote to issue proofs for was not a Bolt11.MintQuote")
@@ -98,10 +98,11 @@ extension Mint {
     // MARK: - SEND
     
     public func send(proofs:[Proof],
-              amount:Int? = nil,
-              seed:String? = nil,
-              memo:String? = nil) async throws -> (token:Token,
-                                                   change:[Proof]) {
+                     amount:Int? = nil,
+                     seed:String? = nil,
+                     memo:String? = nil,
+                     duplicateOutputHandling:Cashu.DuplicateOutputHandling = .fail) async throws -> (token:Token,
+                                                                                                     change:[Proof]) {
         
         let amount = amount ?? proofs.sum
         
@@ -135,23 +136,46 @@ extension Mint {
     // MARK: - RECEIVE
     
     public func receive(token:Token,
-                 seed:String? = nil) async throws -> [Proof] {
-        fatalError()
+                        seed:String? = nil,
+                        duplicateOutputHandling:Cashu.DuplicateOutputHandling = .fail) async throws -> [Proof] {
+        // TODO: NEEDS TO BE ABLE TO HANDLE P2PK LOCKED ECASH
+        // this should check whether proofs are from this mint and not multi unit FIXME: potentially wonky and not very descriptive
+        guard let inputProofs = token.token.first?.proofs,
+                try self.units(for: inputProofs).count == 1 else {
+            fatalError("Proofs to swap are either of mixed unit or foreign to this mint.")
+        }
+        return try await self.swap(proofs: inputProofs).new
     }
     
     // MARK: - MELT
-    
+    // should block until the the payment is made OR timeout reached
     public func melt(quote:Quote,
-              proofs:[Proof]) async throws -> [Proof] {
-        fatalError()
+                     proofs:[Proof]) async throws -> (paid:Bool, change:[Proof]) {
+        guard let quote = quote as? Bolt11.MeltQuote else {
+            fatalError("you need to pass a Bolt11 melt quote to this function, nothing else is supported yet.")
+        }
+        
+        let meltRequest = Bolt11.MeltRequest(quote: quote.quote, inputs: proofs)
+        
+        guard proofs.sum > quote.amount + quote.feeReserve else {
+            fatalError("inputs do not cover the melt quote amount and fee reserve.")
+        }
+        
+        // TODO: HANDLE TIMEOUT MORE EXPLICITLY
+        
+        let meltResponse = try await Network.post(url: self.url.appending(path: "/v1/melt/bolt11"), body: meltRequest, expected: Bolt11.MeltQuote.self)
+        
+        // TODO: PERFORM ACTUAL CHANGE CALCULATION AND RETURN CORRECT PROOFS
+        
+        return (meltResponse.paid, [])
     }
     
     // MARK: - SWAP
     
     public func swap(proofs:[Proof],
-              amount:Int? = nil,
-              seed:String? = nil,
-              preferredReturnDistribution:[Int]? = nil) async throws -> (new:[Proof],
+                     amount:Int? = nil,
+                     seed:String? = nil,
+                     preferredReturnDistribution:[Int]? = nil) async throws -> (new:[Proof],
                                                                          change:[Proof]) {
         let fee = try calculateFee(for: proofs)
         let proofSum = proofs.reduce(0) { $0 + $1.amount }
@@ -265,7 +289,12 @@ extension Mint {
 }
 
 public enum Cashu {
-    
+    public enum DuplicateOutputHandling {
+        case fail
+        case retry(Int)
+        case infiniteRetry
+        // potentially use /restore endpoint for efficiency
+    }
 }
 
 extension Array where Element == Mint {
@@ -314,16 +343,4 @@ extension Array where Element == Proof {
     var sum:Int {
         self.reduce(0) { $0 + $1.amount }
     }
-}
-
-/// This is a description of MyClass.
-///
-/// It works closely with [`AnotherClass`].
-class MyClass {
-    // ...
-}
-
-/// AnotherClass does something interesting.
-class AnotherClass {
-    // ...
 }
