@@ -62,9 +62,9 @@ extension Mint {
             distribution = Cashu.splitIntoBase2Numbers(requestDetail.amount)
         }
         
-        guard var keyset = self.keysets.first(where: { $0.active == true &&
+        guard let keyset = self.keysets.first(where: { $0.active == true &&
                                                        $0.unit == requestDetail.unit }) else {
-            fatalError("Could not determine an ACTIVE keyset for this unit")
+            fatalError("Could not determine an ACTIVE keyset for this unit \(requestDetail.unit.uppercased())")
         }
         
         // tuple for outputs, blindingfactors, secrets
@@ -188,7 +188,6 @@ extension Mint {
     }
     
     // MARK: - SWAP
-    #warning("NEEDS TO IMPLEMENT REAL PROOF SELECTION INSTEAD OF ALWAYS SWAPPING WHOLE LIST")
     public func swap(proofs:[Proof],
                      amount:Int? = nil,
                      seed:String? = nil,
@@ -216,7 +215,7 @@ extension Mint {
             fatalError("mixed unit inputs or other problem with composition of inputs")
         }
         
-        guard var activeKeyset = activeKeysetForUnit(units.first!) else {
+        guard let activeKeyset = activeKeysetForUnit(units.first!) else {
             fatalError("no active keyset could be found for unit \(String(describing: units.first))")
         }
         
@@ -355,7 +354,10 @@ extension Mint {
     }
     
     public func check(_ proofs:[Proof]) async throws -> [Proof.ProofState] {
-        #warning("double check that all proofs belong tho the righr (this) mint")
+        guard try units(for: proofs).count == 1 else {
+            fatalError("mixed input units to .chack() function.")
+        }
+        
         let ys = try proofs.map { proof in
             try Crypto.secureHashToCurve(message: proof.secret).stringRepresentation
         }

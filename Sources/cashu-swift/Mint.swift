@@ -27,7 +27,7 @@ public class Mint: Identifiable, Hashable, Codable {
                                                expected: KeysetList.self)
         var keysetsWithKeys = [Keyset]()
         for keyset in keysetList.keysets {
-            var new = keyset
+            let new = keyset
             new.keys = try await Network.get(url: url.appending(path: "/v1/keys/\(keyset.id.makeURLSafe())"),
                                                 expected: KeysetList.self).keysets[0].keys
             keysetsWithKeys.append(new)

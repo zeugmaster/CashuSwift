@@ -194,8 +194,8 @@ final class cashu_swiftTests: XCTestCase {
         token.unit = "sat"
         
 //        print(try token.serialize(.V3))
-        
-        let (new, change) = try await mint.swap(proofs: proofs, amount: 500)
+        // (mew, change)
+        let (_, _) = try await mint.swap(proofs: proofs, amount: 500)
         
     }
     
@@ -280,7 +280,7 @@ final class cashu_swiftTests: XCTestCase {
         let quote = try await mint.getQuote(quoteRequest: quoteRequest)
         let proofs = try await mint.issue(for: quote, seed: seed)
         
-        let swapped = try await mint.swap(proofs: Array(proofs[0...1]), seed: seed)
+        let _ = try await mint.swap(proofs: Array(proofs[0...1]), seed: seed)
         
         print(mint.keysets.debugPretty())
         
