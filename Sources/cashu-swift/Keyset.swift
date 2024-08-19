@@ -14,7 +14,7 @@ struct KeysetList: Codable {
 
 #warning("Make sure derivation counter is not being reset when updating keyset info from mint.")
 
-struct Keyset: Codable {
+final class Keyset: Codable {
     let id: String
     var keys: Dictionary<String, String>
     var derivationCounter:Int

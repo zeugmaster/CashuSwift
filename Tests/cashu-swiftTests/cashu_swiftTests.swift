@@ -220,7 +220,7 @@ final class cashu_swiftTests: XCTestCase {
         
         // triple swap to make sure detsec counter increments correctly
         for _ in 0...3 {
-            (proofs, _) = try await mint.swap(proofs: proofs)
+            (proofs, _) = try await mint.swap(proofs: proofs, seed: seed)
         }
         print(proofs)
     }
@@ -269,6 +269,24 @@ final class cashu_swiftTests: XCTestCase {
         
         let states = try await mint.check(proofs)
         print(states.debugPretty())
+    }
+    
+    func testRestore() async throws {
+        let mnemmonic = Mnemonic()
+        let seed = String(bytes: mnemmonic.seed)
+        
+        let mint = try await Mint(with: URL(string: "http://localhost:3338")!)
+        let quoteRequest = Bolt11.RequestMintQuote(unit: "sat", amount: 2047)
+        let quote = try await mint.getQuote(quoteRequest: quoteRequest)
+        let proofs = try await mint.issue(for: quote, seed: seed)
+        
+        let swapped = try await mint.swap(proofs: Array(proofs[0...1]), seed: seed)
+        
+        print(mint.keysets.debugPretty())
+        
+        let restoredProofs = try await mint.restore(with: seed)
+        
+        XCTAssertEqual(proofs.sum, restoredProofs.sum)
     }
     
     func testFeeCalculation() async throws {

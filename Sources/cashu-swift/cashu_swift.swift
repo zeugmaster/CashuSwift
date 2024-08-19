@@ -75,6 +75,7 @@ extension Mint {
                                                  keysetID: keyset.id,
                                                  deterministicFactors: (seed: seed,
                                                                         counter: keyset.derivationCounter))
+            keyset.derivationCounter += outputs.outputs.count
         } else {
             outputs = try Crypto.generateOutputs(amounts: distribution,
                                                  keysetID: keyset.id)
@@ -92,8 +93,6 @@ extension Mint {
                                                 blindingFactors: outputs.blindingFactors,
                                                 secrets: outputs.secrets,
                                                 keyset: keyset)
-                    
-        keyset.derivationCounter += outputs.outputs.count
         
         return proofs
     }
@@ -189,7 +188,7 @@ extension Mint {
     }
     
     // MARK: - SWAP
-    #warning("NEEDS TO DO REAL PROOF SELECTION INSTEAD OF ALWAYS SWAPPING WHOLE LIST")
+    #warning("NEEDS TO IMPLEMENT REAL PROOF SELECTION INSTEAD OF ALWAYS SWAPPING WHOLE LIST")
     public func swap(proofs:[Proof],
                      amount:Int? = nil,
                      seed:String? = nil,
@@ -201,7 +200,7 @@ extension Mint {
         
         let amountAfterFee = amount - fee
         
-        print("fee: \(fee), \nproofSum:\(proofSum), \namounr:\(amount), \namountAfterFee:\(amountAfterFee)")
+//        print("fee: \(fee), \nproofSum:\(proofSum), \namounr:\(amount), \namountAfterFee:\(amountAfterFee)")
         
         guard proofSum >= amountAfterFee else {
             fatalError("target swap amount is larger than sum of proof amounts")
@@ -240,21 +239,14 @@ extension Mint {
         let deterministicFactors:(String, Int)?
         if let seed {
             deterministicFactors = (seed, activeKeyset.derivationCounter)
+            activeKeyset.derivationCounter += combinedDistribution.count
         } else {
             deterministicFactors = nil
         }
         
         let (outputs, bfs, secrets) = try Crypto.generateOutputs(amounts: combinedDistribution,
-                                                             keysetID: activeKeyset.id,
-                                                             deterministicFactors: deterministicFactors)
-        
-        // increment detset counter here (?)
-        // FIXME: UGLY
-        guard let new = self.keysets.firstIndex(where: { $0.id == activeKeyset.id }) else {
-            fatalError()
-        }
-        activeKeyset.derivationCounter += outputs.count
-        self.keysets[new] = activeKeyset
+                                                                 keysetID: activeKeyset.id,
+                                                                 deterministicFactors: deterministicFactors)
         
         let swapRequest = SwapRequest(inputs: proofs, outputs: outputs)
         let swapResponse = try await Network.post(url: self.url.appending(path: "/v1/swap"),
@@ -278,41 +270,92 @@ extension Mint {
     
     // MARK: - RESTORE
     // TODO: should increase batch size, default 10 is way to small
-//    public func restore(with seed:String,
-//                        batchSize:Int = 10) async throws -> [Proof] {
-//        // no need to check validity of seed as function would otherwise crash during first det sec generation
-//        
-//        for keyset in self.keysets {
-//            logger.info("Attempting restore for keyset: \(keyset.id) of mint: \(self.url.absoluteString)")
-//            let (proofs, _, lastMatchCounter) = await restoreProofs(mint: mint, keysetID: keyset.id, seed: self.database.seed!)
-//            print("last match counter: \(String(describing: lastMatchCounter))")
-//            keyset.derivationCounter = lastMatchCounter + 1
-//            
-//            if keyset.id == mint.activeKeyset.id {
-//                mint.activeKeyset.derivationCounter = lastMatchCounter + 1
-//            }
-//            
-//            let (spendable, _) = try await check(mint: mint, proofs: proofs) // ignores pending but should not
-//            guard spendable.count == proofs.count else {
-//                fatalError("could not filter: proofs, spendable need matching count")
-//            }
-//            var spendableProofs = [Proof]()
-//            for i in 0..<spendable.count {
-//                if spendable[i] { spendableProofs.append(proofs[i]) }
-//            }
-//            logger.info("Found \(spendableProofs.count) spendable proofs for keyset \(keyset.id)")
-//        }
-//    }
-//    
+    public func restore(with seed:String,
+                        batchSize:Int = 10) async throws -> [Proof] {
+        // no need to check validity of seed as function would otherwise crash during first det sec generation
+        var restoredProofs = [Proof]()
+        for keyset in self.keysets {
+            logger.info("Attempting restore for keyset: \(keyset.id) of mint: \(self.url.absoluteString)")
+            let (proofs, _, lastMatchCounter) = try await restoreForKeyset(keyset, with: seed, batchSize: batchSize)
+            print("last match counter: \(String(describing: lastMatchCounter))")
+            
+            // FIXME: ugly
+            keyset.derivationCounter = lastMatchCounter + 1
+            
+            let states = try await check(proofs)// ignores pending but should not
+            guard states.count == proofs.count else {
+                fatalError("could not filter: proofs, spendable need matching count")
+            }
+            var spendableProofs = [Proof]()
+            for i in 0..<states.count {
+                if states[i] == .unspent { spendableProofs.append(proofs[i]) }
+            }
+            
+            restoredProofs.append(contentsOf: spendableProofs)
+            logger.info("Found \(spendableProofs.count) spendable proofs for keyset \(keyset.id)")
+        }
+        return restoredProofs
+    }
+    
     func restoreForKeyset(_ keyset:Keyset, 
                           with seed:String,
                           batchSize:Int) async throws -> (proofs:[Proof],
                                                           totalRestored:Int,
                                                           lastMatchCounter:Int) {
-        fatalError()
+        var proofs = [Proof]()
+        var emtpyResponses = 0
+        var currentCounter = 0
+        var batchLastMatchIndex = 0
+        let emptyRuns = 2
+        while emtpyResponses < emptyRuns {
+            let (outputs,
+                 blindingFactors,
+                 secrets) = try Crypto.generateOutputs(amounts: Array(repeating: 1, count: batchSize),
+                                                       keysetID: keyset.id,
+                                                       deterministicFactors: (seed: seed,
+                                                                              counter: currentCounter))
+            
+            
+            let request = RestoreRequest(outputs: outputs)
+            let response = try await Network.post(url: self.url.appending(path: "/v1/restore"),
+                                                  body: request,
+                                                  expected: RestoreResponse.self)
+            
+            currentCounter += batchSize
+            
+            if response.signatures.isEmpty {
+                emtpyResponses += 1
+                continue
+            } else {
+                //reset counter to ensure they are CONSECUTIVE empty responses
+                emtpyResponses = 0
+                batchLastMatchIndex = outputs.lastIndex(where: { oldOutput in
+                    response.outputs.contains(where: {newOut in oldOutput.B_ == newOut.B_})
+                }) ?? 0
+            }
+            var rs = [String]()
+            var xs = [String]()
+            for i in 0..<outputs.count {
+                if response.outputs.contains(where: {$0.B_ == outputs[i].B_}) {
+                    rs.append(blindingFactors[i])
+                    xs.append(secrets[i])
+                }
+            }
+            
+            let batchProofs = try Crypto.unblindPromises(response.signatures,
+                                                        blindingFactors: blindingFactors,
+                                                        secrets: secrets,
+                                                        keyset: keyset)
+            proofs.append(contentsOf: batchProofs)
+        }
+        currentCounter -= (emptyRuns + 1) * batchSize
+        currentCounter += batchLastMatchIndex
+        if currentCounter < 0 { currentCounter = 0 }
+        return (proofs, proofs.count, currentCounter)
     }
     
     public func check(_ proofs:[Proof]) async throws -> [Proof.ProofState] {
+        #warning("double check that all proofs belong tho the righr (this) mint")
         let ys = try proofs.map { proof in
             try Crypto.secureHashToCurve(message: proof.secret).stringRepresentation
         }
@@ -324,65 +367,6 @@ extension Mint {
             entry.state
         }
     }
-    
-    /*
-     private func restoreProofs(mint:Mint, keysetID:String, seed:String, batchSize:Int = 25) async -> (proofs:[Proof], totalRestored:Int, lastMatchCounter:Int) {
-         
-         guard let mintPubkeys = mint.allKeysets.first(where: {$0.id == keysetID})?.keys else {
-             print("ERROR: could not find public keys for keyset: \(keysetID)")
-             return ([], 0, 0) //FIXME: should be error handling instead
-         }
-         var proofs = [Proof]()
-         var emtpyResponses = 0
-         var currentCounter = 0
-         var batchLastMatchIndex = 0
-         let emptyRuns = 2
-         while emtpyResponses < emptyRuns {
-             let (outputs,
-                  blindingFactors,
-                  secrets) = generateDeterministicOutputs(counter: currentCounter,
-                                                          seed: self.database.seed!,
-                                                          amounts: Array(repeating: 1, count: batchSize),
-                                                          keysetID: keysetID)
-             
-             guard let restoreRespone = try? await Network.restoreRequest(mintURL: mint.url, outputs: outputs) else {
-                 print("unable to decode restoreResponse from Mint")
-                 return ([], 0, 0)
-             }
- //            print(restoreRespone)
-             currentCounter += batchSize
-             
-             if restoreRespone.promises.isEmpty {
-                 emtpyResponses += 1
-                 continue
-             } else {
-                 //reset counter to ensure they are CONSECUTIVE empty responses
-                 emtpyResponses = 0
-                 batchLastMatchIndex = outputs.lastIndex(where: { oldOutput in
-                     restoreRespone.outputs.contains(where: {newOut in oldOutput.B_ == newOut.B_})
-                 }) ?? 0
-             }
-             var rs = [String]()
-             var xs = [String]()
-             for i in 0..<outputs.count {
-                 if restoreRespone.outputs.contains(where: {$0.B_ == outputs[i].B_}) {
-                     rs.append(blindingFactors[i])
-                     xs.append(secrets[i])
-                 }
-             }
-             
-             let batchProofs = unblindPromises(promises: restoreRespone.promises,
-                                               blindingFactors: rs,
-                                               secrets: xs,
-                                               mintPublicKeys: mintPubkeys)
-             proofs.append(contentsOf: batchProofs)
-         }
-         currentCounter -= (emptyRuns + 1) * batchSize
-         currentCounter += batchLastMatchIndex
-         if currentCounter < 0 { currentCounter = 0 }
-         return (proofs, proofs.count, currentCounter)
-     }
-     */
     
     // MARK: - MISC
     
