@@ -306,15 +306,11 @@ final class cashu_swiftTests: XCTestCase {
         let C_ = try Crypto.PublicKey(dataRepresentation: "031c14eed30e32a060030bc9784ed34db7de91ce188ea0cce6f48a84b47ddbd875".bytes, format: .compressed)
         let r = try Crypto.PrivateKey(dataRepresentation: "c551bd0a48e3a069d8a02dc8b1783923da0d9af015f575c0a521237e10316580".bytes)
         // we only test for the amount 1 and the corresponding mint public key
-        let A = "02221e05e446782ba13bb41a8b74ac344a4829cf8417d8e7d32c0152a64755bfae"
-        let keyset = Keyset(id: "", keys: ["1":A], inputFeePPK: 0)
+        let A = try Crypto.PublicKey(dataRepresentation: "02221e05e446782ba13bb41a8b74ac344a4829cf8417d8e7d32c0152a64755bfae".bytes, format: .compressed)
+
+        let proof = try Crypto.unblind(C_: C_, r: r, A: A)
         
-        let proofs = try Crypto.unblindPromises([Promise(id: "", amount: 1, C_: C_.stringRepresentation)],
-                                            blindingFactors: [r.stringRepresentation],
-                                            secrets: [""],
-                                            keyset: keyset)
-        
-        XCTAssertEqual(proofs[0].C, "0218b90f0de65ae3447624fc8895c31302e61cef56dbca927717cb501cf591ce32")
+        XCTAssertEqual(proof.stringRepresentation, "0218b90f0de65ae3447624fc8895c31302e61cef56dbca927717cb501cf591ce32")
     }
     
     func testNegateKey() throws {

@@ -12,8 +12,6 @@ struct KeysetList: Codable {
     let keysets:[Keyset]
 }
 
-#warning("Make sure derivation counter is not being reset when updating keyset info from mint.")
-
 final class Keyset: Codable {
     let id: String
     var keys: Dictionary<String, String>
@@ -40,20 +38,6 @@ final class Keyset: Codable {
                                              forKey: .keys) ?? ["none":"none"]
         inputFeePPK = try container.decodeIfPresent(Int.self,
                                                     forKey: .inputFeePPK) ?? 0
-    }
-    
-    init(id:String,
-         keys:Dictionary<String,String>,
-         derivationCounter:Int = 0,
-         active:Bool = true,
-         unit:String = "sat",
-         inputFeePPK:Int) {
-        self.id = id
-        self.keys = keys
-        self.derivationCounter = derivationCounter
-        self.active = active
-        self.unit = unit
-        self.inputFeePPK = inputFeePPK
     }
     
     static func calculateKeysetID(keyset:Dictionary<String,String>) -> String {

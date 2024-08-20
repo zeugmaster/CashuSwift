@@ -10,10 +10,6 @@ import OSLog
 
 fileprivate var logger = Logger(subsystem: "cashu-swift", category: "Token")
 
-enum CashuError:Error {
-    case InvalidTokenError
-    case TokenEncodingError
-}
 
 public enum TokenVersion:Codable {
     case V3
@@ -66,7 +62,7 @@ public class Token:Codable, Equatable {
     static func decodeV3(tokenString:String) throws -> Token {
         let noPrefix = String(tokenString.dropFirst(6))
         guard let jsonString = noPrefix.decodeBase64UrlSafe() else {
-            throw CashuError.InvalidTokenError
+            throw CashuError.invalidToken
         }
         let jsonData = jsonString.data(using: .utf8)!
         do {
@@ -74,7 +70,7 @@ public class Token:Codable, Equatable {
             return token
         } catch {
             logger.warning("Could not deserialize token. error: \(String(describing: error))")
-            throw CashuError.InvalidTokenError
+            throw CashuError.invalidToken
         }
     }
     
@@ -110,7 +106,7 @@ extension String {
         } else if noPrefix.hasPrefix("cashuB") {
             return try Token.decodeV4(tokenString: noPrefix)
         } else {
-            throw CashuError.InvalidTokenError
+            throw CashuError.invalidToken
         }
     }
     
@@ -133,7 +129,7 @@ extension String {
 
     func encodeBase64UrlSafe(removePadding: Bool = false) throws -> String {
         guard let base64Encoded = self.data(using: .ascii)?.base64EncodedString() else {
-            throw CashuError.TokenEncodingError
+            throw CashuError.tokenEncoding
         }
         var urlSafeBase64 = base64Encoded
             .replacingOccurrences(of: "+", with: "-")
