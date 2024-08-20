@@ -19,7 +19,7 @@ public class Mint: Identifiable, Hashable, Codable {
         lhs.url == rhs.url
     }
     
-    init(with url:URL) async throws {
+    public init(with url:URL) async throws {
         self.url = url
         
         // load keysets or fail with error propagating up
