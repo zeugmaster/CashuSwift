@@ -186,7 +186,7 @@ final class cashu_swiftTests: XCTestCase {
         let amount = 511
         
         let quote = try await mint.getQuote(quoteRequest: Bolt11.RequestMintQuote(unit: "sat",
-                                                                                      amount: amount))
+                                                                                  amount: amount))
         let proofs = try await mint.issue(for: quote)
         
         let token = Token(token: [ProofContainer(mint: mint.url.absoluteString, proofs: proofs)])
@@ -287,6 +287,15 @@ final class cashu_swiftTests: XCTestCase {
         let restoredProofs = try await mint.restore(with: seed)
         
         XCTAssertEqual(proofs.sum, restoredProofs.sum)
+        
+        let mint2 = try await Mint(with: URL(string: "http://localhost:3339")!)
+        let quoteRequest2 = Bolt11.RequestMintQuote(unit: "sat", amount: 2047)
+        let quote2 = try await mint2.getQuote(quoteRequest: quoteRequest2)
+        let proofs2 = try await mint2.issue(for: quote2, seed: seed)
+        
+        let multiMintRestoreProofs = try await [mint, mint2].restore(with: seed)
+        
+        XCTAssertEqual(multiMintRestoreProofs.count, proofs.count + proofs2.count)
     }
     
     func testFeeCalculation() async throws {

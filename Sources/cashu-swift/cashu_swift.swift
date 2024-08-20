@@ -405,7 +405,12 @@ public enum Cashu {
 extension Array where Element == Mint {
     public func restore(with seed:String, batchSize:Int = 10) async throws -> [Proof] {
         // call mint.restore on each of the mints
-        fatalError()
+        var restoredProofs = [Proof]()
+        for mint in self {
+            let proofs = try await mint.restore(with: seed, batchSize: batchSize)
+            restoredProofs.append(contentsOf: proofs)
+        }
+        return restoredProofs
     }
     
     public func getQuote(request:QuoteRequest) async throws -> [Quote] {
