@@ -7,7 +7,7 @@
 
 import Foundation
 
-/// This is the mint object 
+/// This is the mint object.
 public class Mint: Identifiable, Hashable, Codable {
     
     let url: URL

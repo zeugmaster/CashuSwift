@@ -6,7 +6,7 @@ import PackageDescription
 let package = Package(
     name: "CashuSwift",
     platforms: [
-        .iOS(.v13),
+        .iOS(.v14),
         .macOS(.v13),
         .tvOS(.v15),
         .watchOS(.v9)

@@ -7,7 +7,7 @@ fileprivate let logger = Logger.init(subsystem: "CashuSwift", category: "wallet"
 extension Mint {
     
     // MARK: - GET QUOTE
-    
+    /// Get a quote for minting or melting tokens from the mint
     public func getQuote(quoteRequest:QuoteRequest) async throws -> Quote {
         var url = self.url
         
@@ -35,7 +35,6 @@ extension Mint {
     
     // MARK: - ISSUE
     
-    /// # Headline
     /// After paying the quote amount to the mint, use this function to issue the actual ecash as a list of [`String`]s
     /// Leaving `seed` empty will give you proofs from non-deterministic outputs which cannot be recreated from a seed phrase backup
     public func issue(for quote:Quote,
@@ -165,7 +164,9 @@ extension Mint {
         
         // TODO: HANDLE TIMEOUT MORE EXPLICITLY
         
-        let meltResponse = try await Network.post(url: self.url.appending(path: "/v1/melt/bolt11"), body: meltRequest, expected: Bolt11.MeltQuote.self)
+        let meltResponse = try await Network.post(url: self.url.appending(path: "/v1/melt/bolt11"), 
+                                                  body: meltRequest,
+                                                  expected: Bolt11.MeltQuote.self)
         
         // TODO: PERFORM ACTUAL CHANGE CALCULATION AND RETURN CORRECT PROOFS
         
@@ -418,7 +419,7 @@ extension Array where Element == Mint {
         fatalError()
     }
     
-    public func melt(quote:Quote, proofs:[Proof]) async throws -> [Proof] {
+    public func melt(quotes:[Quote], proofs:[Proof]) async throws -> [Proof] {
         // intended for multi nut payment (MPP)
         // check input proofs against mint info and keysets
         // make sure quote is Bolt11
