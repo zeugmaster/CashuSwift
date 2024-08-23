@@ -76,15 +76,16 @@ struct MintInfo: Codable {
     let name: String
     let pubkey: String
     let version: String
-    let description: String?
+    let descriptionShort: String?
     let descriptionLong: String?
     let contact: [[String]]
     let motd: String?
     let nuts: [String: Nut]
 
     enum CodingKeys: String, CodingKey {
-        case name, pubkey, version, description, contact, motd, nuts
+        case name, pubkey, version, contact, motd, nuts
         case descriptionLong = "description_long"
+        case descriptionShort = "description"
     }
     
     struct Nut: Codable {
