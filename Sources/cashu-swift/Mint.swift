@@ -42,9 +42,7 @@ public class Mint: Identifiable, Hashable {
     }
     
     public func hash(into hasher: inout Hasher) {
-            hasher.combine(url) // Combine all properties that contribute to the object's uniqueness
-            // If needed, combine more properties:
-            // hasher.combine(name)
+            hasher.combine(url)
         }
     
     ///Pings the mint for it's info to check wether it is online or not
@@ -65,7 +63,7 @@ public class Mint: Identifiable, Hashable {
             if let feeRate = self.keysets.first(where: { $0.id == proof.id })?.inputFeePPK {
                 sumFees += feeRate
             } else {
-                fatalError("trying to calculate fees for proofs of keyset with unknown ID")
+                throw CashuError.feeCalculationError("trying to calculate fees for proofs of keyset \(proof.keysetID) which does not seem to axxociated with mint \(self.url.absoluteString).")
             }
         }
         return (sumFees + 999) / 1000

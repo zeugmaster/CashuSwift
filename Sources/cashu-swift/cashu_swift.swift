@@ -12,7 +12,7 @@ extension Mint {
         var url = self.url
         
         guard self.keysets.contains(where: { $0.unit == quoteRequest.unit }) else {
-            fatalError("the mint does not have a keyset that supports this unit")
+            throw CashuError.noKeysetForUnit("No keyset on mint \(url.absoluteString) for unit \(quoteRequest.unit.uppercased()).")
         }
         
         switch quoteRequest {
@@ -29,7 +29,7 @@ extension Mint {
                                           body:quoteRequest,
                                           expected: Bolt11.MeltQuote.self)
         default:
-            fatalError("User tried to call getQuote using unsupported QuoteRequest type.")
+            throw CashuError.typeMismatch("User tried to call getQuote using unsupported QuoteRequest type.")
         }
     }
     
@@ -43,18 +43,18 @@ extension Mint {
                       duplicateHandling:Cashu.DuplicateOutputHandling = .fail) async throws -> [Proof] {
         
         guard let quote = quote as? Bolt11.MintQuote else {
-            fatalError("Quote to issue proofs for was not a Bolt11.MintQuote")
+            throw CashuError.typeMismatch("Quote to issue proofs for was not a Bolt11.MintQuote")
         }
         
         guard let requestDetail = quote.requestDetail else {
-            fatalError("You need to set requestDetail associated with the quote.")
+            throw CashuError.missingRequestDetail("You need to set requestDetail associated with the quote.")
         }
         
         var distribution:[Int]
         
         if let preferredDistribution = preferredDistribution {
             guard preferredDistribution.reduce(0, +) == requestDetail.amount else {
-                fatalError("Specified preferred distribution does not add up to the same amount as the quote.")
+                throw CashuError.preferredDistributionMismatch("Specified preferred distribution does not add up to the same amount as the quote.")
             }
             distribution = preferredDistribution
         } else {
@@ -63,7 +63,7 @@ extension Mint {
         
         guard let keyset = self.keysets.first(where: { $0.active == true &&
                                                        $0.unit == requestDetail.unit }) else {
-            fatalError("Could not determine an ACTIVE keyset for this unit \(requestDetail.unit.uppercased())")
+            throw CashuError.noActiveKeysetForUnit("Could not determine an ACTIVE keyset for this unit \(requestDetail.unit.uppercased())")
         }
         
         // tuple for outputs, blindingfactors, secrets
@@ -108,7 +108,7 @@ extension Mint {
         let amount = amount ?? proofs.sum
         
         guard amount <= proofs.sum else {
-            fatalError("amount must not be larger than input proofs")
+            throw CashuError.insufficientInputs("amount must not be larger than input proofs")
         }
         
         let sendProofs:[Proof]
@@ -125,7 +125,7 @@ extension Mint {
         
         let units = try units(for: sendProofs)
         guard units.count == 1 else {
-            fatalError("units needs to contain exactly ONE entry, more means multi unit, less means none found - no bueno")
+            throw CashuError.unitError("units needs to contain exactly ONE entry, more means multi unit, less means none found - no bueno")
         }
         
         let proofContainer = ProofContainer(mint: self.url.absoluteString, proofs: sendProofs)
@@ -142,7 +142,7 @@ extension Mint {
         // this should check whether proofs are from this mint and not multi unit FIXME: potentially wonky and not very descriptive
         guard let inputProofs = token.token.first?.proofs,
                 try self.units(for: inputProofs).count == 1 else {
-            fatalError("Proofs to swap are either of mixed unit or foreign to this mint.")
+            throw CashuError.unitError("Proofs to swap are either of mixed unit or foreign to this mint.")
         }
         return try await self.swap(proofs: inputProofs).new
     }
@@ -152,13 +152,13 @@ extension Mint {
     public func melt(quote:Quote,
                      proofs:[Proof]) async throws -> (paid:Bool, change:[Proof]) {
         guard let quote = quote as? Bolt11.MeltQuote else {
-            fatalError("you need to pass a Bolt11 melt quote to this function, nothing else is supported yet.")
+            throw CashuError.typeMismatch("you need to pass a Bolt11 melt quote to this function, nothing else is supported yet.")
         }
         
         let meltRequest = Bolt11.MeltRequest(quote: quote.quote, inputs: proofs)
         
         guard proofs.sum > quote.amount + quote.feeReserve else {
-            fatalError("inputs do not cover the melt quote amount and fee reserve.")
+            throw CashuError.insufficientInputs("inputs do not cover the melt quote amount and fee reserve.")
         }
         
         // TODO: HANDLE TIMEOUT MORE EXPLICITLY
@@ -202,7 +202,7 @@ extension Mint {
 //        print("fee: \(fee), \nproofSum:\(proofSum), \namounr:\(amount), \namountAfterFee:\(amountAfterFee)")
         
         guard proofSum >= amountAfterFee else {
-            fatalError("target swap amount is larger than sum of proof amounts")
+            throw CashuError.insufficientInputs("target swap amount is larger than sum of proof amounts")
         }
         
         // the number of units from potentially mutliple keysets across input proofs must be 1:
@@ -212,11 +212,11 @@ extension Mint {
         let units = try units(for: proofs)
         
         guard units.count == 1 else {
-            fatalError("mixed unit inputs or other problem with composition of inputs")
+            throw CashuError.unitError("Proofs to swap are either of mixed unit or foreign to this mint.")
         }
         
         guard let activeKeyset = activeKeysetForUnit(units.first!) else {
-            fatalError("no active keyset could be found for unit \(String(describing: units.first))")
+            throw CashuError.noActiveKeysetForUnit("no active keyset could be found for unit \(String(describing: units.first))")
         }
         
         // TODO: implement true output selection
@@ -228,7 +228,7 @@ extension Mint {
             changeDistribution = Cashu.splitIntoBase2Numbers(proofSum - amount)
         } else {
             guard preferredReturnDistribution!.reduce(0, +) == (proofSum - amount) else {
-                fatalError("preferredReturnDistribution does not add up to expected change amount")
+                throw CashuError.preferredDistributionMismatch("preferredReturnDistribution does not add up to expected change amount")
             }
             changeDistribution = preferredReturnDistribution!
         }
@@ -283,7 +283,7 @@ extension Mint {
             
             let states = try await check(proofs)// ignores pending but should not
             guard states.count == proofs.count else {
-                fatalError("could not filter: proofs, spendable need matching count")
+                throw CashuError.restoreError("unable to filter for unspent ecash during restore")
             }
             var spendableProofs = [Proof]()
             for i in 0..<states.count {
@@ -355,7 +355,7 @@ extension Mint {
     
     public func check(_ proofs:[Proof]) async throws -> [Proof.ProofState] {
         guard try units(for: proofs).count == 1 else {
-            fatalError("mixed input units to .chack() function.")
+            throw CashuError.unitError("mixed input units to .chack() function.")
         }
         
         let ys = try proofs.map { proof in
@@ -386,7 +386,7 @@ extension Mint {
                 units.insert(keysetForID.unit)
             } else {
                 // found a proof that belongs to a keyset not from this mint
-                fatalError("proofs from keysets that do not belong to this mint")
+                throw CashuError.unitError("proofs from keyset \(proof.keysetID)  do not belong to mint \(self.url.absoluteString)")
             }
         }
         return units

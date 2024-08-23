@@ -43,7 +43,7 @@ public class Token:Codable, Equatable {
         case .V3:
             try encodeV3(token: self)
         case .V4:
-            fatalError()
+            fatalError("V4 encoding has not been implemented yet")
         }
     }
     

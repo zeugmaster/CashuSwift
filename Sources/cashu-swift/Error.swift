@@ -8,24 +8,41 @@
 import Foundation
 
 enum CashuError: Swift.Error {
+    
     case quoteNotPaid
+    
     case duplicateOutput
+    
     case alreadySpent
+    
     case transactionUnbalanced
+    
     case invalidToken
+    
     case tokenEncoding
+    
     case tokenDecoding
+    
     case inputError(String)
-    case insufficientInputs
     
-    case typeMismatch
+    case insufficientInputs(String)
     
-    case preferredDistributionMismatch
+    case noKeysetForUnit(String)
     
-    case noActiveKeyset
+    case typeMismatch(String)
     
-    case unit
+    case preferredDistributionMismatch(String)
+    
+    case noActiveKeysetForUnit(String)
+    
+    case unitError(String)
     
     case invalidAmount
+    
+    case missingRequestDetail(String)
+    
+    case restoreError(String)
+    
+    case feeCalculationError(String)
 }
 
