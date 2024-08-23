@@ -10,7 +10,6 @@ import OSLog
 
 fileprivate var logger = Logger(subsystem: "cashu-swift", category: "Token")
 
-
 public enum TokenVersion:Codable {
     case V3
     case V4

@@ -7,12 +7,14 @@
 
 import Foundation
 import CryptoKit
+import SwiftData
 
-struct KeysetList: Codable {
+struct KeysetList: Decodable {
     let keysets:[Keyset]
 }
 
-final class Keyset: Codable {
+@Model
+final class Keyset: Decodable {
     let id: String
     var keys: Dictionary<String, String>
     var derivationCounter:Int

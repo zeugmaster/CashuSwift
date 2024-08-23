@@ -135,11 +135,10 @@ extension Mint {
     }
     
     // MARK: - RECEIVE
-    
+    // TODO: NEEDS TO BE ABLE TO HANDLE P2PK LOCKED ECASH
     public func receive(token:Token,
                         seed:String? = nil,
                         duplicateOutputHandling:Cashu.DuplicateOutputHandling = .fail) async throws -> [Proof] {
-        // TODO: NEEDS TO BE ABLE TO HANDLE P2PK LOCKED ECASH
         // this should check whether proofs are from this mint and not multi unit FIXME: potentially wonky and not very descriptive
         guard let inputProofs = token.token.first?.proofs,
                 try self.units(for: inputProofs).count == 1 else {

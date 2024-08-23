@@ -6,9 +6,12 @@
 //
 
 import Foundation
+import SwiftData
 
 /// This is the mint object.
-public class Mint: Identifiable, Hashable, Codable {
+
+@Model
+public class Mint: Identifiable, Hashable {
     
     let url: URL
     var keysets: [Keyset]
