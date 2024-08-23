@@ -9,19 +9,19 @@ import Foundation
 import SwiftData
 
 @Model
-public struct Proof: Codable, Equatable, CustomStringConvertible {
+public final class Proof: Codable, Equatable, CustomStringConvertible {
     
     public static func == (lhs: Proof, rhs: Proof) -> Bool {
         lhs.C == rhs.C &&
-        lhs.id == rhs.id &&
+        lhs.keysetID == rhs.keysetID &&
         lhs.amount == rhs.amount
     }
     
     public enum CodingKeys: String, CodingKey {
-        case id, amount, secret, C
+        case keysetID = "id", amount, secret, C
     }
     
-    let id: String
+    let keysetID: String
     let amount: Int
     let secret: String
     let C: String
@@ -34,7 +34,7 @@ public struct Proof: Codable, Equatable, CustomStringConvertible {
     
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(id, forKey: .id)
+        try container.encode(keysetID, forKey: .keysetID)
         try container.encode(amount, forKey: .amount)
         try container.encode(secret, forKey: .secret)
         try container.encode(C, forKey: .C)
@@ -42,10 +42,17 @@ public struct Proof: Codable, Equatable, CustomStringConvertible {
     
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(String.self, forKey: .id)
+        keysetID = try container.decode(String.self, forKey: .keysetID)
         amount = try container.decode(Int.self, forKey: .amount)
         secret = try container.decode(String.self, forKey: .secret)
         C = try container.decode(String.self, forKey: .C)
+    }
+    
+    init(keysetID:String, amount:Int, secret:String, C:String) {
+        self.keysetID = keysetID
+        self.amount = amount
+        self.secret = secret
+        self.C = C
     }
     
     // MARK: - Additional nested types

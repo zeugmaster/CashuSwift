@@ -134,7 +134,7 @@ enum Crypto {
             let C_ = try PublicKey(dataRepresentation: promise.C_.bytes, format: .compressed)
             let C = try unblind(C_: C_, r: r, A: mintPubKey)
             
-            proofs.append(Proof(id: promises[i].id, 
+            proofs.append(Proof(keysetID: promises[i].id, 
                                 amount: promises[i].amount,
                                 secret: secrets[i],
                                 C: String(bytes: C.dataRepresentation)))
