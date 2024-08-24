@@ -24,7 +24,7 @@ public final class Proof: Codable, Equatable, CustomStringConvertible {
     let keysetID: String
     let amount: Int
     let secret: String
-    let C: String
+    @Attribute(.unique) let C: String
     
     public var description: String {
         return "C: ...\(C.suffix(6)), amount: \(amount)"

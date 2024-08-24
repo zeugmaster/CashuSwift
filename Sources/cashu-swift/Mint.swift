@@ -13,7 +13,7 @@ import SwiftData
 @Model
 public class Mint: Identifiable, Hashable {
     
-    let url: URL
+    @Attribute(.unique) let url: URL
     var keysets: [Keyset]
     var info:MintInfo?
     var nickname:String?
