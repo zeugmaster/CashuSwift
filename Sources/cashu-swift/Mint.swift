@@ -11,10 +11,10 @@ import Foundation
 
 public class Mint: Identifiable, Hashable {
     
-    let url: URL
+    public let url: URL
     var keysets: [Keyset]
-    var info:MintInfo?
-    var nickname:String?
+    public var info:MintInfo?
+    public var nickname:String?
     
     public static func == (lhs: Mint, rhs: Mint) -> Bool {
         lhs.url == rhs.url
@@ -68,7 +68,7 @@ public class Mint: Identifiable, Hashable {
     }
 }
 
-struct MintInfo: Codable {
+public struct MintInfo: Codable {
     let name: String
     let pubkey: String
     let version: String
