@@ -7,7 +7,9 @@
 
 import Foundation
 
-public final class Proof: Codable, Equatable, CustomStringConvertible {
+public final class Proof: Codable, Equatable, CustomStringConvertible, Identifiable {
+    
+    public var id:String { get { C } }
     
     public static func == (lhs: Proof, rhs: Proof) -> Bool {
         lhs.C == rhs.C &&
@@ -19,10 +21,10 @@ public final class Proof: Codable, Equatable, CustomStringConvertible {
         case keysetID = "id", amount, secret, C
     }
     
-    let keysetID: String
-    let amount: Int
-    let secret: String
-    let C: String
+    public let keysetID: String
+    public let amount: Int
+    public let secret: String
+    public let C: String
     
     public var description: String {
         return "C: ...\(C.suffix(6)), amount: \(amount)"

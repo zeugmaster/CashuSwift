@@ -223,7 +223,7 @@ final class cashu_swiftTests: XCTestCase {
         for _ in 0...3 {
             (proofs, _) = try await mint.swap(proofs: proofs, seed: seed)
         }
-        print(proofs)
+        print(proofs.first?.debugPretty() ?? "none")
     }
     
     func testSendReceive() async throws {
