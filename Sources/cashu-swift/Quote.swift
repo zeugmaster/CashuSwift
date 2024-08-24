@@ -29,7 +29,7 @@ public enum Bolt11 {
         public let unit: String
         public let amount:Int
         
-        init(unit: String, amount: Int) {
+        public init(unit: String, amount: Int) {
             self.unit = unit
             self.amount = amount
         }
