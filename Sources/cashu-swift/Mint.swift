@@ -9,8 +9,7 @@ import Foundation
 
 /// This is the mint object.
 
-public struct Mint:  Hashable {
-    
+public struct Mint:  Hashable, Codable {
     
     public let url: URL
     var keysets: [Keyset]
