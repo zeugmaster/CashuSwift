@@ -28,6 +28,11 @@ public enum Bolt11 {
     public struct RequestMintQuote:QuoteRequest {
         public let unit: String
         public let amount:Int
+        
+        init(unit: String, amount: Int) {
+            self.unit = unit
+            self.amount = amount
+        }
     }
     
     public struct RequestMeltQuote: QuoteRequest {
@@ -35,14 +40,28 @@ public enum Bolt11 {
         public struct Options:Codable {
             public struct MPP:Codable {
                 public let amount:Int
+                
+                public init(amount: Int) {
+                    self.amount = amount
+                }
             }
             public let mpp:MPP
+            
+            public init(mpp: MPP) {
+                self.mpp = mpp
+            }
         }
         
         public let unit: String
         public let request:String
         
         public let options:Options?
+        
+        public init(unit: String, request: String, options: Options?) {
+            self.unit = unit
+            self.request = request
+            self.options = options
+        }
     }
     
     public struct MintQuote:Quote {
