@@ -24,46 +24,46 @@ public enum QuoteState: String,Codable {
     case pending = "PENDING"
 }
 
-enum Bolt11 {
-    struct RequestMintQuote:QuoteRequest {
-        let unit: String
-        let amount:Int
+public enum Bolt11 {
+    public struct RequestMintQuote:QuoteRequest {
+        public let unit: String
+        public let amount:Int
     }
     
-    struct RequestMeltQuote: QuoteRequest {
+    public struct RequestMeltQuote: QuoteRequest {
         
-        struct Options:Codable {
-            struct MPP:Codable {
-                let amount:Int
+        public struct Options:Codable {
+            public struct MPP:Codable {
+                public let amount:Int
             }
-            let mpp:MPP
+            public let mpp:MPP
         }
         
-        let unit: String
-        let request:String
+        public let unit: String
+        public let request:String
         
-        let options:Options?
+        public let options:Options?
     }
     
-    struct MintQuote:Quote {
-        let quote:String
-        let request: String
-        let paid:Bool?
-        let state:QuoteState?
-        let expiry:Int
-        var requestDetail:RequestMintQuote?
+    public struct MintQuote:Quote {
+        public let quote:String
+        public let request: String
+        public let paid:Bool?
+        public let state:QuoteState?
+        public let expiry:Int
+        public var requestDetail:RequestMintQuote?
     }
 
-    struct MeltQuote: Quote {
-        var paid: Bool?
+    public struct MeltQuote: Quote {
+        public var paid: Bool?
         
-        var state: QuoteState?
+        public var state: QuoteState?
         
-        let quote: String
-        let amount: Int
-        var feeReserve: Int
-        let expiry: Int
-        let paymentPreimage: String?
+        public let quote: String
+        public let amount: Int
+        public var feeReserve: Int
+        public let expiry: Int
+        public let paymentPreimage: String?
         
         enum CodingKeys: String, CodingKey {
             case quote
@@ -75,12 +75,12 @@ enum Bolt11 {
         }
     }
     
-    struct MeltRequest:Codable {
-        let quote:String
-        let inputs:[Proof]
+    public struct MeltRequest:Codable {
+        public let quote:String
+        public let inputs:[Proof]
     }
     
-    struct MintRequest:Codable {
+    public struct MintRequest:Codable {
         let quote:String
         let outputs:[Output]
     }
