@@ -7,15 +7,13 @@
 
 import Foundation
 import CryptoKit
-import SwiftData
 
 struct KeysetList: Decodable {
     let keysets:[Keyset]
 }
 
-@Model
-final class Keyset: Decodable {
-    let id: String
+final class Keyset: Codable {
+    let keysetID: String
     var keys: Dictionary<String, String>
     var derivationCounter:Int
     var active:Bool
@@ -23,13 +21,15 @@ final class Keyset: Decodable {
     let inputFeePPK:Int
     
     enum CodingKeys: String, CodingKey {
-        case id, keys, derivationCounter, active, unit
+        case keysetID = "id" , keys, derivationCounter, active, unit
         case inputFeePPK = "input_fee_ppk"
     }
-
+    
+    // Manual encoder / decoder functions are needed for Codable conformance AND Model macro
+    
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(String.self, forKey: .id)
+        keysetID = try container.decode(String.self, forKey: .keysetID)
         unit = try container.decode(String.self, forKey: .unit)
         
         derivationCounter = try container.decodeIfPresent(Int.self,
@@ -41,6 +41,16 @@ final class Keyset: Decodable {
         inputFeePPK = try container.decodeIfPresent(Int.self,
                                                     forKey: .inputFeePPK) ?? 0
     }
+    
+    func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(keysetID, forKey: .keysetID)
+            try container.encode(unit, forKey: .unit)
+            try container.encode(derivationCounter, forKey: .derivationCounter)
+            try container.encode(active, forKey: .active)
+            try container.encode(keys, forKey: .keys)
+            try container.encode(inputFeePPK, forKey: .inputFeePPK)
+        }
     
     static func calculateKeysetID(keyset:Dictionary<String,String>) -> String {
         let sortedValues = keyset.sorted { (firstElement, secondElement) -> Bool in

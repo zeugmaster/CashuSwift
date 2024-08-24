@@ -6,14 +6,12 @@
 //
 
 import Foundation
-import SwiftData
 
 /// This is the mint object.
 
-@Model
 public class Mint: Identifiable, Hashable {
     
-    @Attribute(.unique) let url: URL
+    let url: URL
     var keysets: [Keyset]
     var info:MintInfo?
     var nickname:String?
@@ -31,7 +29,7 @@ public class Mint: Identifiable, Hashable {
         var keysetsWithKeys = [Keyset]()
         for keyset in keysetList.keysets {
             let new = keyset
-            new.keys = try await Network.get(url: url.appending(path: "/v1/keys/\(keyset.id.makeURLSafe())"),
+            new.keys = try await Network.get(url: url.appending(path: "/v1/keys/\(keyset.keysetID.makeURLSafe())"),
                                                 expected: KeysetList.self).keysets[0].keys
             keysetsWithKeys.append(new)
         }
@@ -60,7 +58,7 @@ public class Mint: Identifiable, Hashable {
     public func calculateFee(for proofs:[Proof]) throws -> Int {
         var sumFees = 0
         for proof in proofs {
-            if let feeRate = self.keysets.first(where: { $0.id == proof.id })?.inputFeePPK {
+            if let feeRate = self.keysets.first(where: { $0.keysetID == proof.keysetID })?.inputFeePPK {
                 sumFees += feeRate
             } else {
                 throw CashuError.feeCalculationError("trying to calculate fees for proofs of keyset \(proof.keysetID) which does not seem to axxociated with mint \(self.url.absoluteString).")

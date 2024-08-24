@@ -71,13 +71,13 @@ extension Mint {
         var outputs = (outputs:[Output](), blindingFactors:[""], secrets:[""])
         if let seed = seed {
             outputs = try Crypto.generateOutputs(amounts: distribution,
-                                                 keysetID: keyset.id,
+                                                 keysetID: keyset.keysetID,
                                                  deterministicFactors: (seed: seed,
                                                                         counter: keyset.derivationCounter))
             keyset.derivationCounter += outputs.outputs.count
         } else {
             outputs = try Crypto.generateOutputs(amounts: distribution,
-                                                 keysetID: keyset.id)
+                                                 keysetID: keyset.keysetID)
         }
         
         let mintRequest = Bolt11.MintRequest(quote: quote.quote, outputs: outputs.outputs)
@@ -244,7 +244,7 @@ extension Mint {
         }
         
         let (outputs, bfs, secrets) = try Crypto.generateOutputs(amounts: combinedDistribution,
-                                                                 keysetID: activeKeyset.id,
+                                                                 keysetID: activeKeyset.keysetID,
                                                                  deterministicFactors: deterministicFactors)
         
         let swapRequest = SwapRequest(inputs: proofs, outputs: outputs)
@@ -274,7 +274,7 @@ extension Mint {
         // no need to check validity of seed as function would otherwise crash during first det sec generation
         var restoredProofs = [Proof]()
         for keyset in self.keysets {
-            logger.info("Attempting restore for keyset: \(keyset.id) of mint: \(self.url.absoluteString)")
+            logger.info("Attempting restore for keyset: \(keyset.keysetID) of mint: \(self.url.absoluteString)")
             let (proofs, _, lastMatchCounter) = try await restoreForKeyset(keyset, with: seed, batchSize: batchSize)
             print("last match counter: \(String(describing: lastMatchCounter))")
             
@@ -291,7 +291,7 @@ extension Mint {
             }
             
             restoredProofs.append(contentsOf: spendableProofs)
-            logger.info("Found \(spendableProofs.count) spendable proofs for keyset \(keyset.id)")
+            logger.info("Found \(spendableProofs.count) spendable proofs for keyset \(keyset.keysetID)")
         }
         return restoredProofs
     }
@@ -310,7 +310,7 @@ extension Mint {
             let (outputs,
                  blindingFactors,
                  secrets) = try Crypto.generateOutputs(amounts: Array(repeating: 1, count: batchSize),
-                                                       keysetID: keyset.id,
+                                                       keysetID: keyset.keysetID,
                                                        deterministicFactors: (seed: seed,
                                                                               counter: currentCounter))
             
@@ -370,6 +370,25 @@ extension Mint {
         }
     }
     
+//    public func update() async throws {
+//        // load keysets, iterate over ids and active flag
+//        let remoteKeysetList = try await Network.get(url: self.url.appending(path: "/v1/keysets"),
+//                                                     expected: KeysetList.self)
+//        let remoteIDsAndActive = Set(remoteKeysetList.keysets.map { keyset in
+//            (keyset.id, keyset.active)
+//        })
+//        let localIDsAndActive = self.keysets.map { keyset in
+//            (keyset.id, keyset.active)
+//        }
+//        var keysetsWithKeys = [Keyset]()
+//        for keyset in keysetList.keysets {
+//            let new = keyset
+//            new.keys = try await Network.get(url: self.url.appending(path: "/v1/keys/\(keyset.id.makeURLSafe())"),
+//                                                expected: KeysetList.self).keysets[0].keys
+//            keysetsWithKeys.append(new)
+//        }
+//    }
+    
     // MARK: - MISC
     
     func activeKeysetForUnit(_ unit:String) -> Keyset? {
@@ -382,7 +401,7 @@ extension Mint {
     func units(for proofs:[Proof]) throws -> Set<String> {
         var units:Set<String> = []
         for proof in proofs {
-            if let keysetForID = self.keysets.first(where: { $0.id == proof.id }) {
+            if let keysetForID = self.keysets.first(where: { $0.keysetID == proof.keysetID }) {
                 units.insert(keysetForID.unit)
             } else {
                 // found a proof that belongs to a keyset not from this mint

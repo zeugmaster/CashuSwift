@@ -1,5 +1,6 @@
 import XCTest
 @testable import CashuSwift
+import SwiftData
 import secp256k1
 import BIP39
 
@@ -7,11 +8,11 @@ final class cashu_swiftTests: XCTestCase {
     
     func testEncoding() throws {
         
-        let proof1 = Proof(id: "009a1f293253e41e",
+        let proof1 = Proof(keysetID: "009a1f293253e41e",
                            amount: 2,
                            secret: "407915bc212be61a77e3e6d2aeb4c727980bda51cd06a6afc29e2861768a7837",
                            C: "02bc9097997d81afb2cc7346b5e4345a9346bd2a506eb7958598a72f0cf85163ea")
-        let proof2 = Proof(id: proof1.id,
+        let proof2 = Proof(keysetID: proof1.keysetID,
                            amount: 8,
                            secret: "fe15109314e61d7756b0f8ee0f23a624acaa3f4e042f61433c728c7057b931be",
                            C: "029e8e5050b890a7d6c0968db16bc1d5d5fa040ea1de284f6ec69d61299f671059")
@@ -329,14 +330,14 @@ final class cashu_swiftTests: XCTestCase {
     }
     
     func testProofSelection() {
-        let proofs =   [Proof(id: "", amount: 1, secret: "", C: ""),
-                        Proof(id: "", amount: 1, secret: "", C: ""),
-                        Proof(id: "", amount: 8, secret: "", C: ""),
-                        Proof(id: "", amount: 4, secret: "", C: ""),
-                        Proof(id: "", amount: 32, secret: "", C: ""),
-                        Proof(id: "", amount: 2, secret: "", C: ""),
-                        Proof(id: "", amount: 16, secret: "", C: ""),
-                        Proof(id: "", amount: 128, secret: "", C: "")]
+        let proofs =   [Proof(keysetID: "", amount: 1, secret: "", C: ""),
+                        Proof(keysetID: "", amount: 1, secret: "", C: ""),
+                        Proof(keysetID: "", amount: 8, secret: "", C: ""),
+                        Proof(keysetID: "", amount: 4, secret: "", C: ""),
+                        Proof(keysetID: "", amount: 32, secret: "", C: ""),
+                        Proof(keysetID: "", amount: 2, secret: "", C: ""),
+                        Proof(keysetID: "", amount: 16, secret: "", C: ""),
+                        Proof(keysetID: "", amount: 128, secret: "", C: "")]
         
         let selection1 = proofs.select(amount: 50)
         print(selection1 ?? "")
@@ -353,5 +354,12 @@ final class cashu_swiftTests: XCTestCase {
         
         let mtProofs = [Proof]()
         print(mtProofs.sum)
+    }
+    
+    func testDictComparison() {
+        let one = ["lkasjdfha":false, "iuzcvnwefk":true]
+        let two = ["lkasjdfha":false, "iuzcvnwefk":true]
+        
+        XCTAssertEqual(one, two)
     }
 }

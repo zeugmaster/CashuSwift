@@ -6,9 +6,7 @@
 //
 
 import Foundation
-import SwiftData
 
-@Model
 public final class Proof: Codable, Equatable, CustomStringConvertible {
     
     public static func == (lhs: Proof, rhs: Proof) -> Bool {
@@ -24,7 +22,7 @@ public final class Proof: Codable, Equatable, CustomStringConvertible {
     let keysetID: String
     let amount: Int
     let secret: String
-    @Attribute(.unique) let C: String
+    let C: String
     
     public var description: String {
         return "C: ...\(C.suffix(6)), amount: \(amount)"
