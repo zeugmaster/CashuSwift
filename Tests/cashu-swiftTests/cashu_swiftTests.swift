@@ -194,7 +194,7 @@ final class cashu_swiftTests: XCTestCase {
         
         token.unit = "sat"
         
-//        print(try token.serialize(.V3))
+        //        print(try token.serialize(.V3))
         // (mew, change)
         let (_, _) = try await mint.swap(proofs: proofs, amount: 500)
         
@@ -317,7 +317,7 @@ final class cashu_swiftTests: XCTestCase {
         let r = try Crypto.PrivateKey(dataRepresentation: "c551bd0a48e3a069d8a02dc8b1783923da0d9af015f575c0a521237e10316580".bytes)
         // we only test for the amount 1 and the corresponding mint public key
         let A = try Crypto.PublicKey(dataRepresentation: "02221e05e446782ba13bb41a8b74ac344a4829cf8417d8e7d32c0152a64755bfae".bytes, format: .compressed)
-
+        
         let proof = try Crypto.unblind(C_: C_, r: r, A: A)
         
         XCTAssertEqual(proof.stringRepresentation, "0218b90f0de65ae3447624fc8895c31302e61cef56dbca927717cb501cf591ce32")
@@ -356,10 +356,14 @@ final class cashu_swiftTests: XCTestCase {
         print(mtProofs.sum)
     }
     
-    func testDictComparison() {
-        let one = ["lkasjdfha":false, "iuzcvnwefk":true]
-        let two = ["lkasjdfha":false, "iuzcvnwefk":true]
+    
+    func testMintUpdate() async throws {
+        var mint:Mint = try await  Mint(with: URL(string: "http://localhost:3338")!)
         
-        XCTAssertEqual(one, two)
+        try await Task.sleep(for: .seconds(60))
+        
+        try await mint.update()
+        print(mint.debugPretty())
+        
     }
 }

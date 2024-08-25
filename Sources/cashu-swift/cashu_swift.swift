@@ -370,24 +370,37 @@ extension Mint {
         }
     }
     
-//    public func update() async throws {
-//        // load keysets, iterate over ids and active flag
-//        let remoteKeysetList = try await Network.get(url: self.url.appending(path: "/v1/keysets"),
-//                                                     expected: KeysetList.self)
-//        let remoteIDsAndActive = Set(remoteKeysetList.keysets.map { keyset in
-//            (keyset.id, keyset.active)
-//        })
-//        let localIDsAndActive = self.keysets.map { keyset in
-//            (keyset.id, keyset.active)
-//        }
-//        var keysetsWithKeys = [Keyset]()
-//        for keyset in keysetList.keysets {
-//            let new = keyset
-//            new.keys = try await Network.get(url: self.url.appending(path: "/v1/keys/\(keyset.id.makeURLSafe())"),
-//                                                expected: KeysetList.self).keysets[0].keys
-//            keysetsWithKeys.append(new)
-//        }
-//    }
+    public func update() async throws {
+        // load keysets, iterate over ids and active flag
+        let remoteKeysetList = try await Network.get(url: self.url.appending(path: "/v1/keysets"),
+                                                     expected: KeysetList.self)
+        
+        let remoteIDs = remoteKeysetList.keysets.reduce(into: [String:Bool]()) { partialResult, keyset in
+            partialResult[keyset.keysetID] = keyset.active
+        }
+        
+        let localIDs = self.keysets.reduce(into: [String:Bool]()) { partialResult, keyset in
+            partialResult[keyset.keysetID] = keyset.active
+        }
+        
+        logger.debug("Updating local representation of mint \(self.url)...")
+        
+        if remoteIDs != localIDs {
+            logger.debug("List of keysets changed.")
+            var keysetsWithKeys = [Keyset]()
+            for keyset in remoteKeysetList.keysets {
+                let new = keyset
+                new.keys = try await Network.get(url: self.url.appending(path: "/v1/keys/\(keyset.keysetID.makeURLSafe())"),
+                                                    expected: KeysetList.self).keysets[0].keys
+                keysetsWithKeys.append(new)
+            }
+            self.keysets = keysetsWithKeys
+        } else {
+            logger.debug("No changes in list of keysets.")
+        }
+        
+        // TODO: UPDATE INFO AS WELL
+    }
     
     // MARK: - MISC
     
@@ -422,6 +435,13 @@ public enum Cashu {
 }
 
 extension Array where Element == Mint {
+    
+    public func updateAll() async throws {
+        for mint in self {
+            try await mint.update()
+        }
+    }
+    
     public func restore(with seed:String, batchSize:Int = 10) async throws -> [Proof] {
         // call mint.restore on each of the mints
         var restoredProofs = [Proof]()
