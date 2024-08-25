@@ -278,6 +278,9 @@ extension Mint {
             let (proofs, _, lastMatchCounter) = try await restoreForKeyset(keyset, with: seed, batchSize: batchSize)
             print("last match counter: \(String(describing: lastMatchCounter))")
             
+            // if we dont have any restorable proofs on this keyset, move on to the next
+            if proofs.isEmpty { continue }
+            
             // FIXME: ugly
             keyset.derivationCounter = lastMatchCounter + 1
             
@@ -361,6 +364,7 @@ extension Mint {
         let ys = try proofs.map { proof in
             try Crypto.secureHashToCurve(message: proof.secret).stringRepresentation
         }
+        
         let request = Proof.StateCheckRequest(Ys: ys)
         let response = try await Network.post(url: self.url.appending(path: "/v1/checkstate"),
                                               body: request,
@@ -412,6 +416,10 @@ extension Mint {
     }
     
     func units(for proofs:[Proof]) throws -> Set<String> {
+        guard !self.keysets.isEmpty, !proofs.isEmpty else {
+            fatalError("empty inputs to function .check() proofs: \(proofs.count), keysete\(self.keysets.count)")
+        }
+        
         var units:Set<String> = []
         for proof in proofs {
             if let keysetForID = self.keysets.first(where: { $0.keysetID == proof.keysetID }) {

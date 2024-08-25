@@ -360,7 +360,7 @@ final class cashu_swiftTests: XCTestCase {
     func testMintUpdate() async throws {
         var mint:Mint = try await  Mint(with: URL(string: "http://localhost:3338")!)
         
-        try await Task.sleep(for: .seconds(60))
+//        try await Task.sleep(for: .seconds(60))
         
         try await mint.update()
         print(mint.debugPretty())
