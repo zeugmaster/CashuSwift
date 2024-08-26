@@ -1,4 +1,7 @@
 import Foundation
+import OSLog
+
+fileprivate let logger = Logger.init(subsystem: "CashuSwift", category: "wallet")
 
 /// This is the mint object.
 public class Mint: Hashable, Codable {
@@ -26,9 +29,24 @@ public class Mint: Hashable, Codable {
             keysetsWithKeys.append(new)
         }
         
-        // TODO: load mint info
-        
         self.keysets = keysetsWithKeys
+        
+        self.info = try? await loadInfo()
+    }
+    
+    func loadInfo() async throws -> MintInfo? {
+        let mintInfoData = try await Network.get(url: self.url.appending(path: "v1/info"))!
+        
+        if let info = try? JSONDecoder().decode(MintInfo0_16.self, from: mintInfoData) {
+            return info
+        } else if let info = try? JSONDecoder().decode(MintInfo0_15.self, from: mintInfoData) {
+            return info
+        } else if let info = try? JSONDecoder().decode(MintInfo.self, from: mintInfoData) {
+            return info
+        } else {
+            logger.warning("Could not parse mint info of \(self.url.absoluteString) to any known version.")
+            return nil
+        }
     }
     
     required public init(from decoder: Decoder) throws {
@@ -39,16 +57,12 @@ public class Mint: Hashable, Codable {
         let infoContainer = try container.superDecoder(forKey: .info)
         if let info = try? MintInfo0_16(from: infoContainer) {
             self.info = info
-            print("16")
         } else if let info = try? MintInfo0_15(from: infoContainer) {
             self.info = info
-            print("15")
         } else if let info = try? MintInfo(from: infoContainer) {
             self.info = info
-            print("legacy")
         } else {
-            print("none")
-            // TODO: LOG DECODING FAILURE
+            logger.warning("Could not initiate from decoder mint info of \(self.url.absoluteString) as any known version.")
         }
         
         self.nickname = try container.decodeIfPresent(String.self, forKey: .nickname)

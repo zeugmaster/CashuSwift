@@ -359,18 +359,6 @@ final class cashu_swiftTests: XCTestCase {
     func testMintUpdate() async throws {
         let mint:Mint = try await  Mint(with: URL(string: "http://localhost:3339")!)
         
-//        try await Task.sleep(for: .seconds(60))
-        
-        let mintInfoData = try await Network.get(url: mint.url.appending(path: "v1/info"))!
-        
-        if let info = try? JSONDecoder().decode(MintInfo0_16.self, from: mintInfoData) {
-            mint.info = info
-        } else if let info = try? JSONDecoder().decode(MintInfo0_15.self, from: mintInfoData) {
-            mint.info = info
-        } else if let info = try? JSONDecoder().decode(MintInfo.self, from: mintInfoData) {
-            mint.info = info
-        }
-        
         let mintData = try JSONEncoder().encode(mint)
 //        print(String(data: mintData, encoding: .utf8) ?? "")
         let mintDecoded = try JSONDecoder().decode(Mint.self, from: mintData)
