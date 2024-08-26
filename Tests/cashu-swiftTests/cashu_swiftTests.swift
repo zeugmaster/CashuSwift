@@ -356,14 +356,25 @@ final class cashu_swiftTests: XCTestCase {
         print(mtProofs.sum)
     }
     
-    
     func testMintUpdate() async throws {
-        var mint:Mint = try await  Mint(with: URL(string: "http://localhost:3338")!)
+        let mint:Mint = try await  Mint(with: URL(string: "http://localhost:3339")!)
         
 //        try await Task.sleep(for: .seconds(60))
         
-        try await mint.update()
-        print(mint.debugPretty())
+        let mintInfoData = try await Network.get(url: mint.url.appending(path: "v1/info"))!
         
+        if let info = try? JSONDecoder().decode(MintInfo0_16.self, from: mintInfoData) {
+            mint.info = info
+        } else if let info = try? JSONDecoder().decode(MintInfo0_15.self, from: mintInfoData) {
+            mint.info = info
+        } else if let info = try? JSONDecoder().decode(MintInfo.self, from: mintInfoData) {
+            mint.info = info
+        }
+        
+        let mintData = try JSONEncoder().encode(mint)
+//        print(String(data: mintData, encoding: .utf8) ?? "")
+        let mintDecoded = try JSONDecoder().decode(Mint.self, from: mintData)
+        
+        print(mintDecoded.debugPretty())
     }
 }

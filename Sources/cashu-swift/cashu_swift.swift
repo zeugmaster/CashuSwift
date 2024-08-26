@@ -279,7 +279,10 @@ extension Mint {
             print("last match counter: \(String(describing: lastMatchCounter))")
             
             // if we dont have any restorable proofs on this keyset, move on to the next
-            if proofs.isEmpty { continue }
+            if proofs.isEmpty {
+                logger.debug("No ecash to restore for keyset \(keyset.keysetID).")
+                continue
+            }
             
             // FIXME: ugly
             keyset.derivationCounter = lastMatchCounter + 1
