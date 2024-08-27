@@ -7,7 +7,7 @@
 
 import Foundation
 
-public class Proof: Codable, Equatable, CustomStringConvertible, Identifiable {
+open class Proof: Codable, Equatable, CustomStringConvertible, Identifiable {
     
     public var id:String { get { C } }
     

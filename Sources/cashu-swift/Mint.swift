@@ -4,7 +4,7 @@ import OSLog
 fileprivate let logger = Logger.init(subsystem: "CashuSwift", category: "wallet")
 
 /// This is the mint object.
-public class Mint: Hashable, Codable {
+open class Mint: Hashable, Codable {
     
     public let url: URL
     var keysets: [Keyset]
