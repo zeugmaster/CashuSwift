@@ -254,14 +254,15 @@ final class cashu_swiftTests: XCTestCase {
         let proofs = try await mint.issue(for: q)
         
         let q2 = try await mint.getQuote(quoteRequest: Bolt11.RequestMintQuote(unit: "sat", amount: 64)) as! Bolt11.MintQuote
-        let meltqr = Bolt11.RequestMeltQuote(unit: "sat", request: q2.request, options: nil)
-        print(meltqr.debugPretty())
         
-        let meltQ = try await mint.getQuote(quoteRequest: meltqr)
-        print(meltQ.debugPretty())
+        let meltQuoteRequest = Bolt11.RequestMeltQuote(unit: "sat", request: q2.request, options: nil)
+        let meltQ = try await mint.getQuote(quoteRequest: meltQuoteRequest)
+        let result = try await mint.melt(quote: meltQ, proofs: proofs)
+        // result.change is a list of proofs if you overpay on the melt quote
+        // result.paid == true if the Bolt11 lightning payment successful
         
-        let response = try await mint.melt(quote: meltQ, proofs: proofs)
-        print(response)
+        
+        XCTAssert(result.paid)
     }
     
     func testTokenStateCheck() async throws {

@@ -23,9 +23,9 @@ This library provides basic functionality and model representation for using the
 | [07][07] | Token state check | :heavy_check_mark: |
 | [08][08] | Overpaid Lightning fees | :construction: |
 | [09][09] | Signature restore | :heavy_check_mark: |
-| [10][10] | Spending conditions | :heavy_check_mark: |
-| [11][11] | Pay-To-Pubkey (P2PK) | :heavy_check_mark: |
-| [12][12] | DLEQ proofs | :heavy_check_mark: |
+| [10][10] | Spending conditions | :construction: |
+| [11][11] | Pay-To-Pubkey (P2PK) | :construction: |
+| [12][12] | DLEQ proofs | :construction: |
 | [13][13] | Deterministic secrets | :heavy_check_mark: |
 | [14][14] | Hashed Timelock Contracts (HTLCs) | :construction: |
 | [15][15] | Partial multi-path payments (MPP) | :construction: |
@@ -80,6 +80,16 @@ let token = try "cashuAey...".deserializeToken()
 // This will swap the ecash contained in the token and return your new proofs
 let proofs = try await mint.receive(token: token)
 ```
+
+#### Melting ecash
+
+```swift
+let meltQuoteRequest = Bolt11.RequestMeltQuote(unit: "sat", request: q2.request, options: nil)
+let meltQ = try await mint.getQuote(quoteRequest: meltQuoteRequest)
+let result = try await mint.melt(quote: meltQ, proofs: proofs)
+// result.change is a list of proofs if you overpay on the melt quote
+// result.paid == true if the Bolt11 lightning payment successful
+```        
 
 
 [00]: https://github.com/cashubtc/nuts/blob/main/00.md
