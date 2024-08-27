@@ -40,7 +40,7 @@ extension Mint {
     public func issue(for quote:Quote,
                       seed:String? = nil,
                       preferredDistribution:[Int]? = nil,
-                      duplicateHandling:Cashu.DuplicateOutputHandling = .fail) async throws -> [Proof] {
+                      duplicateOutputHandling:Cashu.DuplicateOutputHandling = .fail) async throws -> [Proof] {
         
         guard let quote = quote as? Bolt11.MintQuote else {
             throw CashuError.typeMismatch("Quote to issue proofs for was not a Bolt11.MintQuote")

@@ -32,22 +32,10 @@ This library provides basic functionality and model representation for using the
 | [16][16] | Animated QR codes | N/A |
 | [17][17] | WebSocket subscriptions  | :construction: |
 
-## Bindings
-
-Experimental bindings can be found in the [bindings](./bindings/) folder.
-
-## License
-
-Code is under the [MIT License](LICENSE)
-
-## Contribution
-
-All contributions welcome.
-
-Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, shall be licensed as above, without any additional terms or conditions.
-
 
 ## Basic Usage
+
+Most methods on `Mint` have additional parameters for customizing their behaviour (e.g. `preferredDistribution`, `seed` for deterministic secret generation)
 
 #### Initializing a mint
 
@@ -87,7 +75,6 @@ let proofs = try await mint.receive(token: token)
 let meltQuoteRequest = Bolt11.RequestMeltQuote(unit: "sat", request: q2.request, options: nil)
 let meltQ = try await mint.getQuote(quoteRequest: meltQuoteRequest)
 let result = try await mint.melt(quote: meltQ, proofs: proofs)
-// result.change is a list of proofs if you overpay on the melt quote
 // result.paid == true if the Bolt11 lightning payment successful
 ```        
 
