@@ -2,6 +2,8 @@
 
 This library provides basic functionality and model representation for using the Cashu protocol.
 
+:warning: This package is not production ready and its APIs will change. Please use it only for experimenting and with a test mint offering `FakeWallet` ecash.
+
 ## Implemented [NUTs](https://github.com/cashubtc/nuts/):
 
 ### Mandatory
