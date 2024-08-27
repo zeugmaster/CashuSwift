@@ -229,16 +229,21 @@ final class cashu_swiftTests: XCTestCase {
     func testSendReceive() async throws {
         let url = URL(string: "http://localhost:3339")!
         let mint = try await Mint(with:url)
-        let qr = Bolt11.RequestMintQuote(unit: "sat", amount: 32)
-        let q = try await mint.getQuote(quoteRequest: qr)
-        let proofs = try await mint.issue(for: q)
+//        let qr = Bolt11.RequestMintQuote(unit: "sat", amount: 32)
+//        let q = try await mint.getQuote(quoteRequest: qr)
+//        let proofs = try await mint.issue(for: q)
+//        
+//        let (token, change) = try await mint.send(proofs: proofs, amount: 15)
+//        let tokenString = try token.serialize(.V3)
+//        
+//        print(token.token.first!.proofs.sum)
+//        print(change.sum)
+//        
+//        let received = try await mint.receive(token: token)
+//        print(received.sum)
         
-        let (token, change) = try await mint.send(proofs: proofs, amount: 15)
-        print(token.token.first!.proofs.sum)
-        print(change.sum)
-        
-        let received = try await mint.receive(token: token)
-        print(received.sum)
+        let token = try "cashuAey...".deserializeToken()
+        let proofs = try await mint.receive(token: token)
     }
     
     func testMelt() async throws {
