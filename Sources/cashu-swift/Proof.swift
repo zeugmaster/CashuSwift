@@ -7,7 +7,7 @@
 
 import Foundation
 
-public final class Proof: Codable, Equatable, CustomStringConvertible, Identifiable {
+public class Proof: Codable, Equatable, CustomStringConvertible, Identifiable {
     
     public var id:String { get { C } }
     
@@ -40,7 +40,7 @@ public final class Proof: Codable, Equatable, CustomStringConvertible, Identifia
         try container.encode(C, forKey: .C)
     }
     
-    public init(from decoder: Decoder) throws {
+    required public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         keysetID = try container.decode(String.self, forKey: .keysetID)
         amount = try container.decode(Int.self, forKey: .amount)

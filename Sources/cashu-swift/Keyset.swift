@@ -12,7 +12,7 @@ struct KeysetList: Decodable {
     let keysets:[Keyset]
 }
 
-final class Keyset: Codable {
+class Keyset: Codable {
     let keysetID: String
     var keys: Dictionary<String, String>
     var derivationCounter:Int
@@ -27,7 +27,7 @@ final class Keyset: Codable {
     
     // Manual encoder / decoder functions are needed for Codable conformance AND Model macro
     
-    init(from decoder: Decoder) throws {
+    required init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         keysetID = try container.decode(String.self, forKey: .keysetID)
         unit = try container.decode(String.self, forKey: .unit)
