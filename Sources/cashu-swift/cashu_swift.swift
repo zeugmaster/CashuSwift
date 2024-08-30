@@ -500,7 +500,7 @@ extension Array where Element == Proof {
         return nil
     }
     
-    var sum:Int {
+    public var sum:Int {
         self.reduce(0) { $0 + $1.amount }
     }
 }
