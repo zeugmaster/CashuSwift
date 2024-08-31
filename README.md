@@ -1,6 +1,6 @@
 # CashuSwift library for Cashu Ecash
 
-This library provides basic functionality and model representation for using the Cashu protocol.
+This library provides basic functionality and model representation for using the Cashu protocol via its V1 API.
 
 :warning: This package is not production ready and its APIs will change. Please use it only for experimenting and with a test mint offering `FakeWallet` ecash.
 
