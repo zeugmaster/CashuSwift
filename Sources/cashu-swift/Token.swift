@@ -149,7 +149,7 @@ extension String {
     }
 }
 
-struct ProofContainer:Codable, Equatable {
-    let mint:String
-    let proofs:[Proof]
+public struct ProofContainer:Codable, Equatable {
+    public let mint:String
+    public let proofs:[Proof]
 }
