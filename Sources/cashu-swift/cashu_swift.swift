@@ -140,6 +140,15 @@ extension Mint {
                         seed:String? = nil,
                         duplicateOutputHandling:Cashu.DuplicateOutputHandling = .fail) async throws -> [Proof] {
         // this should check whether proofs are from this mint and not multi unit FIXME: potentially wonky and not very descriptive
+        guard token.token.count == 1 else {
+            logger.error("You tried to receive a token that either contains no proofs at all, or proofs from more than one mint.")
+            throw CashuError.invalidToken
+        }
+        
+        if token.token.first!.mint != self.url.absoluteString {
+            logger.warning("Mint URL field from token does not seem to match this mints URL.")
+        }
+        
         guard let inputProofs = token.token.first?.proofs,
                 try self.units(for: inputProofs).count == 1 else {
             throw CashuError.unitError("Proofs to swap are either of mixed unit or foreign to this mint.")
@@ -447,6 +456,44 @@ public enum Cashu {
 
 extension Array where Element == Mint {
     
+    // docs: deprecated and only for redeeming legace V3 multi mint token
+    public func receive(token:Token,
+                        seed:String? = nil,
+                        duplicateOutputHandling:Cashu.DuplicateOutputHandling = .fail) async throws -> [Proof] {
+        
+        guard token.token.count != self.count else {
+            logger.error("Number of mints in list does not match number of mints in token.")
+            throw CashuError.invalidToken
+        }
+        
+        // strictly make sure that mint URLs match
+        guard token.token.allSatisfy({ token in
+            self.contains(where: { token.mint == $0.url.absoluteString })
+        }) else {
+            logger.error("URLs from token do not match mint list.")
+            throw CashuError.invalidToken
+        }
+        
+        var tokenStates = [Proof.ProofState]()
+        for token in token.token {
+            let mint = self.first(where: { $0.url.absoluteString == token.mint })!
+            tokenStates.append(contentsOf: try await mint.check(token.proofs))
+        }
+        
+        guard tokenStates.allSatisfy({ $0 == .unspent }) else {
+            logger.error("CashuSwift does not allow you to redeem a multi mint token that is only partially spendable.")
+            throw CashuError.partiallySpentToken
+        }
+        
+        var proofs = [Proof]()
+        for token in token.token {
+            let mint = self.first(where: { $0.url.absoluteString == token.mint })!
+            let singleMintToken = Token(token: [token])
+            proofs.append(contentsOf: try await mint.receive(token: singleMintToken))
+        }
+        return proofs
+    }
+    
     public func updateAll() async throws {
         for mint in self {
             try await mint.update()
@@ -474,6 +521,7 @@ extension Array where Element == Mint {
         // make sure quote is Bolt11
         fatalError()
     }
+    
 }
 
 extension Array where Element == Proof {

@@ -44,5 +44,7 @@ enum CashuError: Swift.Error {
     case restoreError(String)
     
     case feeCalculationError(String)
+    
+    case partiallySpentToken
 }
 
