@@ -20,9 +20,9 @@ public class Token:Codable, Equatable {
         lhs.token == rhs.token && lhs.memo == rhs.memo && lhs.unit == rhs.unit
     }
     
-    let token:[ProofContainer]
-    let memo:String?
-    var unit:String?
+    public let token:[ProofContainer]
+    public let memo:String?
+    public let unit:String?
     
     init(token: [ProofContainer], 
          memo: String? = nil,
