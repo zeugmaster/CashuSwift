@@ -191,9 +191,7 @@ final class cashu_swiftTests: XCTestCase {
         let proofs = try await mint.issue(for: quote)
         
         let token = Token(token: [ProofContainer(mint: mint.url.absoluteString, proofs: proofs)])
-        
-        token.unit = "sat"
-        
+                
         //        print(try token.serialize(.V3))
         // (mew, change)
         let (_, _) = try await mint.swap(proofs: proofs, amount: 500)
@@ -217,8 +215,6 @@ final class cashu_swiftTests: XCTestCase {
         
         let token = Token(token: [ProofContainer(mint: mint.url.absoluteString, proofs: proofs)])
         
-        token.unit = "sat"
-        
         // triple swap to make sure detsec counter increments correctly
         for _ in 0...3 {
             (proofs, _) = try await mint.swap(proofs: proofs, seed: seed)
@@ -229,21 +225,19 @@ final class cashu_swiftTests: XCTestCase {
     func testSendReceive() async throws {
         let url = URL(string: "http://localhost:3339")!
         let mint = try await Mint(with:url)
-//        let qr = Bolt11.RequestMintQuote(unit: "sat", amount: 32)
-//        let q = try await mint.getQuote(quoteRequest: qr)
-//        let proofs = try await mint.issue(for: q)
-//        
-//        let (token, change) = try await mint.send(proofs: proofs, amount: 15)
-//        let tokenString = try token.serialize(.V3)
-//        
-//        print(token.token.first!.proofs.sum)
-//        print(change.sum)
-//        
-//        let received = try await mint.receive(token: token)
-//        print(received.sum)
+        let qr = Bolt11.RequestMintQuote(unit: "sat", amount: 32)
+        let q = try await mint.getQuote(quoteRequest: qr)
+        let proofs = try await mint.issue(for: q)
         
-        let token = try "cashuAey...".deserializeToken()
-        let proofs = try await mint.receive(token: token)
+        let (token, change) = try await mint.send(proofs: proofs, amount: 15)
+        let tokenString = try token.serialize(.V3)
+        
+        print(token.token.first!.proofs.sum)
+        print(change.sum)
+        
+        let received = try await mint.receive(token: token)
+        print(received.sum)
+        
     }
     
     func testMelt() async throws {
