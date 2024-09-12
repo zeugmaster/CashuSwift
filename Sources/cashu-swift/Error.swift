@@ -46,5 +46,7 @@ enum CashuError: Swift.Error {
     case feeCalculationError(String)
     
     case partiallySpentToken
+    
+    case bolt11InvalidInvoiceError(String)
 }
 
