@@ -39,8 +39,7 @@ extension Mint {
     /// Leaving `seed` empty will give you proofs from non-deterministic outputs which cannot be recreated from a seed phrase backup
     public func issue(for quote:Quote,
                       seed:String? = nil,
-                      preferredDistribution:[Int]? = nil,
-                      duplicateOutputHandling:Cashu.DuplicateOutputHandling = .fail) async throws -> [Proof] {
+                      preferredDistribution:[Int]? = nil) async throws -> [Proof] {
         
         guard let quote = quote as? Bolt11.MintQuote else {
             throw CashuError.typeMismatch("Quote to issue proofs for was not a Bolt11.MintQuote")
@@ -101,9 +100,8 @@ extension Mint {
     public func send(proofs:[Proof],
                      amount:Int? = nil,
                      seed:String? = nil,
-                     memo:String? = nil,
-                     duplicateOutputHandling:Cashu.DuplicateOutputHandling = .fail) async throws -> (token:Token,
-                                                                                                     change:[Proof]) {
+                     memo:String? = nil) async throws -> (token:Token,
+                                                        change:[Proof]) {
         
         let amount = amount ?? proofs.sum
         
@@ -137,8 +135,7 @@ extension Mint {
     // MARK: - RECEIVE
     // TODO: NEEDS TO BE ABLE TO HANDLE P2PK LOCKED ECASH
     public func receive(token:Token,
-                        seed:String? = nil,
-                        duplicateOutputHandling:Cashu.DuplicateOutputHandling = .fail) async throws -> [Proof] {
+                        seed:String? = nil) async throws -> [Proof] {
         // this should check whether proofs are from this mint and not multi unit FIXME: potentially wonky and not very descriptive
         guard token.token.count == 1 else {
             logger.error("You tried to receive a token that either contains no proofs at all, or proofs from more than one mint.")
@@ -159,37 +156,85 @@ extension Mint {
     // MARK: - MELT
     // should block until the the payment is made OR timeout reached
     public func melt(quote:Quote,
-                     proofs:[Proof]) async throws -> (paid:Bool, change:[Proof]) {
+                     proofs:[Proof],
+                     seed:String? = nil) async throws -> (paid:Bool, change:[Proof]) {
+        
         guard let quote = quote as? Bolt11.MeltQuote else {
             throw CashuError.typeMismatch("you need to pass a Bolt11 melt quote to this function, nothing else is supported yet.")
         }
         
-        let meltRequest = Bolt11.MeltRequest(quote: quote.quote, inputs: proofs)
+        let lightningFee:Int = quote.feeReserve
+        let inputFee:Int = try self.calculateFee(for: proofs)
+        let targetAmount = quote.amount + lightningFee + inputFee
         
-        guard proofs.sum > quote.amount + quote.feeReserve else {
-            throw CashuError.insufficientInputs("inputs do not cover the melt quote amount and fee reserve.")
+        guard proofs.sum >= targetAmount else {
+            throw CashuError.insufficientInputs("Input sum does cover total amount needed: \(targetAmount)")
         }
+        
+        logger.debug("Attempting melt with quote amount: \(quote.amount), lightning fee reserve: \(lightningFee), input fee: \(inputFee).")
+        
+        let meltRequest:Bolt11.MeltRequest
+        var change = [Proof]()
+        
+        guard let units = try? units(for: proofs), units.count == 1 else {
+            throw CashuError.unitError("Could not determine singular unit for input proofs.")
+        }
+        
+        guard let keyset = activeKeysetForUnit(units.first!) else {
+            throw CashuError.noActiveKeysetForUnit("No active keyset for unit \(units)")
+        }
+        
+        var deterministicFactors:(seed:String, counter:Int)? = nil
+        
+        if let seed {
+            deterministicFactors = (seed, keyset.derivationCounter)
+        }
+        
+        let overpayed = proofs.sum - quote.amount - inputFee
+        let blankDistribution = Array(repeating: 0, count: calculateNumberOfBlankOutputs(overpayed))
+        
+        let (blankOutputs, blindingFactors, secrets) = try Crypto.generateOutputs(amounts: blankDistribution,
+                                                                                  keysetID: keyset.keysetID,
+                                                                                  deterministicFactors: deterministicFactors)
+        keyset.derivationCounter += blankOutputs.count
+        
+        if blankOutputs.isEmpty {
+            meltRequest = Bolt11.MeltRequest(quote: quote.quote, inputs: proofs, outputs: nil)
+        } else {
+            meltRequest = Bolt11.MeltRequest(quote: quote.quote, inputs: proofs, outputs: blankOutputs)
+        }
+        
         
         // TODO: HANDLE TIMEOUT MORE EXPLICITLY
         
-        let meltResponse = try await Network.post(url: self.url.appending(path: "/v1/melt/bolt11"), 
-                                                  body: meltRequest,
-                                                  expected: Bolt11.MeltQuote.self)
+        let meltResponse:Bolt11.MeltQuote
         
-        // TODO: PERFORM ACTUAL CHANGE CALCULATION AND RETURN CORRECT PROOFS
         
-        // TODO: refactor and improve function design
+        meltResponse = try await Network.post(url: self.url.appending(path: "/v1/melt/bolt11"),
+                                              body: meltRequest,
+                                              expected: Bolt11.MeltQuote.self)
+        
+        if let promises = meltResponse.change {
+            guard promises.count <= blankOutputs.count else {
+                throw Crypto.Error.unblinding("could not unblind blank outputs for fee return")
+            }
+            
+            change = try Crypto.unblindPromises(promises,
+                                                blindingFactors: Array(blindingFactors.prefix(promises.count)),
+                                                secrets: Array(secrets.prefix(promises.count)),
+                                                keyset: keyset)
+        }
         
         if let paid = meltResponse.paid {
-            return (paid, [])
+            return (paid, change)
         } else if let state = meltResponse.state {
             switch state {
             case .paid:
-                return (true, [])
+                return (true, change)
             case .unpaid:
-                return (false, [])
+                return (false, change)
             case .pending:
-                return (false, [])
+                return (false, change)
             }
         } else {
             fatalError("could not find quote state information in response.")
@@ -203,15 +248,21 @@ extension Mint {
                      preferredReturnDistribution:[Int]? = nil) async throws -> (new:[Proof],
                                                                          change:[Proof]) {
         let fee = try calculateFee(for: proofs)
-        let proofSum = proofs.reduce(0) { $0 + $1.amount }
-        let amount = amount ?? (proofSum-fee)
+        let proofSum = proofs.sum
         
-        let amountAfterFee = amount - fee
+        let returnAmount:Int
+        let changeAmount:Int
         
-//        print("fee: \(fee), \nproofSum:\(proofSum), \namounr:\(amount), \namountAfterFee:\(amountAfterFee)")
-        
-        guard proofSum >= amountAfterFee else {
-            throw CashuError.insufficientInputs("target swap amount is larger than sum of proof amounts")
+        if let amount {
+            if proofSum >= amount + fee {
+                returnAmount = amount
+                changeAmount = proofSum - returnAmount - fee
+            } else {
+                throw CashuError.insufficientInputs("sum of proofs (\(proofSum)) is less than amount (\(amount)) + fees (\(fee))")
+            }
+        } else {
+            returnAmount = proofSum - fee
+            changeAmount = 0
         }
         
         // the number of units from potentially mutliple keysets across input proofs must be 1:
@@ -230,16 +281,17 @@ extension Mint {
         
         // TODO: implement true output selection
         
-        let swapDistribution = Cashu.splitIntoBase2Numbers(amountAfterFee)
+        let swapDistribution = Cashu.splitIntoBase2Numbers(returnAmount)
         let changeDistribution:[Int]
         
-        if preferredReturnDistribution == nil {
-            changeDistribution = Cashu.splitIntoBase2Numbers(proofSum - amount)
-        } else {
-            guard preferredReturnDistribution!.reduce(0, +) == (proofSum - amount) else {
+        if let preferredReturnDistribution {
+            // TODO: CHECK THAT AMOUNTS ARE ONLY VALID INTEGERS
+            guard preferredReturnDistribution.reduce(0, +) == changeAmount else {
                 throw CashuError.preferredDistributionMismatch("preferredReturnDistribution does not add up to expected change amount")
             }
-            changeDistribution = preferredReturnDistribution!
+            changeDistribution = preferredReturnDistribution
+        } else {
+            changeDistribution = Cashu.splitIntoBase2Numbers(changeAmount)
         }
         
         let combinedDistribution = (swapDistribution + changeDistribution).sorted()
@@ -446,20 +498,14 @@ extension Mint {
 }
 
 public enum Cashu {
-    public enum DuplicateOutputHandling {
-        case fail
-        case retry(Int)
-        case infiniteRetry
-        // potentially use /restore endpoint for efficiency
-    }
+    
 }
 
 extension Array where Element == Mint {
     
     // docs: deprecated and only for redeeming legace V3 multi mint token
     public func receive(token:Token,
-                        seed:String? = nil,
-                        duplicateOutputHandling:Cashu.DuplicateOutputHandling = .fail) async throws -> [Proof] {
+                        seed:String? = nil) async throws -> [Proof] {
         
         guard token.token.count != self.count else {
             logger.error("Number of mints in list does not match number of mints in token.")

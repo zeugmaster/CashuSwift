@@ -84,6 +84,8 @@ public enum Bolt11 {
         public let expiry: Int
         public let paymentPreimage: String?
         
+        let change:[Promise]?
+        
         enum CodingKeys: String, CodingKey {
             case quote
             case amount
@@ -91,12 +93,14 @@ public enum Bolt11 {
             case paid
             case expiry
             case paymentPreimage = "payment_preimage"
+            case change
         }
     }
     
     public struct MeltRequest:Codable {
-        public let quote:String
-        public let inputs:[Proof]
+        let quote:String
+        let inputs:[Proof]
+        let outputs:[Output]?
     }
     
     public struct MintRequest:Codable {

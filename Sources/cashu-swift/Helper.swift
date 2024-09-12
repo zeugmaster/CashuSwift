@@ -36,3 +36,12 @@ extension Encodable {
         }
     }
 }
+
+
+func calculateNumberOfBlankOutputs(_ overpayed:Int) -> Int {
+    if overpayed <= 0 {
+        return 0
+    } else {
+        return max(Int(ceil(log2(Double(overpayed)))), 1)
+    }
+}

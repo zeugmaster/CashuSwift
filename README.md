@@ -23,7 +23,7 @@ This library provides basic functionality and model representation for using the
 | # | Description | Status
 | --- | --- | --- |
 | [07][07] | Token state check | :heavy_check_mark: |
-| [08][08] | Overpaid Lightning fees | :construction: |
+| [08][08] | Overpaid Lightning fees | :heavy_check_mark: |
 | [09][09] | Signature restore | :heavy_check_mark: |
 | [10][10] | Spending conditions | :construction: |
 | [11][11] | Pay-To-Pubkey (P2PK) | :construction: |

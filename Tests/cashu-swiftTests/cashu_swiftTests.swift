@@ -198,6 +198,40 @@ final class cashu_swiftTests: XCTestCase {
         
     }
     
+    func testSwap() async throws {
+        let url = URL(string: "http://localhost:3339")!
+        let mint = try await Mint(with: url)
+        
+        let q1 = try await mint.getQuote(quoteRequest: Bolt11.RequestMintQuote(unit: "sat", amount: 31))
+        let q2 = try await mint.getQuote(quoteRequest: Bolt11.RequestMintQuote(unit: "sat", amount: 31))
+        let q3 = try await mint.getQuote(quoteRequest: Bolt11.RequestMintQuote(unit: "sat", amount: 31))
+        let q4 = try await mint.getQuote(quoteRequest: Bolt11.RequestMintQuote(unit: "sat", amount: 31))
+        
+        let p1 = try await mint.issue(for: q1)
+        let p2 = try await mint.issue(for: q2)
+        let p3 = try await mint.issue(for: q3)
+        let p4 = try await mint.issue(for: q4)
+        
+        // test regular swap
+        let p1n = try await mint.swap(proofs: p1)
+        print("input: \(p1.sum), swap return sum: \(p1n.new.sum), change sum: \(p1n.change.sum)")
+        
+        // test swap with valic amount
+        let p2n = try await mint.swap(proofs: p2, amount: 5)
+        XCTAssert(p2n.new.sum == 5)
+        print("input: \(p2.sum), swap return sum: \(p2n.new.sum), change sum: \(p2n.change.sum)")
+        
+        // test invalid amount (no room for fees)
+        do {
+            _ = try await mint.swap(proofs: p3, amount: 31)
+            XCTFail("Swapping without enough room for input fees, should have failed but didn't.")
+        } catch {
+            
+        }
+        
+        
+    }
+    
     func testMintingWithDetSec() async throws {
         let mintURL = URL(string: "http://localhost:3338")!
         
@@ -251,13 +285,61 @@ final class cashu_swiftTests: XCTestCase {
         
         let meltQuoteRequest = Bolt11.RequestMeltQuote(unit: "sat", request: q2.request, options: nil)
         let meltQ = try await mint.getQuote(quoteRequest: meltQuoteRequest)
+        
         let result = try await mint.melt(quote: meltQ, proofs: proofs)
         // result.change is a list of proofs if you overpay on the melt quote
         // result.paid == true if the Bolt11 lightning payment successful
-        
+        print(result.change.sum)
         
         XCTAssert(result.paid)
     }
+    
+//    func testMeltReal() async throws {
+//        let mint1 = try await Mint(with: URL(string: "https://mint.macadamia.cash")!)
+//        let mint2 = try await Mint(with: URL(string: "https://8333.space:3338")!)
+//        
+//        let mintQuote1 = try await mint1.getQuote(quoteRequest: Bolt11.RequestMintQuote(unit: "sat", amount: 128)) as! Bolt11.MintQuote
+//        print(mintQuote1.request)
+//        
+//        sleep(20)
+//        
+//        let proofs = try await mint1.issue(for: mintQuote1)
+//        
+//        let mintQuote2 = try await mint2.getQuote(quoteRequest: Bolt11.RequestMintQuote(unit: "sat", amount: 64)) as! Bolt11.MintQuote
+//        
+//        let meltQuote = try await mint1.getQuote(quoteRequest: Bolt11.RequestMeltQuote(unit: "sat", request: mintQuote2.request, options: nil)) as! Bolt11.MeltQuote
+//        
+//        let mnemmonic = Mnemonic()
+//        let seed = String(bytes: mnemmonic.seed)
+//        
+//        let meltResult = try await mint1.melt(quote: meltQuote, proofs: proofs)
+//        print(meltResult)
+//        print(meltResult.change.sum)
+//    }
+//    
+//    func testBlankOutputCalculation() {
+//        let overpayed = 1000
+//        let n = calculateNumberOfBlankOutputs(overpayed)
+//        XCTAssert(n == 10)
+//    }
+//    
+//    func testDeliberateOverpay() async throws {
+//        let url = URL(string: "http://localhost:3339")!
+//        let mint = try await Mint(with:url)
+//        let qr = Bolt11.RequestMintQuote(unit: "sat", amount: 128)
+//        let q = try await mint.getQuote(quoteRequest: qr)
+//
+//        print(q)
+////        sleep(30)
+//
+//        let proofs = try await mint.issue(for: q)
+//
+//
+//        let q2 = try await mint.getQuote(quoteRequest: Bolt11.RequestMintQuote(unit: "sat", amount: 64)) as! Bolt11.MintQuote
+//        let meltQuoteRequest = Bolt11.RequestMeltQuote(unit: "sat", request: q2.request, options: nil)
+//        let meltQ = try await mint.getQuote(quoteRequest: meltQuoteRequest)
+//        let result = try await mint.melt(quote: meltQ, proofs: proofs)
+//    }
     
     func testTokenStateCheck() async throws {
         let mint = try await Mint(with: URL(string: "http://localhost:3338")!)
@@ -306,7 +388,7 @@ final class cashu_swiftTests: XCTestCase {
         let proofs = try await mint.issue(for: quote)
         let fees = try mint.calculateFee(for: proofs)
         print("Number of inputs \(proofs.count), fees: \(fees)")
-        let swapped = try await mint.swap(proofs: proofs, amount: 400, preferredReturnDistribution: Array(repeating: 1, count: 111))
+        let swapped = try await mint.swap(proofs: proofs, amount: 400, preferredReturnDistribution: Array(repeating: 1, count: 93))
         let swappedNewSum = swapped.new.reduce(0) { $0 + $1.amount }
         let swappedChangeSum = swapped.change.reduce(0) { $0 + $1.amount }
         print("Number of outputs \(swapped.new.count),  new sum: \(swappedNewSum), change sum:\(swappedChangeSum)")
