@@ -7,7 +7,7 @@ fileprivate let logger = Logger.init(subsystem: "CashuSwift", category: "wallet"
 open class Mint: Hashable, Codable {
     
     public let url: URL
-    var keysets: [Keyset]
+    public var keysets: [Keyset]
     public var info: MintInfo?
     public var nickname: String?
     

@@ -12,10 +12,10 @@ struct KeysetList: Decodable {
     let keysets:[Keyset]
 }
 
-class Keyset: Codable {
-    let keysetID: String
+public class Keyset: Codable {
+    public let keysetID: String
     var keys: Dictionary<String, String>
-    var derivationCounter:Int
+    public var derivationCounter:Int
     var active:Bool
     let unit:String
     let inputFeePPK:Int
@@ -27,7 +27,7 @@ class Keyset: Codable {
     
     // Manual encoder / decoder functions are needed for Codable conformance AND Model macro
     
-    required init(from decoder: Decoder) throws {
+    public required init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         keysetID = try container.decode(String.self, forKey: .keysetID)
         unit = try container.decode(String.self, forKey: .unit)
@@ -42,7 +42,7 @@ class Keyset: Codable {
                                                     forKey: .inputFeePPK) ?? 0
     }
     
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)
             try container.encode(keysetID, forKey: .keysetID)
             try container.encode(unit, forKey: .unit)
