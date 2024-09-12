@@ -112,7 +112,7 @@ public enum Bolt11 {
         let signatures:[Promise]
     }
     
-    static func satAmountFromInvoice(pr:String) throws -> Int {
+    public static func satAmountFromInvoice(pr:String) throws -> Int {
         guard let range = pr.range(of: "1", options: .backwards) else {
             throw CashuError.bolt11InvalidInvoiceError("")
         }
