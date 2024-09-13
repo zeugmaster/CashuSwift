@@ -4,14 +4,13 @@ import OSLog
 
 fileprivate let logger = Logger.init(subsystem: "CashuSwift", category: "wallet")
 
-extension Mint {
-    
+public enum CashuSwift {
     // MARK: - GET QUOTE
     /// Get a quote for minting or melting tokens from the mint
-    public func getQuote(quoteRequest:QuoteRequest) async throws -> Quote {
-        var url = self.url
+    public static func getQuote(mint:MintRepresenting, quoteRequest:QuoteRequest) async throws -> Quote {
+        var url = mint.url
         
-        guard self.keysets.contains(where: { $0.unit == quoteRequest.unit }) else {
+        guard mint.keysets.contains(where: { $0.unit == quoteRequest.unit }) else {
             throw CashuError.noKeysetForUnit("No keyset on mint \(url.absoluteString) for unit \(quoteRequest.unit.uppercased()).")
         }
         
@@ -37,7 +36,7 @@ extension Mint {
     
     /// After paying the quote amount to the mint, use this function to issue the actual ecash as a list of [`String`]s
     /// Leaving `seed` empty will give you proofs from non-deterministic outputs which cannot be recreated from a seed phrase backup
-    public func issue(for quote:Quote,
+    public static func issue(mint:Mint, for quote:Quote,
                       seed:String? = nil,
                       preferredDistribution:[Int]? = nil) async throws -> [Proof] {
         
@@ -57,10 +56,10 @@ extension Mint {
             }
             distribution = preferredDistribution
         } else {
-            distribution = Cashu.splitIntoBase2Numbers(requestDetail.amount)
+            distribution = CashuSwift.splitIntoBase2Numbers(requestDetail.amount)
         }
         
-        guard let keyset = self.keysets.first(where: { $0.active == true &&
+        guard let keyset = mint.keysets.first(where: { $0.active == true &&
                                                        $0.unit == requestDetail.unit }) else {
             throw CashuError.noActiveKeysetForUnit("Could not determine an ACTIVE keyset for this unit \(requestDetail.unit.uppercased())")
         }
@@ -83,7 +82,7 @@ extension Mint {
         
         // TODO: PARSE COMMON ERRORS
         // TODO: CHECK FOR DUPLICATE OUTPUT ERROR, RETRY ACC TO `skipDuplicateOutputs`
-        let promises = try await Network.post(url: self.url.appending(path: "/v1/mint/bolt11"),
+        let promises = try await Network.post(url: mint.url.appending(path: "/v1/mint/bolt11"),
                                               body: mintRequest,
                                               expected: Bolt11.MintResponse.self)
                     
@@ -97,36 +96,39 @@ extension Mint {
     
     // MARK: - SEND
     
-    public func send(proofs:[Proof],
+    public static func send(mint:Mint, 
+                            proofs:[ProofRepresenting],
                      amount:Int? = nil,
                      seed:String? = nil,
                      memo:String? = nil) async throws -> (token:Token,
                                                         change:[Proof]) {
         
-        let amount = amount ?? proofs.sum
+        let amount = amount ?? sum(proofs)
         
-        guard amount <= proofs.sum else {
+        guard amount <= sum(proofs) else {
             throw CashuError.insufficientInputs("amount must not be larger than input proofs")
         }
+        
+        let proofs = proofs.internalize()
         
         let sendProofs:[Proof]
         let changeProofs:[Proof]
         
-        if let selection = proofs.select(amount: amount) {
-            sendProofs = selection.selected
-            changeProofs = selection.rest
+        if let selection = pick(proofs, for: amount) {
+            sendProofs = selection.selected.internalize()
+            changeProofs = selection.change.internalize()
         } else {
-            let swapped = try await swap(proofs: proofs, amount: amount)
+            let swapped = try await swap(mint: mint, proofs: proofs, amount: amount)
             sendProofs = swapped.new
             changeProofs = swapped.change
         }
         
-        let units = try units(for: sendProofs)
+        let units = try units(for: sendProofs, of: mint)
         guard units.count == 1 else {
             throw CashuError.unitError("units needs to contain exactly ONE entry, more means multi unit, less means none found - no bueno")
         }
-        
-        let proofContainer = ProofContainer(mint: self.url.absoluteString, proofs: sendProofs)
+
+        let proofContainer = ProofContainer(mint: mint.url.absoluteString, proofs: sendProofs)
         let token = Token(token: [proofContainer], memo: memo, unit: units.first)
         
         return (token, changeProofs)
@@ -134,7 +136,7 @@ extension Mint {
     
     // MARK: - RECEIVE
     // TODO: NEEDS TO BE ABLE TO HANDLE P2PK LOCKED ECASH
-    public func receive(token:Token,
+    public static func receive(mint:Mint, token:Token,
                         seed:String? = nil) async throws -> [Proof] {
         // this should check whether proofs are from this mint and not multi unit FIXME: potentially wonky and not very descriptive
         guard token.token.count == 1 else {
@@ -142,20 +144,20 @@ extension Mint {
             throw CashuError.invalidToken
         }
         
-        if token.token.first!.mint != self.url.absoluteString {
+        if token.token.first!.mint != mint.url.absoluteString {
             logger.warning("Mint URL field from token does not seem to match this mints URL.")
         }
         
         guard let inputProofs = token.token.first?.proofs,
-                try self.units(for: inputProofs).count == 1 else {
+              try units(for: inputProofs, of: mint).count == 1 else {
             throw CashuError.unitError("Proofs to swap are either of mixed unit or foreign to this mint.")
         }
-        return try await self.swap(proofs: inputProofs).new
+        return try await swap(mint:mint, proofs: inputProofs).new
     }
     
     // MARK: - MELT
     // should block until the the payment is made OR timeout reached
-    public func melt(quote:Quote,
+    public static func melt(mint:Mint, quote:Quote,
                      proofs:[Proof],
                      seed:String? = nil) async throws -> (paid:Bool, change:[Proof]) {
         
@@ -164,10 +166,10 @@ extension Mint {
         }
         
         let lightningFee:Int = quote.feeReserve
-        let inputFee:Int = try self.calculateFee(for: proofs)
+        let inputFee:Int = try calculateFee(for: proofs, of: mint)
         let targetAmount = quote.amount + lightningFee + inputFee
         
-        guard proofs.sum >= targetAmount else {
+        guard sum(proofs) >= targetAmount else {
             throw CashuError.insufficientInputs("Input sum does cover total amount needed: \(targetAmount)")
         }
         
@@ -176,11 +178,11 @@ extension Mint {
         let meltRequest:Bolt11.MeltRequest
         var change = [Proof]()
         
-        guard let units = try? units(for: proofs), units.count == 1 else {
+        guard let units = try? units(for: proofs, of: mint), units.count == 1 else {
             throw CashuError.unitError("Could not determine singular unit for input proofs.")
         }
         
-        guard let keyset = activeKeysetForUnit(units.first!) else {
+        guard let keyset = activeKeysetForUnit(units.first!, mint: mint) else {
             throw CashuError.noActiveKeysetForUnit("No active keyset for unit \(units)")
         }
         
@@ -190,7 +192,7 @@ extension Mint {
             deterministicFactors = (seed, keyset.derivationCounter)
         }
         
-        let overpayed = proofs.sum - quote.amount - inputFee
+        let overpayed = sum(proofs) - quote.amount - inputFee
         let blankDistribution = Array(repeating: 0, count: calculateNumberOfBlankOutputs(overpayed))
         
         let (blankOutputs, blindingFactors, secrets) = try Crypto.generateOutputs(amounts: blankDistribution,
@@ -210,7 +212,7 @@ extension Mint {
         let meltResponse:Bolt11.MeltQuote
         
         
-        meltResponse = try await Network.post(url: self.url.appending(path: "/v1/melt/bolt11"),
+        meltResponse = try await Network.post(url: mint.url.appending(path: "/v1/melt/bolt11"),
                                               body: meltRequest,
                                               expected: Bolt11.MeltQuote.self)
         
@@ -242,13 +244,14 @@ extension Mint {
     }
     
     // MARK: - SWAP
-    public func swap(proofs:[Proof],
+    public static func swap(mint:Mint,
+                            proofs:[ProofRepresenting],
                      amount:Int? = nil,
                      seed:String? = nil,
                      preferredReturnDistribution:[Int]? = nil) async throws -> (new:[Proof],
                                                                          change:[Proof]) {
-        let fee = try calculateFee(for: proofs)
-        let proofSum = proofs.sum
+        let fee = try calculateFee(for: proofs, of: mint)
+        let proofSum = sum(proofs)
         
         let returnAmount:Int
         let changeAmount:Int
@@ -269,19 +272,19 @@ extension Mint {
         // less than 1 would mean no matching keyset/unit
         // more than one would imply multiple unit input proofs, which is not supported
         
-        let units = try units(for: proofs)
+        let units = try units(for: proofs, of: mint)
         
         guard units.count == 1 else {
             throw CashuError.unitError("Proofs to swap are either of mixed unit or foreign to this mint.")
         }
         
-        guard let activeKeyset = activeKeysetForUnit(units.first!) else {
+        guard let activeKeyset = activeKeysetForUnit(units.first!, mint: mint) else {
             throw CashuError.noActiveKeysetForUnit("no active keyset could be found for unit \(String(describing: units.first))")
         }
         
         // TODO: implement true output selection
         
-        let swapDistribution = Cashu.splitIntoBase2Numbers(returnAmount)
+        let swapDistribution = CashuSwift.splitIntoBase2Numbers(returnAmount)
         let changeDistribution:[Int]
         
         if let preferredReturnDistribution {
@@ -291,7 +294,7 @@ extension Mint {
             }
             changeDistribution = preferredReturnDistribution
         } else {
-            changeDistribution = Cashu.splitIntoBase2Numbers(changeAmount)
+            changeDistribution = CashuSwift.splitIntoBase2Numbers(changeAmount)
         }
         
         let combinedDistribution = (swapDistribution + changeDistribution).sorted()
@@ -308,8 +311,9 @@ extension Mint {
                                                                  keysetID: activeKeyset.keysetID,
                                                                  deterministicFactors: deterministicFactors)
         
-        let swapRequest = SwapRequest(inputs: proofs, outputs: outputs)
-        let swapResponse = try await Network.post(url: self.url.appending(path: "/v1/swap"),
+        let internalProofs = proofs.internalize()
+        let swapRequest = SwapRequest(inputs: internalProofs, outputs: outputs)
+        let swapResponse = try await Network.post(url: mint.url.appending(path: "/v1/swap"),
                                                   body: swapRequest,
                                                   expected: SwapResponse.self)
         
@@ -330,13 +334,13 @@ extension Mint {
     
     // MARK: - RESTORE
     // TODO: should increase batch size, default 10 is way to small
-    public func restore(with seed:String,
+    public static func restore(mint:MintRepresenting, with seed:String,
                         batchSize:Int = 10) async throws -> [Proof] {
         // no need to check validity of seed as function would otherwise crash during first det sec generation
         var restoredProofs = [Proof]()
-        for keyset in self.keysets {
-            logger.info("Attempting restore for keyset: \(keyset.keysetID) of mint: \(self.url.absoluteString)")
-            let (proofs, _, lastMatchCounter) = try await restoreForKeyset(keyset, with: seed, batchSize: batchSize)
+        for keyset in mint.keysets {
+            logger.info("Attempting restore for keyset: \(keyset.keysetID) of mint: \(mint.url.absoluteString)")
+            let (proofs, _, lastMatchCounter) = try await restoreForKeyset(mint:mint, keyset:keyset, with: seed, batchSize: batchSize)
             print("last match counter: \(String(describing: lastMatchCounter))")
             
             // if we dont have any restorable proofs on this keyset, move on to the next
@@ -348,7 +352,7 @@ extension Mint {
             // FIXME: ugly
             keyset.derivationCounter = lastMatchCounter + 1
             
-            let states = try await check(proofs)// ignores pending but should not
+            let states = try await check(proofs, mint: mint) // ignores pending but should not
             guard states.count == proofs.count else {
                 throw CashuError.restoreError("unable to filter for unspent ecash during restore")
             }
@@ -363,7 +367,8 @@ extension Mint {
         return restoredProofs
     }
     
-    func restoreForKeyset(_ keyset:Keyset, 
+    static func restoreForKeyset(mint:MintRepresenting,
+                          keyset:Keyset,
                           with seed:String,
                           batchSize:Int) async throws -> (proofs:[Proof],
                                                           totalRestored:Int,
@@ -383,7 +388,7 @@ extension Mint {
             
             
             let request = RestoreRequest(outputs: outputs)
-            let response = try await Network.post(url: self.url.appending(path: "/v1/restore"),
+            let response = try await Network.post(url: mint.url.appending(path: "/v1/restore"),
                                                   body: request,
                                                   expected: RestoreResponse.self)
             
@@ -420,8 +425,8 @@ extension Mint {
         return (proofs, proofs.count, currentCounter)
     }
     
-    public func check(_ proofs:[Proof]) async throws -> [Proof.ProofState] {
-        guard try units(for: proofs).count == 1 else {
+    public static func check(_ proofs:[ProofRepresenting], mint:MintRepresenting) async throws -> [Proof.ProofState] {
+        guard try units(for: proofs, of: mint).count == 1 else {
             throw CashuError.unitError("mixed input units to .chack() function.")
         }
         
@@ -430,171 +435,194 @@ extension Mint {
         }
         
         let request = Proof.StateCheckRequest(Ys: ys)
-        let response = try await Network.post(url: self.url.appending(path: "/v1/checkstate"),
+        let response = try await Network.post(url: mint .url.appending(path: "/v1/checkstate"),
                                               body: request,
                                               expected: Proof.StateCheckResponse.self)
         return response.states.map { entry in
             entry.state
         }
     }
-    
+
+    /*
     public func update() async throws {
         // load keysets, iterate over ids and active flag
-        let remoteKeysetList = try await Network.get(url: self.url.appending(path: "/v1/keysets"),
+        let remoteKeysetList = try await Network.get(url: mint.url.appending(path: "/v1/keysets"),
                                                      expected: KeysetList.self)
         
         let remoteIDs = remoteKeysetList.keysets.reduce(into: [String:Bool]()) { partialResult, keyset in
             partialResult[keyset.keysetID] = keyset.active
         }
         
-        let localIDs = self.keysets.reduce(into: [String:Bool]()) { partialResult, keyset in
+        let localIDs = mint.keysets.reduce(into: [String:Bool]()) { partialResult, keyset in
             partialResult[keyset.keysetID] = keyset.active
         }
         
-        logger.debug("Updating local representation of mint \(self.url)...")
+        logger.debug("Updating local representation of mint \(mint.url)...")
         
         if remoteIDs != localIDs {
             logger.debug("List of keysets changed.")
             var keysetsWithKeys = [Keyset]()
             for keyset in remoteKeysetList.keysets {
                 let new = keyset
-                new.keys = try await Network.get(url: self.url.appending(path: "/v1/keys/\(keyset.keysetID.makeURLSafe())"),
+                new.keys = try await Network.get(url: mint.url.appending(path: "/v1/keys/\(keyset.keysetID.makeURLSafe())"),
                                                     expected: KeysetList.self).keysets[0].keys
                 keysetsWithKeys.append(new)
             }
-            self.keysets = keysetsWithKeys
+            mint.keysets = keysetsWithKeys
         } else {
             logger.debug("No changes in list of keysets.")
         }
         
         // TODO: UPDATE INFO AS WELL
     }
+    */
     
     // MARK: - MISC
     
-    func activeKeysetForUnit(_ unit:String) -> Keyset? {
-        self.keysets.first(where: {
-            $0.active == true &&
-            $0.unit == unit
-        })
+    static func sum(_ proofRepresenting:[ProofRepresenting]) -> Int {
+        proofRepresenting.reduce(0) { $0 + $1.amount }
     }
     
-    func units(for proofs:[Proof]) throws -> Set<String> {
-        guard !self.keysets.isEmpty, !proofs.isEmpty else {
-            fatalError("empty inputs to function .check() proofs: \(proofs.count), keysete\(self.keysets.count)")
-        }
-        
-        var units:Set<String> = []
-        for proof in proofs {
-            if let keysetForID = self.keysets.first(where: { $0.keysetID == proof.keysetID }) {
-                units.insert(keysetForID.unit)
-            } else {
-                // found a proof that belongs to a keyset not from this mint
-                throw CashuError.unitError("proofs from keyset \(proof.keysetID)  do not belong to mint \(self.url.absoluteString)")
-            }
-        }
-        return units
-    }
-}
-
-public enum Cashu {
-    
-}
-
-extension Array where Element == Mint {
-    
-    // docs: deprecated and only for redeeming legace V3 multi mint token
-    public func receive(token:Token,
-                        seed:String? = nil) async throws -> [Proof] {
-        
-        guard token.token.count != self.count else {
-            logger.error("Number of mints in list does not match number of mints in token.")
-            throw CashuError.invalidToken
-        }
-        
-        // strictly make sure that mint URLs match
-        guard token.token.allSatisfy({ token in
-            self.contains(where: { token.mint == $0.url.absoluteString })
-        }) else {
-            logger.error("URLs from token do not match mint list.")
-            throw CashuError.invalidToken
-        }
-        
-        var tokenStates = [Proof.ProofState]()
-        for token in token.token {
-            let mint = self.first(where: { $0.url.absoluteString == token.mint })!
-            tokenStates.append(contentsOf: try await mint.check(token.proofs))
-        }
-        
-        guard tokenStates.allSatisfy({ $0 == .unspent }) else {
-            logger.error("CashuSwift does not allow you to redeem a multi mint token that is only partially spendable.")
-            throw CashuError.partiallySpentToken
-        }
-        
-        var proofs = [Proof]()
-        for token in token.token {
-            let mint = self.first(where: { $0.url.absoluteString == token.mint })!
-            let singleMintToken = Token(token: [token])
-            proofs.append(contentsOf: try await mint.receive(token: singleMintToken))
-        }
-        return proofs
-    }
-    
-    public func updateAll() async throws {
-        for mint in self {
-            try await mint.update()
-        }
-    }
-    
-    public func restore(with seed:String, batchSize:Int = 10) async throws -> [Proof] {
-        // call mint.restore on each of the mints
-        var restoredProofs = [Proof]()
-        for mint in self {
-            let proofs = try await mint.restore(with: seed, batchSize: batchSize)
-            restoredProofs.append(contentsOf: proofs)
-        }
-        return restoredProofs
-    }
-    
-    public func getQuote(request:QuoteRequest) async throws -> [Quote] {
-        // intended for melt quote request before MPP
-        fatalError()
-    }
-    
-    public func melt(quotes:[Quote], proofs:[Proof]) async throws -> [Proof] {
-        // intended for multi nut payment (MPP)
-        // check input proofs against mint info and keysets
-        // make sure quote is Bolt11
-        fatalError()
-    }
-    
-}
-
-extension Array where Element == Proof {
-    public func select(amount: Int) -> (selected: [Proof], rest: [Proof])? {
-        func backtrack(_ index: Int, _ currentSum: Int, _ currentSelection: [Proof]) -> [Proof]? {
+    static func pick(_ proofs:[ProofRepresenting], for amount:Int) -> (selected:[ProofRepresenting], change:[ProofRepresenting])? {
+        func backtrack(_ index: Int, _ currentSum: Int, _ currentSelection: [ProofRepresenting]) -> [ProofRepresenting]? {
             if currentSum == amount {
                 return currentSelection
             }
-            if index >= self.count || currentSum > amount {
+            if index >= proofs.count || currentSum > amount {
                 return nil
             }
             
-            if let result = backtrack(index + 1, currentSum + self[index].amount, currentSelection + [self[index]]) {
+            if let result = backtrack(index + 1, currentSum + proofs[index].amount, currentSelection + [proofs[index]]) {
                 return result
             }
             return backtrack(index + 1, currentSum, currentSelection)
         }
         
         if let selected = backtrack(0, 0, []) {
-            let rest = self.filter { !selected.contains($0) }
+            let rest = proofs.filter { element in
+                !selected.contains(where: { $0.C == element.C })
+            }
             return (selected, rest)
         }
         
         return nil
     }
     
-    public var sum:Int {
-        self.reduce(0) { $0 + $1.amount }
+    public static func calculateFee(for proofs: [ProofRepresenting], of mint:MintRepresenting) throws -> Int {
+        var sumFees = 0
+        for proof in proofs {
+            if let feeRate = mint.keysets.first(where: { $0.keysetID == proof.keysetID })?.inputFeePPK {
+                sumFees += feeRate
+            } else {
+                throw CashuError.feeCalculationError("trying to calculate fees for proofs of keyset \(proof.keysetID) which does not seem to be associated with mint \(mint.url.absoluteString).")
+            }
+        }
+        return (sumFees + 999) / 1000
+    }
+    
+    static func activeKeysetForUnit(_ unit:String, mint:MintRepresenting) -> Keyset? {
+        mint.keysets.first(where: {
+            $0.active == true &&
+            $0.unit == unit
+        })
+    }
+    
+    /// Returns a set of units represented in the proofs
+    static func units(for proofs:[ProofRepresenting], of mint:MintRepresenting) throws -> Set<String> {
+        guard !mint.keysets.isEmpty, !proofs.isEmpty else {
+            fatalError("empty inputs to function .check() proofs: \(proofs.count), keysete\(mint.keysets.count)")
+        }
+        
+        var units:Set<String> = []
+        for proof in proofs {
+            if let keysetForID = mint.keysets.first(where: { $0.keysetID == proof.keysetID }) {
+                units.insert(keysetForID.unit)
+            } else {
+                // found a proof that belongs to a keyset not from this mint
+                throw CashuError.unitError("proofs from keyset \(proof.keysetID)  do not belong to mint \(mint.url.absoluteString)")
+            }
+        }
+        return units
+    }
+}
+
+extension Array where Element == MintRepresenting {
+    
+    // docs: deprecated and only for redeeming legace V3 multi mint token
+//    public func receive(token:Token,
+//                        seed:String? = nil) async throws -> [Proof] {
+//        
+//        guard token.token.count != self.count else {
+//            logger.error("Number of mints in list does not match number of mints in token.")
+//            throw CashuError.invalidToken
+//        }
+//        
+//        // strictly make sure that mint URLs match
+//        guard token.token.allSatisfy({ token in
+//            self.contains(where: { token.mint == $0.url.absoluteString })
+//        }) else {
+//            logger.error("URLs from token do not match mint list.")
+//            throw CashuError.invalidToken
+//        }
+//        
+//        var tokenStates = [Proof.ProofState]()
+//        for token in token.token {
+//            let mint = self.first(where: { $0.url.absoluteString == token.mint })!
+//            tokenStates.append(contentsOf: try await CashuSwift.check(token.proofs, mint: mint))
+//        }
+//        
+//        guard tokenStates.allSatisfy({ $0 == .unspent }) else {
+//            logger.error("CashuSwift does not allow you to redeem a multi mint token that is only partially spendable.")
+//            throw CashuError.partiallySpentToken
+//        }
+//        
+//        var proofs = [Proof]()
+//        for token in token.token {
+//            let mint = self.first(where: { $0.url.absoluteString == token.mint })!
+//            let singleMintToken = Token(token: [token])
+//            proofs.append(contentsOf: try await CashuSwift.receive(mint: mint, token: singleMintToken))
+//        }
+//        return proofs
+//    }
+//    
+//    public func updateAll() async throws {
+//        for mint in self {
+//            try await mint.update()
+//        }
+//    }
+//    
+//    public func restore(with seed:String, batchSize:Int = 10) async throws -> [Proof] {
+//        // call mint.restore on each of the mints
+//        var restoredProofs = [Proof]()
+//        for mint in self {
+//            let proofs = try await mint.restore(with: seed, batchSize: batchSize)
+//            restoredProofs.append(contentsOf: proofs)
+//        }
+//        return restoredProofs
+//    }
+//    
+//    public func getQuote(request:QuoteRequest) async throws -> [Quote] {
+//        // intended for melt quote request before MPP
+//        fatalError()
+//    }
+//    
+//    public func melt(quotes:[Quote], proofs:[Proof]) async throws -> [Proof] {
+//        // intended for multi nut payment (MPP)
+//        // check input proofs against mint info and keysets
+//        // make sure quote is Bolt11
+//        fatalError()
+//    }
+    
+}
+
+extension Array where Element == ProofRepresenting {
+    
+// TODO: find out why this gives absurd errors when being called like [generics].sum
+//    public func sum() -> Int {
+//        self.reduce(0) { $0 + $1.amount }
+//    }
+    
+    func internalize() -> [CashuSwift.Proof] {
+        map({ CashuSwift.Proof($0) })
     }
 }

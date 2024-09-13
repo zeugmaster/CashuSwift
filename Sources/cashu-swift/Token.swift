@@ -10,87 +10,95 @@ import OSLog
 
 fileprivate var logger = Logger(subsystem: "cashu-swift", category: "Token")
 
-public enum TokenVersion:Codable {
-    case V3
-    case V4
-}
+extension CashuSwift {
+    public enum TokenVersion:Codable {
+        case V3
+        case V4
+    }
 
-public class Token:Codable, Equatable {
-    public static func == (lhs: Token, rhs: Token) -> Bool {
-        lhs.token == rhs.token && lhs.memo == rhs.memo && lhs.unit == rhs.unit
-    }
-    
-    public let token:[ProofContainer]
-    public let memo:String?
-    public let unit:String?
-    
-    init(token: [ProofContainer], 
-         memo: String? = nil,
-         unit:String? = nil) {
-        self.token = token
-        self.memo = memo
-        self.unit = unit
-    }
-    
-    enum CodingKeys:String, CodingKey {
-        case token
-        case memo
-        case unit
-    }
-    
-    public func serialize(_ toVersion:TokenVersion = .V4) throws -> String {
-        switch toVersion {
-        case .V3:
-            try encodeV3(token: self)
-        case .V4:
+    public class Token:Codable, Equatable {
+        public static func == (lhs: Token, rhs: Token) -> Bool {
+            lhs.token == rhs.token && lhs.memo == rhs.memo && lhs.unit == rhs.unit
+        }
+        
+        public let token:[ProofContainer]
+        public let memo:String?
+        public let unit:String?
+        
+        init(token: [ProofContainer],
+             memo: String? = nil,
+             unit:String? = nil) {
+            self.token = token
+            self.memo = memo
+            self.unit = unit
+        }
+        
+        enum CodingKeys:String, CodingKey {
+            case token
+            case memo
+            case unit
+        }
+        
+        public func serialize(_ toVersion:TokenVersion = .V4) throws -> String {
+            switch toVersion {
+            case .V3:
+                try encodeV3(token: self)
+            case .V4:
+                fatalError("V4 encoding has not been implemented yet")
+            }
+        }
+        
+        private func encodeV3(token:Token) throws -> String {
+            let jsonData = try JSONEncoder().encode(self)
+            let jsonString = String(data: jsonData, encoding: .utf8)!
+            let safeString = try jsonString.encodeBase64UrlSafe()
+            return "cashuA" + safeString
+        }
+        
+        private func encodeV4cbor(token:Token) throws -> String {
             fatalError("V4 encoding has not been implemented yet")
         }
-    }
-    
-    private func encodeV3(token:Token) throws -> String {
-        let jsonData = try JSONEncoder().encode(self)
-        let jsonString = String(data: jsonData, encoding: .utf8)!
-        let safeString = try jsonString.encodeBase64UrlSafe()
-        return "cashuA" + safeString
-    }
-    
-    private func encodeV4cbor(token:Token) throws -> String {
-        fatalError("V4 encoding has not been implemented yet")
-    }
-    
-    static func decodeV3(tokenString:String) throws -> Token {
-        let noPrefix = String(tokenString.dropFirst(6))
-        guard let jsonString = noPrefix.decodeBase64UrlSafe() else {
-            throw CashuError.invalidToken
+        
+        static func decodeV3(tokenString:String) throws -> Token {
+            let noPrefix = String(tokenString.dropFirst(6))
+            guard let jsonString = noPrefix.decodeBase64UrlSafe() else {
+                throw CashuError.invalidToken
+            }
+            let jsonData = jsonString.data(using: .utf8)!
+            do {
+                let token:Token = try JSONDecoder().decode(Token.self, from: jsonData)
+                return token
+            } catch {
+                logger.warning("Could not deserialize token. error: \(String(describing: error))")
+                throw CashuError.invalidToken
+            }
         }
-        let jsonData = jsonString.data(using: .utf8)!
-        do {
-            let token:Token = try JSONDecoder().decode(Token.self, from: jsonData)
-            return token
-        } catch {
-            logger.warning("Could not deserialize token. error: \(String(describing: error))")
-            throw CashuError.invalidToken
+        
+        static func decodeV4(tokenString:String) throws -> Token {
+            fatalError("V4 decoding has not been implemented yet")
         }
-    }
-    
-    static func decodeV4(tokenString:String) throws -> Token {
-        fatalError("V4 decoding has not been implemented yet")
-    }
-    
-    func prettyJSON() -> String {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = .prettyPrinted
-        do {
-            let data = try encoder.encode(self)
-            return String(data: data, encoding: .utf8) ?? ""
-        } catch {
-            return ""
+        
+        func prettyJSON() -> String {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = .prettyPrinted
+            do {
+                let data = try encoder.encode(self)
+                return String(data: data, encoding: .utf8) ?? ""
+            } catch {
+                return ""
+            }
         }
     }
+
+    public struct ProofContainer:Codable, Equatable {
+        public let mint:String
+        public let proofs:[Proof]
+    }
+
 }
 
 extension String {
-    public func deserializeToken() throws -> Token {
+    public func deserializeToken() throws -> CashuSwift.Token {
         var noPrefix = self
         // needs to be in the right order to avoid only stripping cashu: and leaving //
         if self.hasPrefix("cashu://") {
@@ -101,9 +109,9 @@ extension String {
         }
         
         if noPrefix.hasPrefix("cashuA") {
-            return try Token.decodeV3(tokenString: noPrefix)
+            return try CashuSwift.Token.decodeV3(tokenString: noPrefix)
         } else if noPrefix.hasPrefix("cashuB") {
-            return try Token.decodeV4(tokenString: noPrefix)
+            return try CashuSwift.Token.decodeV4(tokenString: noPrefix)
         } else {
             throw CashuError.invalidToken
         }
@@ -147,9 +155,4 @@ extension String {
             .replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: "=", with: "")
     }
-}
-
-public struct ProofContainer:Codable, Equatable {
-    public let mint:String
-    public let proofs:[Proof]
 }
