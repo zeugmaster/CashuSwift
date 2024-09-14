@@ -4,7 +4,12 @@ import OSLog
 fileprivate let logger = Logger.init(subsystem: "CashuSwift", category: "wallet")
 
 extension CashuSwift {
-    open class Mint: Hashable, Codable, MintRepresenting {        
+    open class Mint: Hashable, Codable, MintRepresenting {
+        
+        public required init(url: URL, keysets: [CashuSwift.Keyset]) {
+            self.url = url
+            self.keysets = keysets
+        }
         
         public var url: URL
         public var keysets: [Keyset]
@@ -13,40 +18,6 @@ extension CashuSwift {
         
         public static func == (lhs: Mint, rhs: Mint) -> Bool {
             lhs.url == rhs.url
-        }
-        
-        public init(with url: URL) async throws {
-            self.url = url
-            
-            // load keysets or fail with error propagating up
-            let keysetList = try await Network.get(url: url.appending(path: "/v1/keysets"),
-                                                   expected: KeysetList.self)
-            var keysetsWithKeys = [Keyset]()
-            for keyset in keysetList.keysets {
-                let new = keyset
-                new.keys = try await Network.get(url: url.appending(path: "/v1/keys/\(keyset.keysetID.makeURLSafe())"),
-                                                 expected: KeysetList.self).keysets[0].keys
-                keysetsWithKeys.append(new)
-            }
-            
-            self.keysets = keysetsWithKeys
-            
-            self.info = try? await loadInfo()
-        }
-        
-        func loadInfo() async throws -> MintInfo? {
-            let mintInfoData = try await Network.get(url: self.url.appending(path: "v1/info"))!
-            
-            if let info = try? JSONDecoder().decode(MintInfo0_16.self, from: mintInfoData) {
-                return info
-            } else if let info = try? JSONDecoder().decode(MintInfo0_15.self, from: mintInfoData) {
-                return info
-            } else if let info = try? JSONDecoder().decode(MintInfo.self, from: mintInfoData) {
-                return info
-            } else {
-                logger.warning("Could not parse mint info of \(self.url.absoluteString) to any known version.")
-                return nil
-            }
         }
         
         required public init(from decoder: Decoder) throws {
