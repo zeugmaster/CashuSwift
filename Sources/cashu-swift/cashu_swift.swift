@@ -352,8 +352,13 @@ public enum CashuSwift {
         
         if let preferredReturnDistribution {
             // TODO: CHECK THAT AMOUNTS ARE ONLY VALID INTEGERS
+            let preferredReturnDistributionSum = preferredReturnDistribution.reduce(0, +)
             guard preferredReturnDistribution.reduce(0, +) == changeAmount else {
-                throw CashuError.preferredDistributionMismatch("preferredReturnDistribution does not add up to expected change amount")
+                throw CashuError.preferredDistributionMismatch(
+                """
+                preferredReturnDistribution does not add up to expected change amount.
+                proof sum: \(proofSum), return amount: \(returnAmount), change amount: \(changeAmount), fees: \(fee), preferred distr sum: \(preferredReturnDistributionSum)
+                """)
             }
             changeDistribution = preferredReturnDistribution
         } else {

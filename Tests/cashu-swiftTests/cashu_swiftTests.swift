@@ -364,12 +364,10 @@ final class cashu_swiftTests: XCTestCase {
 
         let quote = try await CashuSwift.getQuote(mint: mint, quoteRequest: quoteRequest)
         
-        let proofs = try await CashuSwift.issue(for: quote, on: mint)
+        let proofs = try await CashuSwift.issue(for: quote, on: mint, seed: seed)
         
         let _ = try await CashuSwift.swap(mint:mint, proofs: Array(proofs[0...1]), seed: seed)
-        
-        print(mint.keysets.debugPretty())
-        
+                
         let restoredProofs = try await CashuSwift.restore(mint:mint, with: seed)
         
         XCTAssertEqual(proofs.sum, restoredProofs.sum)
@@ -377,9 +375,9 @@ final class cashu_swiftTests: XCTestCase {
         let mint2 = try await CashuSwift.loadMint(url: URL(string: "http://localhost:3339")!)
         let quoteRequest2 = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 2047)
         
-        let quote2 = try await CashuSwift.getQuote(mint: mint, quoteRequest: quoteRequest2)
+        let quote2 = try await CashuSwift.getQuote(mint: mint2, quoteRequest: quoteRequest2)
         
-        let proofs2 = try await CashuSwift.issue(for: quote2, on: mint)
+        let proofs2 = try await CashuSwift.issue(for: quote2, on: mint2, seed: seed)
         
         let multiMintRestoreProofs = try await [mint, mint2].restore(with: seed)
         
@@ -393,7 +391,7 @@ final class cashu_swiftTests: XCTestCase {
         let proofs = try await CashuSwift.issue(for: quote, on:mint)
         let fees = try CashuSwift.calculateFee(for: proofs, of: mint)
         print("Number of inputs \(proofs.count), fees: \(fees)")
-        let swapped = try await CashuSwift.swap(mint: mint, proofs: proofs, preferredReturnDistribution: Array(repeating: 1, count: 93))
+        let swapped = try await CashuSwift.swap(mint: mint, proofs: proofs, amount: 400 ,preferredReturnDistribution: Array(repeating: 1, count: 93))
         let swappedNewSum = swapped.new.reduce(0) { $0 + $1.amount }
         let swappedChangeSum = swapped.change.reduce(0) { $0 + $1.amount }
         print("Number of outputs \(swapped.new.count),  new sum: \(swappedNewSum), change sum:\(swappedChangeSum)")
