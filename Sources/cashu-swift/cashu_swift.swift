@@ -596,48 +596,42 @@ public enum CashuSwift {
 extension Array where Element : MintRepresenting {
     
     // docs: deprecated and only for redeeming legace V3 multi mint token
-//    public func receive(token:Token,
-//                        seed:String? = nil) async throws -> [Proof] {
-//        
-//        guard token.token.count != self.count else {
-//            logger.error("Number of mints in list does not match number of mints in token.")
-//            throw CashuError.invalidToken
-//        }
-//        
-//        // strictly make sure that mint URLs match
-//        guard token.token.allSatisfy({ token in
-//            self.contains(where: { token.mint == $0.url.absoluteString })
-//        }) else {
-//            logger.error("URLs from token do not match mint list.")
-//            throw CashuError.invalidToken
-//        }
-//        
-//        var tokenStates = [Proof.ProofState]()
-//        for token in token.token {
-//            let mint = self.first(where: { $0.url.absoluteString == token.mint })!
-//            tokenStates.append(contentsOf: try await CashuSwift.check(token.proofs, mint: mint))
-//        }
-//        
-//        guard tokenStates.allSatisfy({ $0 == .unspent }) else {
-//            logger.error("CashuSwift does not allow you to redeem a multi mint token that is only partially spendable.")
-//            throw CashuError.partiallySpentToken
-//        }
-//        
-//        var proofs = [Proof]()
-//        for token in token.token {
-//            let mint = self.first(where: { $0.url.absoluteString == token.mint })!
-//            let singleMintToken = Token(token: [token])
-//            proofs.append(contentsOf: try await CashuSwift.receive(mint: mint, token: singleMintToken))
-//        }
-//        return proofs
-//    }
-//    
-//    public func updateAll() async throws {
-//        for mint in self {
-//            try await mint.update()
-//        }
-//    }
-//    
+    public func receive(token:CashuSwift.Token,
+                        seed:String? = nil) async throws -> [CashuSwift.Proof] {
+        
+        guard token.token.count != self.count else {
+            logger.error("Number of mints in list does not match number of mints in token.")
+            throw CashuError.invalidToken
+        }
+        
+        // strictly make sure that mint URLs match
+        guard token.token.allSatisfy({ token in
+            self.contains(where: { token.mint == $0.url.absoluteString })
+        }) else {
+            logger.error("URLs from token do not match mint list.")
+            throw CashuError.invalidToken
+        }
+        
+        var tokenStates = [CashuSwift.Proof.ProofState]()
+        for token in token.token {
+            let mint = self.first(where: { $0.url.absoluteString == token.mint })!
+            tokenStates.append(contentsOf: try await CashuSwift.check(token.proofs, mint: mint))
+        }
+        
+        guard tokenStates.allSatisfy({ $0 == .unspent }) else {
+            logger.error("CashuSwift does not allow you to redeem a multi mint token that is only partially spendable.")
+            throw CashuError.partiallySpentToken
+        }
+        
+        var proofs = [CashuSwift.Proof]()
+        for token in token.token {
+            let mint = self.first(where: { $0.url.absoluteString == token.mint })!
+            let singleMintToken = CashuSwift.Token(token: [token])
+            proofs.append(contentsOf: try await CashuSwift.receive(mint: mint, token: singleMintToken))
+        }
+        return proofs
+    }
+    
     public func restore(with seed:String, batchSize:Int = 10) async throws -> [CashuSwift.Proof] {
         // call mint.restore on each of the mints
         var restoredProofs = [CashuSwift.Proof]()
