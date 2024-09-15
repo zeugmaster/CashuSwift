@@ -159,7 +159,7 @@ public enum CashuSwift {
     
     // MARK: - SEND
     
-    public static func send(mint:Mint, 
+    public static func send(mint:MintRepresenting,
                             proofs:[ProofRepresenting],
                      amount:Int? = nil,
                      seed:String? = nil,
@@ -199,7 +199,7 @@ public enum CashuSwift {
     
     // MARK: - RECEIVE
     // TODO: NEEDS TO BE ABLE TO HANDLE P2PK LOCKED ECASH
-    public static func receive(mint:Mint, token:Token,
+    public static func receive(mint:MintRepresenting, token:Token,
                         seed:String? = nil) async throws -> [Proof] {
         // this should check whether proofs are from this mint and not multi unit FIXME: potentially wonky and not very descriptive
         guard token.token.count == 1 else {
@@ -220,7 +220,7 @@ public enum CashuSwift {
     
     // MARK: - MELT
     // should block until the the payment is made OR timeout reached
-    public static func melt(mint:Mint, quote:Quote,
+    public static func melt(mint:MintRepresenting, quote:Quote,
                      proofs:[Proof],
                      seed:String? = nil) async throws -> (paid:Bool, change:[Proof]) {
         
@@ -307,7 +307,7 @@ public enum CashuSwift {
     }
     
     // MARK: - SWAP
-    public static func swap(mint:Mint,
+    public static func swap(mint:MintRepresenting,
                             proofs:[ProofRepresenting],
                      amount:Int? = nil,
                      seed:String? = nil,
