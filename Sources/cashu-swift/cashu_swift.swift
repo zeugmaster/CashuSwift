@@ -6,7 +6,7 @@ fileprivate let logger = Logger.init(subsystem: "CashuSwift", category: "wallet"
 
 public enum CashuSwift {
     // MARK: - MINT INITIALIZATION
-    static func loadMint<T: MintRepresenting>(url:URL, type:T.Type = Mint.self) async throws -> T {
+    public static func loadMint<T: MintRepresenting>(url:URL, type:T.Type = Mint.self) async throws -> T {
         let keysetList = try await Network.get(url: url.appending(path: "/v1/keysets"),
                                                expected: KeysetList.self)
         var keysetsWithKeys = [Keyset]()
@@ -37,7 +37,7 @@ public enum CashuSwift {
         }
     }
     
-    static func update(_ mint: inout MintRepresenting) async throws {
+    public static func update(_ mint: inout MintRepresenting) async throws {
         let mintURL = mint.url  // Create a local copy of the URL
         let remoteKeysetList = try await Network.get(url: mintURL.appending(path: "/v1/keysets"),
                                                      expected: KeysetList.self)
