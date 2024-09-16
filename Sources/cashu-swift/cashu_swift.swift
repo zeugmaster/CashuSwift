@@ -494,16 +494,26 @@ public enum CashuSwift {
     }
     
     public static func check(_ proofs:[ProofRepresenting], mint:MintRepresenting) async throws -> [Proof.ProofState] {
-        guard try units(for: proofs, of: mint).count == 1 else {
-            throw CashuError.unitError("mixed input units to .chack() function.")
-        }
-        
         let ys = try proofs.map { proof in
             try Crypto.secureHashToCurve(message: proof.secret).stringRepresentation
         }
         
         let request = Proof.StateCheckRequest(Ys: ys)
-        let response = try await Network.post(url: mint .url.appending(path: "/v1/checkstate"),
+        let response = try await Network.post(url: mint.url.appending(path: "/v1/checkstate"),
+                                              body: request,
+                                              expected: Proof.StateCheckResponse.self)
+        return response.states.map { entry in
+            entry.state
+        }
+    }
+    
+    public static func check(_ proofs:[ProofRepresenting], url:URL) async throws -> [Proof.ProofState] {
+        let ys = try proofs.map { proof in
+            try Crypto.secureHashToCurve(message: proof.secret).stringRepresentation
+        }
+        
+        let request = Proof.StateCheckRequest(Ys: ys)
+        let response = try await Network.post(url: url.appending(path: "/v1/checkstate"),
                                               body: request,
                                               expected: Proof.StateCheckResponse.self)
         return response.states.map { entry in
