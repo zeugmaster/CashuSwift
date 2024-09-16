@@ -607,7 +607,7 @@ extension Array where Element : MintRepresenting {
     
     // docs: deprecated and only for redeeming legace V3 multi mint token
     public func receive(token:CashuSwift.Token,
-                        seed:String? = nil) async throws -> [CashuSwift.Proof] {
+                        seed:String? = nil) async throws -> Dictionary<String, [CashuSwift.Proof]> {
         
         guard token.token.count != self.count else {
             logger.error("Number of mints in list does not match number of mints in token.")
@@ -633,11 +633,11 @@ extension Array where Element : MintRepresenting {
             throw CashuError.partiallySpentToken
         }
         
-        var proofs = [CashuSwift.Proof]()
+        var proofs = Dictionary<String, [CashuSwift.Proof]>()
         for token in token.token {
             let mint = self.first(where: { $0.url.absoluteString == token.mint })!
             let singleMintToken = CashuSwift.Token(token: [token])
-            proofs.append(contentsOf: try await CashuSwift.receive(mint: mint, token: singleMintToken))
+            proofs[mint.url.absoluteString] = try await CashuSwift.receive(mint: mint, token: singleMintToken)
         }
         return proofs
     }
