@@ -540,30 +540,41 @@ public enum CashuSwift {
         proofRepresenting.reduce(0) { $0 + $1.amount }
     }
     
-    static func pick(_ proofs:[ProofRepresenting], for amount:Int) -> (selected:[ProofRepresenting], change:[ProofRepresenting])? {
-        func backtrack(_ index: Int, _ currentSum: Int, _ currentSelection: [ProofRepresenting]) -> [ProofRepresenting]? {
-            if currentSum == amount {
-                return currentSelection
-            }
-            if index >= proofs.count || currentSum > amount {
-                return nil
+    public static func pick(_ proofs:[ProofRepresenting], for amount:Int) -> (selected:[ProofRepresenting], change:[ProofRepresenting])? {
+        selectProofsToSumTarget(proofs: proofs, targetAmount: amount)
+    }
+    
+    static func selectProofsToSumTarget(proofs: [ProofRepresenting], targetAmount: Int) -> ([ProofRepresenting], [ProofRepresenting])? {
+        guard targetAmount > 0 else {
+            return nil
+        }
+        
+        let n = proofs.count
+        let totalSubsets = 1 << n  // Total number of subsets (2^n)
+
+        for subset in 0..<totalSubsets {
+            var sum = 0
+            var selectedProofs = [ProofRepresenting]()
+            var remainingProofs = [ProofRepresenting]()
+            
+            for i in 0..<n {
+                if (subset & (1 << i)) != 0 {
+                    sum += proofs[i].amount
+                    selectedProofs.append(proofs[i])
+                } else {
+                    remainingProofs.append(proofs[i])
+                }
             }
             
-            if let result = backtrack(index + 1, currentSum + proofs[index].amount, currentSelection + [proofs[index]]) {
-                return result
+            if sum == targetAmount {
+                return (selectedProofs, remainingProofs)
             }
-            return backtrack(index + 1, currentSum, currentSelection)
         }
         
-        if let selected = backtrack(0, 0, []) {
-            let rest = proofs.filter { element in
-                !selected.contains(where: { $0.C == element.C })
-            }
-            return (selected, rest)
-        }
-        
+        // No subset sums up to targetAmount
         return nil
     }
+
     
     public static func calculateFee(for proofs: [ProofRepresenting], of mint:MintRepresenting) throws -> Int {
         var sumFees = 0
@@ -671,6 +682,10 @@ extension Array where Element : ProofRepresenting {
 // TODO: find out why this gives absurd errors when being called like [generics].sum
     public var sum: Int {
         self.reduce(0) { $0 + $1.amount }
+    }
+    
+    public func pick(_ amount:Int) -> (picked:[ProofRepresenting], change:[ProofRepresenting])? {
+        CashuSwift.selectProofsToSumTarget(proofs: self, targetAmount: amount)
     }
     
     func internalize() -> [CashuSwift.Proof] {

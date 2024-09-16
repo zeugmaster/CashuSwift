@@ -426,20 +426,19 @@ final class cashu_swiftTests: XCTestCase {
                         Proof(keysetID: "", amount: 16, secret: "", C: ""),
                         Proof(keysetID: "", amount: 128, secret: "", C: "")]
         
-//        let selection1 = proofs.select(amount: 50)
-//        print(selection1 ?? "")
-//        
-//        let selection2 = proofs.select(amount: 1)
-//        print(selection2 ?? "")
-//        
-//        let total = proofs.reduce(0) { $0 + $1.amount }
-//        let selection3 = proofs.select(amount: total)
-//        print(selection3 ?? "")
-//        
-//        let invalidSelection = proofs.select(amount: 3000)
-//        print(invalidSelection ?? "")
-//        
-//        let mtProofs = [Proof]()
-//        print(mtProofs.sum)
+        let selection1 = CashuSwift.pick(proofs, for: 50)
+        print(selection1 ?? "nil")
+        
+        let selection2 = CashuSwift.pick(proofs, for: 1)
+        print(selection2 ?? "nil")
+        
+        let selection3 = CashuSwift.pick(proofs, for: proofs.sum)
+        print(selection3 ?? "nil")
+        
+        let invalidSelection = CashuSwift.pick(proofs, for: 3000)
+        print(invalidSelection ?? "nil")
+        
+        let invalidSelection2 = CashuSwift.pick(proofs, for: 0)
+        print(invalidSelection2 ?? "nil")
     }
 }
