@@ -5,7 +5,9 @@ import OSLog
 fileprivate let logger = Logger.init(subsystem: "CashuSwift", category: "wallet")
 
 public enum CashuSwift {
+    
     // MARK: - MINT INITIALIZATION
+    
     public static func loadMint<T: MintRepresenting>(url:URL, type:T.Type = Mint.self) async throws -> T {
         let keysetList = try await Network.get(url: url.appending(path: "/v1/keysets"),
                                                expected: KeysetList.self)
@@ -161,9 +163,9 @@ public enum CashuSwift {
     
     public static func send(mint:MintRepresenting,
                             proofs:[ProofRepresenting],
-                     amount:Int? = nil,
-                     seed:String? = nil,
-                     memo:String? = nil) async throws -> (token:Token,
+                            amount:Int? = nil,
+                            seed:String? = nil,
+                            memo:String? = nil) async throws -> (token:Token,
                                                         change:[Proof]) {
         
         let amount = amount ?? sum(proofs)
@@ -177,7 +179,7 @@ public enum CashuSwift {
         let sendProofs:[Proof]
         let changeProofs:[Proof]
         
-        if let selection = pick(_proofs, for: amount) {
+        if let selection = pick(_proofs, amount: amount, mint: mint) {
             sendProofs = normalize(selection.selected)
             changeProofs = normalize(selection.change)
         } else {
@@ -198,7 +200,6 @@ public enum CashuSwift {
     }
     
     // MARK: - RECEIVE
-    // TODO: NEEDS TO BE ABLE TO HANDLE P2PK LOCKED ECASH
     public static func receive(mint:MintRepresenting, token:Token,
                         seed:String? = nil) async throws -> [Proof] {
         // this should check whether proofs are from this mint and not multi unit FIXME: potentially wonky and not very descriptive
@@ -219,7 +220,6 @@ public enum CashuSwift {
     }
     
     // MARK: - MELT
-    // should block until the the payment is made OR timeout reached
     public static func melt(mint:MintRepresenting, quote:Quote,
                      proofs:[Proof],
                      seed:String? = nil) async throws -> (paid:Bool, change:[Proof]) {
@@ -521,15 +521,6 @@ public enum CashuSwift {
         }
     }
 
-    /*
-    public func update() async throws {
-        // load keysets, iterate over ids and active flag
-        
-        
-        // TODO: UPDATE INFO AS WELL
-    }
-    */
-    
     // MARK: - MISC
     
     static func normalize(_ proofs:[ProofRepresenting]) -> [Proof] {
@@ -540,9 +531,43 @@ public enum CashuSwift {
         proofRepresenting.reduce(0) { $0 + $1.amount }
     }
     
-    public static func pick(_ proofs:[ProofRepresenting], for amount:Int) -> (selected:[ProofRepresenting], change:[ProofRepresenting])? {
-        selectProofsToSumTarget(proofs: proofs, targetAmount: amount)
+//    public static func pick(_ proofs:[ProofRepresenting], for amount:Int) -> (selected:[ProofRepresenting], change:[ProofRepresenting])? {
+//        selectProofsToSumTarget(proofs: proofs, targetAmount: amount)
+//    }
+    
+    public static func pick(_ proofs: [ProofRepresenting],
+                            amount: Int,
+                            mint: MintRepresenting,
+                            ignoreFees: Bool = false) -> (selected: [ProofRepresenting],
+                                                          change: [ProofRepresenting],
+                                                          fee: Int)? {
+        // Checks ...
+
+        // Sort proofs in descending order
+        var sortedProofs = proofs.sorted(by: { $0.amount > $1.amount })
+        var currentProofSum = 0
+        var totalFeePPK = 0
+
+        var selected = [ProofRepresenting]()
+
+        while !sortedProofs.isEmpty {
+            let proof = sortedProofs.removeFirst()
+            selected.append(proof)
+
+            let feePPK = mint.keysets.first(where: { $0.keysetID == proof.keysetID })?.inputFeePPK ?? 0
+            totalFeePPK += feePPK
+            currentProofSum += proof.amount
+
+            let totalFee = ignoreFees ? 0 : ((totalFeePPK + 999) / 1000)
+            if currentProofSum >= (amount + totalFee) {
+                // Remaining proofs are the change
+                let change = sortedProofs
+                return (selected, change, totalFee)
+            }
+        }
+        return nil
     }
+
     
     static func selectProofsToSumTarget(proofs: [ProofRepresenting], targetAmount: Int) -> ([ProofRepresenting], [ProofRepresenting])? {
         guard targetAmount > 0 else {
