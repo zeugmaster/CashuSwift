@@ -221,8 +221,8 @@ public enum CashuSwift {
     
     // MARK: - MELT
     public static func melt(mint:MintRepresenting, quote:Quote,
-                     proofs:[Proof],
-                     seed:String? = nil) async throws -> (paid:Bool, change:[Proof]) {
+                     proofs:[ProofRepresenting],
+                     seed:String? = nil) async throws -> (paid:Bool, change:[ProofRepresenting]) {
         
         guard let quote = quote as? Bolt11.MeltQuote else {
             throw CashuError.typeMismatch("you need to pass a Bolt11 melt quote to this function, nothing else is supported yet.")
@@ -264,9 +264,9 @@ public enum CashuSwift {
         keyset.derivationCounter += blankOutputs.count
         
         if blankOutputs.isEmpty {
-            meltRequest = Bolt11.MeltRequest(quote: quote.quote, inputs: proofs, outputs: nil)
+            meltRequest = Bolt11.MeltRequest(quote: quote.quote, inputs: normalize(proofs), outputs: nil)
         } else {
-            meltRequest = Bolt11.MeltRequest(quote: quote.quote, inputs: proofs, outputs: blankOutputs)
+            meltRequest = Bolt11.MeltRequest(quote: quote.quote, inputs: normalize(proofs), outputs: blankOutputs)
         }
         
         
