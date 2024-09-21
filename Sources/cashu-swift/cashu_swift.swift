@@ -613,7 +613,7 @@ public enum CashuSwift {
         return (sumFees + 999) / 1000
     }
     
-    static func activeKeysetForUnit(_ unit:String, mint:MintRepresenting) -> Keyset? {
+    public static func activeKeysetForUnit(_ unit:String, mint:MintRepresenting) -> Keyset? {
         mint.keysets.first(where: {
             $0.active == true &&
             $0.unit == unit
@@ -704,7 +704,6 @@ extension Array where Element : MintRepresenting {
 
 extension Array where Element : ProofRepresenting {
     
-// TODO: find out why this gives absurd errors when being called like [generics].sum
     public var sum: Int {
         self.reduce(0) { $0 + $1.amount }
     }
