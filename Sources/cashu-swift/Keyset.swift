@@ -15,11 +15,11 @@ extension CashuSwift {
 
     public class Keyset: Codable {
         public let keysetID: String
-        var keys: Dictionary<String, String>
+        public var keys: Dictionary<String, String>
         public var derivationCounter:Int
-        var active:Bool
-        let unit:String
-        let inputFeePPK:Int
+        public var active:Bool
+        public let unit:String
+        public let inputFeePPK:Int
         
         enum CodingKeys: String, CodingKey {
             case keysetID = "id" , keys, derivationCounter, active, unit
