@@ -404,9 +404,9 @@ public enum CashuSwift {
     // MARK: - RESTORE
     // TODO: should increase batch size, default 10 is way to small
     public static func restore(mint:MintRepresenting, with seed:String,
-                        batchSize:Int = 10) async throws -> [ProofRepresenting] {
+                        batchSize:Int = 10) async throws -> [(ProofRepresenting, String)] {
         // no need to check validity of seed as function would otherwise crash during first det sec generation
-        var restoredProofs = [ProofRepresenting]()
+        var restoredProofs = [(ProofRepresenting, String)]()
         for keyset in mint.keysets {
             logger.info("Attempting restore for keyset: \(keyset.keysetID) of mint: \(mint.url.absoluteString)")
             let (proofs, _, lastMatchCounter) = try await restoreForKeyset(mint:mint, keyset:keyset, with: seed, batchSize: batchSize)
@@ -430,7 +430,7 @@ public enum CashuSwift {
                 if states[i] == .unspent { spendableProofs.append(proofs[i]) }
             }
             
-            restoredProofs.append(contentsOf: spendableProofs)
+            spendableProofs.forEach({ restoredProofs.append(($0, keyset.unit)) })
             logger.info("Found \(spendableProofs.count) spendable proofs for keyset \(keyset.keysetID)")
         }
         return restoredProofs
@@ -679,9 +679,9 @@ extension Array where Element : MintRepresenting {
         return proofs
     }
     
-    public func restore(with seed:String, batchSize:Int = 10) async throws -> [ProofRepresenting] {
+    public func restore(with seed:String, batchSize:Int = 10) async throws -> [(ProofRepresenting, String)] {
         // call mint.restore on each of the mints
-        var restoredProofs = [ProofRepresenting]()
+        var restoredProofs = [(ProofRepresenting, String)]()
         for mint in self {
             let proofs = try await CashuSwift.restore(mint:mint, with: seed, batchSize: batchSize)
             restoredProofs.append(contentsOf: proofs)
