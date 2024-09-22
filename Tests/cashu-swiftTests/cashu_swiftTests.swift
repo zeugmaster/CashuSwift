@@ -367,7 +367,7 @@ final class cashu_swiftTests: XCTestCase {
                 
         let restoredProofs = try await CashuSwift.restore(mint:mint, with: seed)
         
-        XCTAssertEqual(CashuSwift.sum(proofs), CashuSwift.sum(restoredProofs))
+        XCTAssertEqual(CashuSwift.sum(proofs), CashuSwift.sum(restoredProofs.map({$0.0})))
         
         let mint2 = try await CashuSwift.loadMint(url: URL(string: "http://localhost:3339")!)
         let quoteRequest2 = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 2047)

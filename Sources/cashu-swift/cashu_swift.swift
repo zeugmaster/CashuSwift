@@ -679,7 +679,7 @@ extension Array where Element : MintRepresenting {
         return proofs
     }
     
-    public func restore(with seed:String, batchSize:Int = 10) async throws -> [(ProofRepresenting, String)] {
+    public func restore(with seed:String, batchSize:Int = 10) async throws -> [(proof:ProofRepresenting, unit:String)] {
         // call mint.restore on each of the mints
         var restoredProofs = [(ProofRepresenting, String)]()
         for mint in self {
