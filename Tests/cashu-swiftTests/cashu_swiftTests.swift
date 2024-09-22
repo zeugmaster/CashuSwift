@@ -189,7 +189,7 @@ final class cashu_swiftTests: XCTestCase {
         let quote = try await CashuSwift.getQuote(mint: mint,
                                                   quoteRequest: CashuSwift.Bolt11.RequestMintQuote(unit: "sat",
                                                                                                    amount: amount))
-        let proofs = try await CashuSwift.issue(for: quote, on: mint)
+        let proofs = try await CashuSwift.issue(for: quote, on: mint) as! [CashuSwift.Proof]
         
         let token = CashuSwift.Token(token: [CashuSwift.ProofContainer(mint: mint.url.absoluteString, proofs: proofs)])
                 
@@ -221,7 +221,7 @@ final class cashu_swiftTests: XCTestCase {
         // test swap with valic amount
         let p2n = try await CashuSwift.swap(mint: mint, proofs: p2, amount: 5)
         XCTAssert(CashuSwift.sum(p2n.new) == 5)
-        print("input: \(p2.sum), swap return sum: \(p2n.new.sum), change sum: \(p2n.change.sum)")
+        print("input: \(CashuSwift.sum(p2)), swap return sum: \(CashuSwift.sum(p2n.new)), change sum: \(CashuSwift.sum(p2n.change))")
         
         // test invalid amount (no room for fees)
         do {
@@ -244,14 +244,11 @@ final class cashu_swiftTests: XCTestCase {
         let seed = String(bytes: mnemmonic.seed)
         
         var proofs = try await CashuSwift.issue(for: quote, on: mint)
-        
-        let token = CashuSwift.Token(token: [CashuSwift.ProofContainer(mint: mint.url.absoluteString, proofs: proofs)])
-        
+                
         // triple swap to make sure detsec counter increments correctly
         for _ in 0...3 {
             (proofs, _) = try await CashuSwift.swap(mint: mint, proofs: proofs)
         }
-        print(proofs.first?.debugPretty() ?? "none")
     }
     
     func testSendReceive() async throws {
@@ -265,10 +262,10 @@ final class cashu_swiftTests: XCTestCase {
         let tokenString = try token.serialize(.V3)
         
         print(token.token.first!.proofs.sum)
-        print(change.sum)
+        print(CashuSwift.sum(change))
         
         let received = try await CashuSwift.receive(mint: mint, token: token)
-        print(received.sum)
+        print(CashuSwift.sum(received))
         
     }
     
@@ -288,7 +285,7 @@ final class cashu_swiftTests: XCTestCase {
         let result = try await CashuSwift.melt(mint: mint, quote: meltQ, proofs: proofs)
         // result.change is a list of proofs if you overpay on the melt quote
         // result.paid == true if the Bolt11 lightning payment successful
-        print(result.change.sum)
+        print(CashuSwift.sum(result.change))
         
         XCTAssert(result.paid)
     }
@@ -370,7 +367,7 @@ final class cashu_swiftTests: XCTestCase {
                 
         let restoredProofs = try await CashuSwift.restore(mint:mint, with: seed)
         
-        XCTAssertEqual(proofs.sum, restoredProofs.sum)
+        XCTAssertEqual(CashuSwift.sum(proofs), CashuSwift.sum(restoredProofs))
         
         let mint2 = try await CashuSwift.loadMint(url: URL(string: "http://localhost:3339")!)
         let quoteRequest2 = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 2047)

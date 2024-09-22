@@ -103,7 +103,7 @@ public enum CashuSwift {
     public static func issue(for quote:Quote,
                              on mint:MintRepresenting,
                              seed:String? = nil,
-                             preferredDistribution:[Int]? = nil) async throws -> [Proof] {
+                             preferredDistribution:[Int]? = nil) async throws -> [ProofRepresenting] {
         
         guard let quote = quote as? Bolt11.MintQuote else {
             throw CashuError.typeMismatch("Quote to issue proofs for was not a Bolt11.MintQuote")
@@ -166,26 +166,27 @@ public enum CashuSwift {
                             amount:Int? = nil,
                             seed:String? = nil,
                             memo:String? = nil) async throws -> (token:Token,
-                                                        change:[Proof]) {
+                                                        change:[ProofRepresenting]) {
         
-        let amount = amount ?? sum(proofs)
+        let proofSum = sum(proofs)
+        let amount = amount ?? proofSum
         
-        guard amount <= sum(proofs) else {
+        guard amount <= proofSum else {
             throw CashuError.insufficientInputs("amount must not be larger than input proofs")
         }
         
-        let _proofs:[Proof] = normalize(proofs)
+//        let _proofs:[Proof] = normalize(proofs)
         
-        let sendProofs:[Proof]
-        let changeProofs:[Proof]
+        let sendProofs:[ProofRepresenting]
+        let changeProofs:[ProofRepresenting]
         
-        if let selection = pick(_proofs, amount: amount, mint: mint) {
-            sendProofs = normalize(selection.selected)
-            changeProofs = normalize(selection.change)
+        if proofSum == amount {
+            sendProofs = proofs
+            changeProofs = []
         } else {
-            let swapped = try await swap(mint: mint, proofs: _proofs, amount: amount)
-            sendProofs = swapped.new
-            changeProofs = swapped.change
+            let (new, change) = try await swap(mint: mint, proofs: proofs, amount: amount)
+            sendProofs = new
+            changeProofs = change
         }
         
         let units = try units(for: sendProofs, of: mint)
@@ -193,7 +194,7 @@ public enum CashuSwift {
             throw CashuError.unitError("units needs to contain exactly ONE entry, more means multi unit, less means none found - no bueno")
         }
 
-        let proofContainer = ProofContainer(mint: mint.url.absoluteString, proofs: sendProofs)
+        let proofContainer = ProofContainer(mint: mint.url.absoluteString, proofs: normalize(sendProofs))
         let token = Token(token: [proofContainer], memo: memo, unit: units.first)
         
         return (token, changeProofs)
@@ -201,7 +202,7 @@ public enum CashuSwift {
     
     // MARK: - RECEIVE
     public static func receive(mint:MintRepresenting, token:Token,
-                        seed:String? = nil) async throws -> [Proof] {
+                        seed:String? = nil) async throws -> [ProofRepresenting] {
         // this should check whether proofs are from this mint and not multi unit FIXME: potentially wonky and not very descriptive
         guard token.token.count == 1 else {
             logger.error("You tried to receive a token that either contains no proofs at all, or proofs from more than one mint.")
@@ -311,8 +312,8 @@ public enum CashuSwift {
                             proofs:[ProofRepresenting],
                      amount:Int? = nil,
                      seed:String? = nil,
-                     preferredReturnDistribution:[Int]? = nil) async throws -> (new:[Proof],
-                                                                         change:[Proof]) {
+                     preferredReturnDistribution:[Int]? = nil) async throws -> (new:[ProofRepresenting],
+                                                                         change:[ProofRepresenting]) {
         let fee = try calculateFee(for: proofs, of: mint)
         let proofSum = sum(proofs)
         
@@ -324,7 +325,7 @@ public enum CashuSwift {
                 returnAmount = amount
                 changeAmount = proofSum - returnAmount - fee
             } else {
-                throw CashuError.insufficientInputs("sum of proofs (\(proofSum)) is less than amount (\(amount)) + fees (\(fee))")
+                throw CashuError.insufficientInputs("SWAP: sum of proofs (\(proofSum)) is less than amount (\(amount)) + fees (\(fee))")
             }
         } else {
             returnAmount = proofSum - fee
@@ -403,9 +404,9 @@ public enum CashuSwift {
     // MARK: - RESTORE
     // TODO: should increase batch size, default 10 is way to small
     public static func restore(mint:MintRepresenting, with seed:String,
-                        batchSize:Int = 10) async throws -> [Proof] {
+                        batchSize:Int = 10) async throws -> [ProofRepresenting] {
         // no need to check validity of seed as function would otherwise crash during first det sec generation
-        var restoredProofs = [Proof]()
+        var restoredProofs = [ProofRepresenting]()
         for keyset in mint.keysets {
             logger.info("Attempting restore for keyset: \(keyset.keysetID) of mint: \(mint.url.absoluteString)")
             let (proofs, _, lastMatchCounter) = try await restoreForKeyset(mint:mint, keyset:keyset, with: seed, batchSize: batchSize)
@@ -424,7 +425,7 @@ public enum CashuSwift {
             guard states.count == proofs.count else {
                 throw CashuError.restoreError("unable to filter for unspent ecash during restore")
             }
-            var spendableProofs = [Proof]()
+            var spendableProofs = [ProofRepresenting]()
             for i in 0..<states.count {
                 if states[i] == .unspent { spendableProofs.append(proofs[i]) }
             }
@@ -438,7 +439,7 @@ public enum CashuSwift {
     static func restoreForKeyset(mint:MintRepresenting,
                           keyset:Keyset,
                           with seed:String,
-                          batchSize:Int) async throws -> (proofs:[Proof],
+                          batchSize:Int) async throws -> (proofs:[ProofRepresenting],
                                                           totalRestored:Int,
                                                           lastMatchCounter:Int) {
         var proofs = [Proof]()
@@ -643,7 +644,7 @@ extension Array where Element : MintRepresenting {
     
     // docs: deprecated and only for redeeming legace V3 multi mint token
     public func receive(token:CashuSwift.Token,
-                        seed:String? = nil) async throws -> Dictionary<String, [CashuSwift.Proof]> {
+                        seed:String? = nil) async throws -> Dictionary<String, [ProofRepresenting]> {
         
         guard token.token.count != self.count else {
             logger.error("Number of mints in list does not match number of mints in token.")
@@ -669,7 +670,7 @@ extension Array where Element : MintRepresenting {
             throw CashuError.partiallySpentToken
         }
         
-        var proofs = Dictionary<String, [CashuSwift.Proof]>()
+        var proofs = Dictionary<String, [ProofRepresenting]>()
         for token in token.token {
             let mint = self.first(where: { $0.url.absoluteString == token.mint })!
             let singleMintToken = CashuSwift.Token(token: [token])
@@ -678,9 +679,9 @@ extension Array where Element : MintRepresenting {
         return proofs
     }
     
-    public func restore(with seed:String, batchSize:Int = 10) async throws -> [CashuSwift.Proof] {
+    public func restore(with seed:String, batchSize:Int = 10) async throws -> [ProofRepresenting] {
         // call mint.restore on each of the mints
-        var restoredProofs = [CashuSwift.Proof]()
+        var restoredProofs = [ProofRepresenting]()
         for mint in self {
             let proofs = try await CashuSwift.restore(mint:mint, with: seed, batchSize: batchSize)
             restoredProofs.append(contentsOf: proofs)
