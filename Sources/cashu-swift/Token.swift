@@ -94,7 +94,7 @@ extension CashuSwift {
         public let mint:String
         public let proofs:[Proof]
         
-        init(mint: String, proofs: [Proof]) {
+        public init(mint: String, proofs: [Proof]) {
             self.mint = mint
             self.proofs = proofs
         }
