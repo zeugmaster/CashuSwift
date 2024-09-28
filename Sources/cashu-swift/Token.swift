@@ -25,7 +25,7 @@ extension CashuSwift {
         public let memo:String?
         public let unit:String?
         
-        init(token: [ProofContainer],
+        public init(token: [ProofContainer],
              memo: String? = nil,
              unit:String? = nil) {
             self.token = token
@@ -94,7 +94,6 @@ extension CashuSwift {
         public let mint:String
         public let proofs:[Proof]
     }
-
 }
 
 extension String {
