@@ -31,7 +31,7 @@ extension CashuSwift {
             return "C: ...\(C.suffix(6)), amount: \(amount)"
         }
         
-        init(_ proofRepresentation:ProofRepresenting) {
+        public init(_ proofRepresentation:ProofRepresenting) {
             self.keysetID = proofRepresentation.keysetID
             self.C = proofRepresentation.C
             self.amount = proofRepresentation.amount
