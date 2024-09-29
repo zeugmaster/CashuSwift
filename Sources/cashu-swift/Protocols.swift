@@ -10,7 +10,7 @@ import Foundation
 public protocol MintRepresenting {
     var url:URL { get set }
     var keysets:[CashuSwift.Keyset] { get set }
-    var info:CashuSwift.MintInfo? { get set }
+//    var info:CashuSwift.MintInfo? { get set }
     
     init(url:URL, keysets:[CashuSwift.Keyset])
 }

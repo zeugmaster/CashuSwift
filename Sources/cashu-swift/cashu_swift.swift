@@ -20,12 +20,12 @@ public enum CashuSwift {
         }
         
         var mint = T(url: url, keysets: keysetsWithKeys)
-        mint.info = try? await loadInfoFromMintURL(url)
+//        mint.info = try? await loadInfoFromMintURL(url)
         return mint
     }
     
-    private static func loadInfoFromMintURL(_ url:URL) async throws -> MintInfo? {
-        let mintInfoData = try await Network.get(url: url.appending(path: "v1/info"))!
+    public static func loadInfoFromMint(_ mint:MintRepresenting) async throws -> MintInfo? {
+        let mintInfoData = try await Network.get(url: mint.url.appending(path: "v1/info"))!
         
         if let info = try? JSONDecoder().decode(MintInfo0_16.self, from: mintInfoData) {
             return info
@@ -34,7 +34,7 @@ public enum CashuSwift {
         } else if let info = try? JSONDecoder().decode(MintInfo.self, from: mintInfoData) {
             return info
         } else {
-            logger.warning("Could not parse mint info of \(url.absoluteString) to any known version.")
+            logger.warning("Could not parse mint info of \(mint.url.absoluteString) to any known version.")
             return nil
         }
     }
