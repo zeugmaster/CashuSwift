@@ -77,11 +77,11 @@ extension CashuSwift {
     }
 
     public class MintInfo: Codable {
-        let name: String
-        let pubkey: String
-        let version: String
-        let descriptionShort: String?
-        let descriptionLong: String?
+        public let name: String
+        public let pubkey: String
+        public let version: String
+        public let descriptionShort: String?
+        public let descriptionLong: String?
         
         enum CodingKeys: String, CodingKey {
             case name, pubkey, version
@@ -109,9 +109,9 @@ extension CashuSwift {
     }
 
     public class MintInfo0_15: MintInfo {
-        let contact: [[String]]
-        let motd: String?
-        let nuts: [String: Nut]
+        public let contact: [[String]]
+        public let motd: String?
+        public let nuts: [String: Nut]
         
         enum CodingKeys: String, CodingKey {
             case contact, motd, nuts
@@ -134,21 +134,21 @@ extension CashuSwift {
             try container.encode(nuts, forKey: .nuts)
         }
         
-        struct Nut: Codable {
-            let methods: [PaymentMethod]?
-            let disabled: Bool?
-            let supported: Bool?
+        public struct Nut: Codable {
+            public let methods: [PaymentMethod]?
+            public let disabled: Bool?
+            public let supported: Bool?
 
             enum CodingKeys: String, CodingKey {
                 case methods, disabled, supported
             }
         }
         
-        struct PaymentMethod: Codable {
-            let method: String
-            let unit: String
-            let minAmount: Int?
-            let maxAmount: Int?
+        public struct PaymentMethod: Codable {
+            public let method: String
+            public let unit: String
+            public let minAmount: Int?
+            public let maxAmount: Int?
 
             enum CodingKeys: String, CodingKey {
                 case method, unit
@@ -159,9 +159,9 @@ extension CashuSwift {
     }
 
     public class MintInfo0_16: MintInfo {
-        let contact: [Contact]
-        let motd: String
-        let nuts: [String: NutInfo]
+        public let contact: [Contact]
+        public let motd: String
+        public let nuts: [String: NutInfo]
         
         enum CodingKeys: String, CodingKey {
             case contact, motd, nuts
@@ -185,21 +185,21 @@ extension CashuSwift {
         }
     }
 
-    struct Contact: Codable {
-        let method: String
-        let info: String
+    public struct Contact: Codable {
+        public let method: String
+        public let info: String
     }
 
-    struct NutInfo: Codable {
-        let methods: [Method]?
-        let disabled: Bool?
-        let supported: SupportedType?
+    public struct NutInfo: Codable {
+        public let methods: [Method]?
+        public let disabled: Bool?
+        public let supported: SupportedType?
         
         enum CodingKeys: String, CodingKey {
             case methods, disabled, supported
         }
         
-        init(from decoder: Decoder) throws {
+        public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             methods = try container.decodeIfPresent([Method].self, forKey: .methods)
             disabled = try container.decodeIfPresent(Bool.self, forKey: .disabled)
@@ -213,7 +213,7 @@ extension CashuSwift {
             }
         }
         
-        func encode(to encoder: Encoder) throws {
+        public func encode(to encoder: Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)
             try container.encodeIfPresent(methods, forKey: .methods)
             try container.encodeIfPresent(disabled, forKey: .disabled)
@@ -229,17 +229,17 @@ extension CashuSwift {
         }
     }
 
-    enum SupportedType {
+    public enum SupportedType {
         case bool(Bool)
         case methods([Method])
     }
 
-    struct Method: Codable {
-        let method: String
-        let unit: String
-        let minAmount: Int?
-        let maxAmount: Int?
-        let commands: [String]?
+    public struct Method: Codable {
+        public let method: String
+        public let unit: String
+        public let minAmount: Int?
+        public let maxAmount: Int?
+        public let commands: [String]?
         
         enum CodingKeys: String, CodingKey {
             case method, unit, commands
