@@ -7,16 +7,18 @@
 
 import Foundation
 
-// AKA BlindedMessage
-struct Output: Codable {
-    let amount: Int
-    let B_: String
-    let id: String
-}
+extension CashuSwift {
+    // AKA BlindedMessage
+    struct Output: Codable {
+        let amount: Int
+        let B_: String
+        let id: String
+    }
 
-// AKA BlindedSignature
-struct Promise: Codable {
-    let id: String
-    let amount: Int
-    let C_: String
+    // AKA BlindedSignature
+    struct Promise: Codable {
+        let id: String
+        let amount: Int
+        let C_: String
+    }
 }

@@ -7,7 +7,7 @@
 
 import Foundation
 
-extension Cashu {
+extension CashuSwift {
     static func splitIntoBase2Numbers(_ n:Int) -> [Int] {
         var remaining = n
         var result: [Int] = []

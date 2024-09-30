@@ -7,11 +7,14 @@
 
 import Foundation
 
-struct SwapRequest:Codable {
-    let inputs: [Proof]
-    let outputs:[Output]
-}
+extension CashuSwift {
+    struct SwapRequest:Codable {
+        let inputs: [Proof]
+        let outputs:[Output]
+    }
 
-struct SwapResponse: Codable {
-    let signatures:[Promise]
+    struct SwapResponse: Codable {
+        let signatures:[Promise]
+    }
+
 }

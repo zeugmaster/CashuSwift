@@ -7,11 +7,14 @@
 
 import Foundation
 
-struct RestoreRequest: Codable {
-    let outputs:[Output]
-}
+extension CashuSwift {
+    struct RestoreRequest: Codable {
+        let outputs:[Output]
+    }
 
-struct RestoreResponse: Codable {
-    let outputs:[Output]
-    let signatures:[Promise]
+    struct RestoreResponse: Codable {
+        let outputs:[Output]
+        let signatures:[Promise]
+    }
+
 }
