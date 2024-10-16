@@ -19,7 +19,7 @@ public enum CashuSwift {
             keysetsWithKeys.append(new)
         }
         
-        var mint = T(url: url, keysets: keysetsWithKeys)
+        let mint = T(url: url, keysets: keysetsWithKeys)
 //        mint.info = try? await loadInfoFromMintURL(url)
         return mint
     }
@@ -221,7 +221,8 @@ public enum CashuSwift {
     }
     
     // MARK: - MELT
-    public static func melt(mint:MintRepresenting, quote:Quote,
+    public static func melt(mint:MintRepresenting, 
+                            quote:Quote,
                      proofs:[ProofRepresenting],
                      seed:String? = nil) async throws -> (paid:Bool, change:[ProofRepresenting]) {
         
@@ -532,10 +533,6 @@ public enum CashuSwift {
         proofRepresenting.reduce(0) { $0 + $1.amount }
     }
     
-//    public static func pick(_ proofs:[ProofRepresenting], for amount:Int) -> (selected:[ProofRepresenting], change:[ProofRepresenting])? {
-//        selectProofsToSumTarget(proofs: proofs, targetAmount: amount)
-//    }
-    
     public static func pick(_ proofs: [ProofRepresenting],
                             amount: Int,
                             mint: MintRepresenting,
@@ -646,7 +643,7 @@ extension Array where Element : MintRepresenting {
     public func receive(token:CashuSwift.Token,
                         seed:String? = nil) async throws -> Dictionary<String, [ProofRepresenting]> {
         
-        guard token.token.count != self.count else {
+        guard token.token.count == self.count else {
             logger.error("Number of mints in list does not match number of mints in token.")
             throw CashuError.invalidToken
         }
@@ -688,7 +685,7 @@ extension Array where Element : MintRepresenting {
         }
         return restoredProofs
     }
-//    
+
 //    public func getQuote(request:QuoteRequest) async throws -> [Quote] {
 //        // intended for melt quote request before MPP
 //        fatalError()
