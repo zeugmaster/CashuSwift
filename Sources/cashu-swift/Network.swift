@@ -25,6 +25,7 @@ struct Network {
     static func get<T:Decodable>(url:URL, expected:T.Type, timeout:Double = 10) async throws -> T {
         var req = URLRequest(url: url, timeoutInterval: timeout)
         req.httpMethod = "GET"
+        req.timeoutInterval = timeout
         
         guard let (data, _) = try? await URLSession.shared.data(for: req) else {
             throw Error.unavailable
@@ -45,6 +46,7 @@ struct Network {
     static func get(url:URL, timeout:Double = 10) async throws -> Data?{
         var req = URLRequest(url: url, timeoutInterval: timeout)
         req.httpMethod = "GET"
+        req.timeoutInterval = timeout
         
         guard let (data, _) = try? await URLSession.shared.data(for: req) else {
             throw Error.unavailable
@@ -66,6 +68,7 @@ struct Network {
         }
         
         req.httpBody = payload
+        req.timeoutInterval = timeout
         
         guard let (data, _) = try? await URLSession.shared.data(for: req) else {
             throw Error.unavailable

@@ -221,10 +221,10 @@ public enum CashuSwift {
     }
     
     // MARK: - MELT
-    public static func melt(mint:MintRepresenting, 
+    public static func melt(mint:MintRepresenting,
                             quote:Quote,
-                     proofs:[ProofRepresenting],
-                     seed:String? = nil) async throws -> (paid:Bool, change:[ProofRepresenting]) {
+                            proofs:[ProofRepresenting],
+                            seed:String? = nil) async throws -> (paid:Bool, change:[ProofRepresenting]) {
         
         guard let quote = quote as? Bolt11.MeltQuote else {
             throw CashuError.typeMismatch("you need to pass a Bolt11 melt quote to this function, nothing else is supported yet.")
@@ -279,7 +279,7 @@ public enum CashuSwift {
         
         meltResponse = try await Network.post(url: mint.url.appending(path: "/v1/melt/bolt11"),
                                               body: meltRequest,
-                                              expected: Bolt11.MeltQuote.self)
+                                              expected: Bolt11.MeltQuote.self, timeout: 3600)
         
         if let promises = meltResponse.change {
             guard promises.count <= blankOutputs.count else {
