@@ -13,7 +13,7 @@ extension CashuSwift {
         let keysets:[Keyset]
     }
 
-    public class Keyset: Codable {
+    public struct Keyset: Codable {
         public let keysetID: String
         public var keys: Dictionary<String, String>
         public var derivationCounter:Int
@@ -28,7 +28,7 @@ extension CashuSwift {
         
         // Manual encoder / decoder functions are needed for Codable conformance AND Model macro
         
-        public required init(from decoder: Decoder) throws {
+        public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             keysetID = try container.decode(String.self, forKey: .keysetID)
             unit = try container.decode(String.self, forKey: .unit)

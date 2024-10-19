@@ -180,7 +180,7 @@ final class cashu_swiftTests: XCTestCase {
     
     func testMinting() async throws {
         
-        let mintURL = URL(string: "http://localhost:3338")!
+        let mintURL = URL(string: "http://localhost:3339")!
         
         let mint = try await CashuSwift.loadMint(url: mintURL)
         
@@ -338,7 +338,7 @@ final class cashu_swiftTests: XCTestCase {
     }
     
     func testTokenStateCheck() async throws {
-        let mint = try await CashuSwift.loadMint(url: URL(string: "http://localhost:3338")!)
+        let mint = try await CashuSwift.loadMint(url: URL(string: "http://localhost:3339")!)
         let quoteRequest = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 9)
         let quote = try await CashuSwift.getQuote(mint: mint, quoteRequest: quoteRequest)
         

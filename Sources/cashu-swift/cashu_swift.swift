@@ -13,15 +13,13 @@ public enum CashuSwift {
                                                expected: KeysetList.self)
         var keysetsWithKeys = [Keyset]()
         for keyset in keysetList.keysets {
-            let new = keyset
+            var new = keyset
             new.keys = try await Network.get(url: url.appending(path: "/v1/keys/\(keyset.keysetID.makeURLSafe())"),
                                              expected: KeysetList.self).keysets[0].keys
             keysetsWithKeys.append(new)
         }
         
-        let mint = T(url: url, keysets: keysetsWithKeys)
-//        mint.info = try? await loadInfoFromMintURL(url)
-        return mint
+        return T(url: url, keysets: keysetsWithKeys)
     }
     
     public static func loadInfoFromMint(_ mint:MintRepresenting) async throws -> MintInfo? {
@@ -58,7 +56,7 @@ public enum CashuSwift {
             logger.debug("List of keysets changed.")
             var keysetsWithKeys = [Keyset]()
             for keyset in remoteKeysetList.keysets {
-                let new = keyset
+                var new = keyset
                 new.keys = try await Network.get(url: mintURL.appending(path: "/v1/keys/\(keyset.keysetID.makeURLSafe())"),
                                                  expected: KeysetList.self).keysets[0].keys
                 keysetsWithKeys.append(new)
@@ -124,7 +122,7 @@ public enum CashuSwift {
             distribution = CashuSwift.splitIntoBase2Numbers(requestDetail.amount)
         }
         
-        guard let keyset = mint.keysets.first(where: { $0.active == true &&
+        guard var keyset = mint.keysets.first(where: { $0.active == true &&
                                                        $0.unit == requestDetail.unit }) else {
             throw CashuError.noActiveKeysetForUnit("Could not determine an ACTIVE keyset for this unit \(requestDetail.unit.uppercased())")
         }
@@ -248,7 +246,7 @@ public enum CashuSwift {
             throw CashuError.unitError("Could not determine singular unit for input proofs.")
         }
         
-        guard let keyset = activeKeysetForUnit(units.first!, mint: mint) else {
+        guard var keyset = activeKeysetForUnit(units.first!, mint: mint) else {
             throw CashuError.noActiveKeysetForUnit("No active keyset for unit \(units)")
         }
         
@@ -313,9 +311,9 @@ public enum CashuSwift {
     // MARK: - SWAP
     public static func swap(mint:MintRepresenting,
                             proofs:[ProofRepresenting],
-                     amount:Int? = nil,
-                     seed:String? = nil,
-                     preferredReturnDistribution:[Int]? = nil) async throws -> (new:[ProofRepresenting],
+                            amount:Int? = nil,
+                            seed:String? = nil,
+                            preferredReturnDistribution:[Int]? = nil) async throws -> (new:[ProofRepresenting],
                                                                          change:[ProofRepresenting]) {
         let fee = try calculateFee(for: proofs, of: mint)
         let proofSum = sum(proofs)
@@ -374,7 +372,6 @@ public enum CashuSwift {
         let deterministicFactors:(String, Int)?
         if let seed {
             deterministicFactors = (seed, activeKeyset.derivationCounter)
-            activeKeyset.derivationCounter += combinedDistribution.count
         } else {
             deterministicFactors = nil
         }
@@ -410,7 +407,7 @@ public enum CashuSwift {
                         batchSize:Int = 10) async throws -> [(ProofRepresenting, String)] {
         // no need to check validity of seed as function would otherwise crash during first det sec generation
         var restoredProofs = [(ProofRepresenting, String)]()
-        for keyset in mint.keysets {
+        for var keyset in mint.keysets {
             logger.info("Attempting restore for keyset: \(keyset.keysetID) of mint: \(mint.url.absoluteString)")
             let (proofs, _, lastMatchCounter) = try await restoreForKeyset(mint:mint, keyset:keyset, with: seed, batchSize: batchSize)
             print("last match counter: \(String(describing: lastMatchCounter))")
@@ -440,9 +437,9 @@ public enum CashuSwift {
     }
     
     static func restoreForKeyset(mint:MintRepresenting,
-                          keyset:Keyset,
-                          with seed:String,
-                          batchSize:Int) async throws -> (proofs:[ProofRepresenting],
+                                 keyset:Keyset,
+                                 with seed:String,
+                                 batchSize:Int) async throws -> (proofs:[ProofRepresenting],
                                                           totalRestored:Int,
                                                           lastMatchCounter:Int) {
         var proofs = [Proof]()
@@ -599,7 +596,6 @@ public enum CashuSwift {
         // No subset sums up to targetAmount
         return nil
     }
-
     
     public static func calculateFee(for proofs: [ProofRepresenting], of mint:MintRepresenting) throws -> Int {
         var sumFees = 0
