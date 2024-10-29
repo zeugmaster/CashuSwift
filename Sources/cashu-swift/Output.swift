@@ -9,16 +9,16 @@ import Foundation
 
 extension CashuSwift {
     // AKA BlindedMessage
-    struct Output: Codable {
-        let amount: Int
-        let B_: String
-        let id: String
+    public struct Output: Codable {
+        public let amount: Int
+        public let B_: String
+        public let id: String
     }
 
     // AKA BlindedSignature
-    struct Promise: Codable {
-        let id: String
-        let amount: Int
-        let C_: String
+    public struct Promise: Codable {
+        public let id: String
+        public let amount: Int
+        public let C_: String
     }
 }

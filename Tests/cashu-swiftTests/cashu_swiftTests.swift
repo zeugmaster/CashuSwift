@@ -196,7 +196,7 @@ final class cashu_swiftTests: XCTestCase {
         //        print(try token.serialize(.V3))
         // (mew, change)
 
-        let (_, _) = try await CashuSwift.swap(mint: mint, proofs: proofs, amount: 500)
+        let (_, _) = try await CashuSwift.swap(mint: mint, proofs: proofs, amount: 300)
         
     }
     
@@ -289,6 +289,30 @@ final class cashu_swiftTests: XCTestCase {
         
         XCTAssert(result.paid)
     }
+    
+//    func testMeltExt() async throws {
+//        let url = URL(string: "https://mint.macadamia.cash")!
+//        let mint = try await CashuSwift.loadMint(url: url, type: CashuSwift.Mint.self)
+//        let qr = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 128)
+//        let q = try await CashuSwift.getQuote(mint: mint, quoteRequest: qr)
+//        
+//        print(q)
+//        sleep(20)
+//        let proofs = try await CashuSwift.issue(for: q, on: mint)
+//        
+//        let q2 = try await CashuSwift.getQuote(mint:mint, quoteRequest: CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 64)) as! CashuSwift.Bolt11.MintQuote
+//        
+//        
+//        let meltQuoteRequest = CashuSwift.Bolt11.RequestMeltQuote(unit: "sat", request: q2.request, options: nil)
+//        let meltQ = try await CashuSwift.getQuote(mint:mint, quoteRequest: meltQuoteRequest)
+//        
+//        let result = try await CashuSwift.melt(mint: mint, quote: meltQ, proofs: proofs)
+//        // result.change is a list of proofs if you overpay on the melt quote
+//        // result.paid == true if the Bolt11 lightning payment successful
+//        print(CashuSwift.sum(result.change))
+//        
+//        XCTAssert(result.paid)
+//    }
     
 //    func testMeltReal() async throws {
 //        let mint1 = try await Mint(with: URL(string: "https://mint.macadamia.cash")!)

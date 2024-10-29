@@ -99,7 +99,7 @@ public enum CashuSwift {
     /// After paying the quote amount to the mint, use this function to issue the actual ecash as a list of [`String`]s
     /// Leaving `seed` empty will give you proofs from non-deterministic outputs which cannot be recreated from a seed phrase backup
     public static func issue(for quote:Quote,
-                             on mint:MintRepresenting,
+                             on mint: MintRepresenting,
                              seed:String? = nil,
                              preferredDistribution:[Int]? = nil) async throws -> [ProofRepresenting] {
         
@@ -122,7 +122,7 @@ public enum CashuSwift {
             distribution = CashuSwift.splitIntoBase2Numbers(requestDetail.amount)
         }
         
-        guard var keyset = mint.keysets.first(where: { $0.active == true &&
+        guard var activeKeyset = mint.keysets.first(where: { $0.active == true &&
                                                        $0.unit == requestDetail.unit }) else {
             throw CashuError.noActiveKeysetForUnit("Could not determine an ACTIVE keyset for this unit \(requestDetail.unit.uppercased())")
         }
@@ -132,13 +132,16 @@ public enum CashuSwift {
         var outputs = (outputs:[Output](), blindingFactors:[""], secrets:[""])
         if let seed = seed {
             outputs = try Crypto.generateOutputs(amounts: distribution,
-                                                 keysetID: keyset.keysetID,
+                                                 keysetID: activeKeyset.keysetID,
                                                  deterministicFactors: (seed: seed,
-                                                                        counter: keyset.derivationCounter))
-            keyset.derivationCounter += outputs.outputs.count
+                                                                        counter: activeKeyset.derivationCounter))
+
+            
+            
+            
         } else {
             outputs = try Crypto.generateOutputs(amounts: distribution,
-                                                 keysetID: keyset.keysetID)
+                                                 keysetID: activeKeyset.keysetID)
         }
         
         let mintRequest = Bolt11.MintRequest(quote: quote.quote, outputs: outputs.outputs)
@@ -152,7 +155,7 @@ public enum CashuSwift {
         let proofs = try Crypto.unblindPromises(promises.signatures,
                                                 blindingFactors: outputs.blindingFactors,
                                                 secrets: outputs.secrets,
-                                                keyset: keyset)
+                                                keyset: activeKeyset)
         
         return proofs
     }

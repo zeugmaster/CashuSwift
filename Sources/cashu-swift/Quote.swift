@@ -85,7 +85,7 @@ extension CashuSwift {
             public let expiry: Int
             public let paymentPreimage: String?
             
-            let change:[Promise]?
+            public let change:[Promise]?
             
             enum CodingKeys: String, CodingKey {
                 case quote
