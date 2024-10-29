@@ -185,7 +185,7 @@ public enum CashuSwift {
             sendProofs = proofs
             changeProofs = []
         } else {
-            let (new, change) = try await swap(mint: mint, proofs: proofs, amount: amount)
+            let (new, change) = try await swap(mint: mint, proofs: proofs, amount: amount, seed: seed)
             sendProofs = new
             changeProofs = change
         }
@@ -218,7 +218,7 @@ public enum CashuSwift {
               try units(for: inputProofs, of: mint).count == 1 else {
             throw CashuError.unitError("Proofs to swap are either of mixed unit or foreign to this mint.")
         }
-        return try await swap(mint:mint, proofs: inputProofs).new
+        return try await swap(mint:mint, proofs: inputProofs, seed: seed).new
     }
     
     // MARK: - MELT

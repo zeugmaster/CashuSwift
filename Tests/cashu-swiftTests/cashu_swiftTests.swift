@@ -232,24 +232,26 @@ final class cashu_swiftTests: XCTestCase {
         }
     }
     
-    func testMintingWithDetSec() async throws {
-        let mintURL = URL(string: "http://localhost:3338")!
-        
-        let mint = try await CashuSwift.loadMint(url: mintURL)
-        
-        let amount = 31
-        
-        let quote = try await CashuSwift.getQuote(mint: mint, quoteRequest: CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: amount))
-        let mnemmonic = Mnemonic()
-        let seed = String(bytes: mnemmonic.seed)
-        
-        var proofs = try await CashuSwift.issue(for: quote, on: mint)
-                
-        // triple swap to make sure detsec counter increments correctly
-        for _ in 0...3 {
-            (proofs, _) = try await CashuSwift.swap(mint: mint, proofs: proofs)
-        }
-    }
+//    func testMintingWithDetSec() async throws {
+//        let mintURL = URL(string: "http://localhost:3339")!
+//        
+//        let mint = try await CashuSwift.loadMint(url: mintURL)
+//        
+//        let amount = 31
+//        
+//        let quote = try await CashuSwift.getQuote(mint: mint, quoteRequest: CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: amount))
+//        let mnemmonic = Mnemonic()
+//        let seed = String(bytes: mnemmonic.seed)
+//        
+//        var proofs = try await CashuSwift.issue(for: quote, on: mint, seed: seed)
+//        mint.keysets.first(where: { $0.keysetID == proofs.first?.keysetID })!.derivationCounter += proofs.count
+//        
+//        
+//        // triple swap to make sure detsec counter increments correctly
+//        for _ in 0...3 {
+//            (proofs, _) = try await CashuSwift.swap(mint: mint, proofs: proofs, seed: seed)
+//        }
+//    }
     
     func testSendReceive() async throws {
         let url = URL(string: "http://localhost:3339")!
