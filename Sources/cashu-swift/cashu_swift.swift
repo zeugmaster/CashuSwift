@@ -202,8 +202,9 @@ public enum CashuSwift {
     }
     
     // MARK: - RECEIVE
-    public static func receive(mint:MintRepresenting, token:Token,
-                        seed:String? = nil) async throws -> [ProofRepresenting] {
+    public static func receive(mint:MintRepresenting,
+                               token:Token,
+                               seed:String? = nil) async throws -> [ProofRepresenting] {
         // this should check whether proofs are from this mint and not multi unit FIXME: potentially wonky and not very descriptive
         guard token.token.count == 1 else {
             logger.error("You tried to receive a token that either contains no proofs at all, or proofs from more than one mint.")
@@ -407,7 +408,7 @@ public enum CashuSwift {
     // MARK: - RESTORE
     // TODO: should increase batch size, default 10 is way to small
     public static func restore(mint:MintRepresenting, with seed:String,
-                        batchSize:Int = 10) async throws -> [(ProofRepresenting, String)] {
+                               batchSize:Int = 10) async throws -> [(ProofRepresenting, String)] {
         // no need to check validity of seed as function would otherwise crash during first det sec generation
         var restoredProofs = [(ProofRepresenting, String)]()
         for var keyset in mint.keysets {
@@ -672,7 +673,7 @@ extension Array where Element : MintRepresenting {
         for token in token.token {
             let mint = self.first(where: { $0.url.absoluteString == token.mint })!
             let singleMintToken = CashuSwift.Token(token: [token])
-            proofs[mint.url.absoluteString] = try await CashuSwift.receive(mint: mint, token: singleMintToken)
+            proofs[mint.url.absoluteString] = try await CashuSwift.receive(mint: mint, token: singleMintToken, seed: seed)
         }
         return proofs
     }
