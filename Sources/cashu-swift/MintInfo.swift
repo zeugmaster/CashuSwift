@@ -161,10 +161,21 @@ extension CashuSwift {
         }
     }
 
-    public enum SupportedType {
+    public enum SupportedType: Equatable {
         case bool(Bool)
         case methods([Method])
+
+        public static func == (lhs: SupportedType, rhs: SupportedType) -> Bool {
+            switch (lhs, rhs) {
+            case let (.bool(lhsValue), .bool(rhsValue)):
+                return lhsValue == rhsValue
+            default:
+                return false
+            }
+        }
     }
+
+
 
     public struct Method: Codable {
         public let method: String

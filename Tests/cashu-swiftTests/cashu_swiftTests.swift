@@ -472,4 +472,15 @@ final class cashu_swiftTests: XCTestCase {
         let selection4 = CashuSwift.pick(proofs, amount: 165, mint: mint)
         print(selection4 ?? "nil")
     }
+    
+    func testInfoLoad() async throws {
+        let url = URL(string: "http://localhost:3339")!
+        let mint = try await CashuSwift.loadMint(url: url)
+        
+        let info = try await CashuSwift.loadInfoFromMint(mint) as! CashuSwift.MintInfo0_16
+        
+        print(info)
+        
+        print(info.nuts["4"]?.disabled)
+    }
 }
