@@ -73,7 +73,7 @@ public enum CashuSwift {
         var url = mint.url
         
         guard mint.keysets.contains(where: { $0.unit == quoteRequest.unit }) else {
-            throw CashuError.noKeysetForUnit("No keyset on mint \(url.absoluteString) for unit \(quoteRequest.unit.uppercased()).")
+            throw CashuError.unitIsNotSupported("No keyset on mint \(url.absoluteString) for unit \(quoteRequest.unit.uppercased()).")
         }
         
         switch quoteRequest {

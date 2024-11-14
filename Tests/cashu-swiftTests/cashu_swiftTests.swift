@@ -481,6 +481,33 @@ final class cashu_swiftTests: XCTestCase {
         
         print(info)
         
-        print(info.nuts["4"]?.disabled)
+    }
+    
+    func testErrorHandling() async throws {
+        
+        let url = URL(string: "https://mint.macadamia.cash")!
+        let mint = try await CashuSwift.loadMint(url: url)
+        
+        do {
+            let qr = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 42)
+            let q = try await CashuSwift.getQuote(mint: mint, quoteRequest: qr)
+            _ = try await CashuSwift.issue(for: q, on: mint)
+            XCTFail("issuing on unpaid quote should not succeed. is mint fakewallet_brr = true?")
+        } catch let error as CashuError {
+            XCTAssertEqual(error, .quoteNotPaid)
+        } catch {
+            XCTFail("unexpected type of error")
+        }
+        
+        do {
+            let qr = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 42)
+            let q = try await CashuSwift.getQuote(mint: mint, quoteRequest: qr)
+            _ = try await CashuSwift.issue(for: q, on: mint)
+            XCTFail("issuing on unpaid quote should not succeed. is mint fakewallet_brr = true?")
+        } catch let error as CashuError {
+            XCTAssertEqual(error, .quoteNotPaid)
+        } catch {
+            XCTFail("unexpected type of error")
+        }
     }
 }

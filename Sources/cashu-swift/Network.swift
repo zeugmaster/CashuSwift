@@ -17,7 +17,7 @@ struct Network {
     enum Error: Swift.Error {
         case decoding(data: Data)
         case encoding
-        case unavailable
+        case networkError
     }
     
     ///Make a HTTP GET request to the specified URL, returns the decoded response of the expected type T or an error if decoding fails
@@ -28,16 +28,14 @@ struct Network {
         req.timeoutInterval = timeout
         
         guard let (data, _) = try? await URLSession.shared.data(for: req) else {
-            throw Error.unavailable
+            throw Error.networkError
         }
         
-       do {
-           let decoded = try JSONDecoder().decode(T.self, from: data)
-           return decoded
+        do {
+            let decoded = try JSONDecoder().decode(T.self, from: data)
+            return decoded
         } catch {
-            print(error)
-            print(String(data: data, encoding: .utf8)!)
-            throw Error.decoding(data: data)
+            throw parse(data)
         }
     }
     
@@ -49,7 +47,7 @@ struct Network {
         req.timeoutInterval = timeout
         
         guard let (data, _) = try? await URLSession.shared.data(for: req) else {
-            throw Error.unavailable
+            throw Error.networkError
         }
 
         return data
@@ -71,16 +69,55 @@ struct Network {
         req.timeoutInterval = timeout
         
         guard let (data, _) = try? await URLSession.shared.data(for: req) else {
-            throw Error.unavailable
+            throw Error.networkError
         }
         
         do {
             let decoded = try JSONDecoder().decode(T.self, from: data)
             return decoded
         } catch {
-            print(error)
-            print(String(data: data, encoding: .utf8)!)
-            throw error
+            throw parse(data)
+        }
+    }
+    
+    static func parse(_ data:Data) -> Swift.Error {
+        if let string = String(data: data, encoding: .utf8) {
+            return filterErrorMessage(string)
+        } else {
+            return CashuError.unknownError("Could not decode server response data of lenght \(data.count) bytes.")
+        }
+    }
+    
+    static func filterErrorMessage(_ string: String) -> Swift.Error {
+        switch string {
+        case let s where s.contains("10002"):
+            return CashuError.blindedMessageAlreadySigned
+        case let s where s.contains("11001"):
+            return CashuError.alreadySpent
+        case let s where s.contains("11002"):
+            return CashuError.transactionUnbalanced
+        case let s where s.contains("11005"):
+            return CashuError.unitIsNotSupported(s)
+        case let s where s.contains("11006"):
+            return CashuError.amountOutsideOfLimitRange
+        case let s where s.contains("12002"):
+            return CashuError.keysetInactive
+        case let s where s.contains("20001"):
+            return CashuError.quoteNotPaid
+        case let s where s.contains("2001"): // to account for a typo in nutshell error codes
+            return CashuError.quoteNotPaid
+        case let s where s.contains("20002"):
+            return CashuError.proofsAlreadyIssuedForQuote
+        case let s where s.contains("20003"):
+            return CashuError.mintingDisabled
+        case let s where s.contains("20005"):
+            return CashuError.quoteIsPending
+        case let s where s.contains("20006"):
+            return CashuError.invoiceAlreadyPaid
+        case let s where s.contains("20007"):
+            return CashuError.quoteIsExpired
+        default:
+            return CashuError.unknownError(string)
         }
     }
 }
