@@ -11,57 +11,31 @@ public enum CashuError: Swift.Error {
     
     case quoteNotPaid // 20001
     case blindedMessageAlreadySigned // 10002
-    
     case alreadySpent // 11001
-    
     case transactionUnbalanced // 11002
-    
     case invalidToken
-    
     case tokenEncoding
-    
     case tokenDecoding
-    
     case inputError(String)
-    
     case insufficientInputs(String)
-    
     case unitIsNotSupported(String) // 11005
-    
     case keysetInactive // 12002
-    
     case amountOutsideOfLimitRange // 11006
-    
     case proofsAlreadyIssuedForQuote // 20002
-    
     case mintingDisabled // 20003
-    
     case typeMismatch(String)
-    
     case preferredDistributionMismatch(String)
-    
     case noActiveKeysetForUnit(String)
-    
     case unitError(String)
-    
     case invalidAmount
-    
     case missingRequestDetail(String)
-    
     case restoreError(String)
-    
     case feeCalculationError(String)
-    
     case partiallySpentToken
-    
     case bolt11InvalidInvoiceError(String)
-    
     case quoteIsPending // 20005
-    
     case invoiceAlreadyPaid // 20006
-    
     case quoteIsExpired // 20007
-    
     case unknownError(String)
     
 }

@@ -666,7 +666,7 @@ extension Array where Element : MintRepresenting {
         
         guard tokenStates.allSatisfy({ $0 == .unspent }) else {
             logger.error("CashuSwift does not allow you to redeem a multi mint token that is only partially spendable.")
-            throw CashuError.partiallySpentToken
+            throw CashuError.alreadySpent
         }
         
         var proofs = Dictionary<String, [ProofRepresenting]>()
