@@ -7,10 +7,9 @@
 
 import Foundation
 
-enum CashuError: Swift.Error {
+public enum CashuError: Swift.Error {
     
     case quoteNotPaid // 20001
-    
     case blindedMessageAlreadySigned // 10002
     
     case alreadySpent // 11001
