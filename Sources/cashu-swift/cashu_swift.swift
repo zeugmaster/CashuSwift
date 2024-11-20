@@ -67,6 +67,40 @@ public enum CashuSwift {
         }
     }
     
+    public static func updatedKeysetsForMint(_ mint:MintRepresenting) async throws -> [Keyset] {
+        let mintURL = mint.url
+        let remoteKeysetList = try await Network.get(url: mintURL.appending(path: "/v1/keysets"),
+                                                     expected: KeysetList.self)
+        
+        let remoteIDs = remoteKeysetList.keysets.reduce(into: [String:Bool]()) { partialResult, keyset in
+            partialResult[keyset.keysetID] = keyset.active
+        }
+        
+        let localIDs = mint.keysets.reduce(into: [String:Bool]()) { partialResult, keyset in
+            partialResult[keyset.keysetID] = keyset.active
+        }
+        
+        logger.debug("Updating local representation of mint \(mintURL)...")
+        
+        if remoteIDs != localIDs {
+            logger.debug("List of keysets changed.")
+            var keysetsWithKeys = [Keyset]()
+            for keyset in remoteKeysetList.keysets {
+                var new = keyset
+                new.keys = try await Network.get(url: mintURL.appending(path: "/v1/keys/\(keyset.keysetID.makeURLSafe())"),
+                                                 expected: KeysetList.self).keysets[0].keys
+                
+                let detsecCounter = mint.keysets.first(where: {$0.keysetID == keyset.keysetID})?.derivationCounter ?? 0
+                new.derivationCounter = detsecCounter
+                keysetsWithKeys.append(new)
+            }
+            return keysetsWithKeys
+        } else {
+            logger.debug("No changes in list of keysets.")
+            return mint.keysets
+        }
+    }
+    
     // MARK: - GET QUOTE
     /// Get a quote for minting or melting tokens from the mint
     public static func getQuote(mint:MintRepresenting, quoteRequest:QuoteRequest) async throws -> Quote {
