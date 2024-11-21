@@ -17,7 +17,6 @@ struct Network {
     enum Error: Swift.Error {
         case decoding(data: Data)
         case encoding
-        case networkError
     }
     
     ///Make a HTTP GET request to the specified URL, returns the decoded response of the expected type T or an error if decoding fails
@@ -28,7 +27,7 @@ struct Network {
         req.timeoutInterval = timeout
         
         guard let (data, _) = try? await URLSession.shared.data(for: req) else {
-            throw Error.networkError
+            throw CashuError.networkError
         }
         
         do {
@@ -47,7 +46,7 @@ struct Network {
         req.timeoutInterval = timeout
         
         guard let (data, _) = try? await URLSession.shared.data(for: req) else {
-            throw Error.networkError
+            throw CashuError.networkError
         }
 
         return data
@@ -69,7 +68,7 @@ struct Network {
         req.timeoutInterval = timeout
         
         guard let (data, _) = try? await URLSession.shared.data(for: req) else {
-            throw Error.networkError
+            throw CashuError.networkError
         }
         
         do {
