@@ -18,9 +18,9 @@ extension CashuSwift {
     }
 
     public struct KeysetRestoreResult {
-        let keysetID: String
-        let derivationCounter: Int
-        let unitString: String
-        let proofs: [ProofRepresenting]
+        public let keysetID: String
+        public let derivationCounter: Int
+        public let unitString: String
+        public let proofs: [ProofRepresenting]
     }
 }
