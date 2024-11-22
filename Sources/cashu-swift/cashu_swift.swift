@@ -441,11 +441,14 @@ public enum CashuSwift {
     
     // MARK: - RESTORE
     // TODO: should increase batch size, default 10 is way to small
-    public static func restore(mint:MintRepresenting, with seed:String,
-                               batchSize:Int = 10) async throws -> [(ProofRepresenting, String)] {
+    public static func restore(mint:MintRepresenting,
+                               with seed:String,
+                               batchSize:Int = 10) async throws -> (proofs: [(ProofRepresenting, String)],
+                                                                    derivationCounters:[String:Int]) {
         // no need to check validity of seed as function would otherwise crash during first det sec generation
         var restoredProofs = [(ProofRepresenting, String)]()
-        for var keyset in mint.keysets {
+        var derivationCounters = [String:Int]()
+        for keyset in mint.keysets {
             logger.info("Attempting restore for keyset: \(keyset.keysetID) of mint: \(mint.url.absoluteString)")
             let (proofs, _, lastMatchCounter) = try await restoreForKeyset(mint:mint, keyset:keyset, with: seed, batchSize: batchSize)
             print("last match counter: \(String(describing: lastMatchCounter))")
@@ -456,13 +459,14 @@ public enum CashuSwift {
                 continue
             }
             
-            // FIXME: ugly
-            keyset.derivationCounter = lastMatchCounter + 1
+            derivationCounters[keyset.keysetID] = lastMatchCounter + 1
             
             let states = try await check(proofs, mint: mint) // ignores pending but should not
+
             guard states.count == proofs.count else {
                 throw CashuError.restoreError("unable to filter for unspent ecash during restore")
             }
+
             var spendableProofs = [ProofRepresenting]()
             for i in 0..<states.count {
                 if states[i] == .unspent { spendableProofs.append(proofs[i]) }
@@ -471,15 +475,15 @@ public enum CashuSwift {
             spendableProofs.forEach({ restoredProofs.append(($0, keyset.unit)) })
             logger.info("Found \(spendableProofs.count) spendable proofs for keyset \(keyset.keysetID)")
         }
-        return restoredProofs
+        return (restoredProofs, derivationCounters)
     }
     
     static func restoreForKeyset(mint:MintRepresenting,
                                  keyset:Keyset,
                                  with seed:String,
                                  batchSize:Int) async throws -> (proofs:[ProofRepresenting],
-                                                          totalRestored:Int,
-                                                          lastMatchCounter:Int) {
+                                                                 totalRestored:Int,
+                                                                 lastMatchCounter:Int) {
         var proofs = [Proof]()
         var emtpyResponses = 0
         var currentCounter = 0
@@ -712,15 +716,15 @@ extension Array where Element : MintRepresenting {
         return proofs
     }
     
-    public func restore(with seed:String, batchSize:Int = 10) async throws -> [(proof:ProofRepresenting, unit:String)] {
-        // call mint.restore on each of the mints
-        var restoredProofs = [(ProofRepresenting, String)]()
-        for mint in self {
-            let proofs = try await CashuSwift.restore(mint:mint, with: seed, batchSize: batchSize)
-            restoredProofs.append(contentsOf: proofs)
-        }
-        return restoredProofs
-    }
+//    public func restore(with seed:String, batchSize:Int = 10) async throws -> [(proof:ProofRepresenting, unit:String)] {
+//        // call mint.restore on each of the mints
+//        var restoredProofs = [(ProofRepresenting, String)]()
+//        for mint in self {
+//            let proofs = try await CashuSwift.restore(mint:mint, with: seed, batchSize: batchSize)
+//            restoredProofs.append(contentsOf: proofs)
+//        }
+//        return restoredProofs
+//    }
 
 //    public func getQuote(request:QuoteRequest) async throws -> [Quote] {
 //        // intended for melt quote request before MPP

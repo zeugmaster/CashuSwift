@@ -382,29 +382,30 @@ final class cashu_swiftTests: XCTestCase {
         let mnemmonic = Mnemonic()
         let seed = String(bytes: mnemmonic.seed)
         
+        // MARK: NEEDS TO BE TESTED WITH NO-FEE MINT
         let mint = try await CashuSwift.loadMint(url: URL(string: "http://localhost:3338")!)
+        
         let quoteRequest = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 2047)
 
         let quote = try await CashuSwift.getQuote(mint: mint, quoteRequest: quoteRequest)
         
-        let proofs = try await CashuSwift.issue(for: quote, on: mint, seed: seed)
+        var proofs = try await CashuSwift.issue(for: quote, on: mint, seed: seed)
         
-        let _ = try await CashuSwift.swap(mint:mint, proofs: Array(proofs[0...1]), seed: seed)
+        // nighmare derivation counter handling
+        if let index = mint.keysets.firstIndex(where: { $0.keysetID == proofs.first?.keysetID }) {
+            var keyset = mint.keysets[index]
+            keyset.derivationCounter += proofs.count
+            mint.keysets[index] = keyset
+        }
+        
+        let swapped = try await CashuSwift.swap(mint:mint, proofs: Array(proofs[0...2]), seed: seed)
+        print(swapped)
                 
         let restoredProofs = try await CashuSwift.restore(mint:mint, with: seed)
         
-        XCTAssertEqual(CashuSwift.sum(proofs), CashuSwift.sum(restoredProofs.map({$0.0})))
+        XCTAssertEqual(CashuSwift.sum(proofs), CashuSwift.sum(restoredProofs.proofs.map({$0.0})))
         
-        let mint2 = try await CashuSwift.loadMint(url: URL(string: "http://localhost:3339")!)
-        let quoteRequest2 = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 2047)
-        
-        let quote2 = try await CashuSwift.getQuote(mint: mint2, quoteRequest: quoteRequest2)
-        
-        let proofs2 = try await CashuSwift.issue(for: quote2, on: mint2, seed: seed)
-        
-        let multiMintRestoreProofs = try await [mint, mint2].restore(with: seed)
-        
-        XCTAssertEqual(multiMintRestoreProofs.count, proofs.count + proofs2.count)
+        print(restoredProofs.derivationCounters)
     }
     
     func testFeeCalculation() async throws {
