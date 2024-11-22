@@ -17,4 +17,10 @@ extension CashuSwift {
         let signatures:[Promise]
     }
 
+    public struct KeysetRestoreResult {
+        let keysetID: String
+        let derivationCounter: Int
+        let unitString: String
+        let proofs: [ProofRepresenting]
+    }
 }

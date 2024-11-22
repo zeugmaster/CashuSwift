@@ -441,13 +441,48 @@ public enum CashuSwift {
     
     // MARK: - RESTORE
     // TODO: should increase batch size, default 10 is way to small
+//    public static func restore(mint:MintRepresenting,
+//                               with seed:String,
+//                               batchSize:Int = 10) async throws -> (proofs: [(ProofRepresenting, String)],
+//                                                                    derivationCounters:[String:Int]) {
+//        // no need to check validity of seed as function would otherwise crash during first det sec generation
+//        var restoredProofs = [(ProofRepresenting, String)]()
+//        var derivationCounters = [String:Int]()
+//        for keyset in mint.keysets {
+//            logger.info("Attempting restore for keyset: \(keyset.keysetID) of mint: \(mint.url.absoluteString)")
+//            let (proofs, _, lastMatchCounter) = try await restoreForKeyset(mint:mint, keyset:keyset, with: seed, batchSize: batchSize)
+//            print("last match counter: \(String(describing: lastMatchCounter))")
+//            
+//            // if we dont have any restorable proofs on this keyset, move on to the next
+//            if proofs.isEmpty {
+//                logger.debug("No ecash to restore for keyset \(keyset.keysetID).")
+//                continue
+//            }
+//            
+//            derivationCounters[keyset.keysetID] = lastMatchCounter + 1
+//            
+//            let states = try await check(proofs, mint: mint) // ignores pending but should not
+//
+//            guard states.count == proofs.count else {
+//                throw CashuError.restoreError("unable to filter for unspent ecash during restore")
+//            }
+//
+//            var spendableProofs = [ProofRepresenting]()
+//            for i in 0..<states.count {
+//                if states[i] == .unspent { spendableProofs.append(proofs[i]) }
+//            }
+//            
+//            spendableProofs.forEach({ restoredProofs.append(($0, keyset.unit)) })
+//            logger.info("Found \(spendableProofs.count) spendable proofs for keyset \(keyset.keysetID)")
+//        }
+//        return (restoredProofs, derivationCounters)
+//    }
+    
     public static func restore(mint:MintRepresenting,
                                with seed:String,
-                               batchSize:Int = 10) async throws -> (proofs: [(ProofRepresenting, String)],
-                                                                    derivationCounters:[String:Int]) {
+                               batchSize:Int = 10) async throws -> [KeysetRestoreResult] {
         // no need to check validity of seed as function would otherwise crash during first det sec generation
-        var restoredProofs = [(ProofRepresenting, String)]()
-        var derivationCounters = [String:Int]()
+        var results = [KeysetRestoreResult]()
         for keyset in mint.keysets {
             logger.info("Attempting restore for keyset: \(keyset.keysetID) of mint: \(mint.url.absoluteString)")
             let (proofs, _, lastMatchCounter) = try await restoreForKeyset(mint:mint, keyset:keyset, with: seed, batchSize: batchSize)
@@ -459,7 +494,7 @@ public enum CashuSwift {
                 continue
             }
             
-            derivationCounters[keyset.keysetID] = lastMatchCounter + 1
+//            derivationCounters[keyset.keysetID] = lastMatchCounter + 1
             
             let states = try await check(proofs, mint: mint) // ignores pending but should not
 
@@ -472,10 +507,15 @@ public enum CashuSwift {
                 if states[i] == .unspent { spendableProofs.append(proofs[i]) }
             }
             
-            spendableProofs.forEach({ restoredProofs.append(($0, keyset.unit)) })
+//            spendableProofs.forEach({ restoredProofs.append(($0, keyset.unit)) })
+            let result = KeysetRestoreResult(keysetID: keyset.keysetID,
+                                             derivationCounter: lastMatchCounter + 1,
+                                             unitString: keyset.unit,
+                                             proofs: spendableProofs)
+            results.append(result)
             logger.info("Found \(spendableProofs.count) spendable proofs for keyset \(keyset.keysetID)")
         }
-        return (restoredProofs, derivationCounters)
+        return results
     }
     
     static func restoreForKeyset(mint:MintRepresenting,
