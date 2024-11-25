@@ -97,6 +97,7 @@ extension CashuSwift {
                 case expiry
                 case paymentPreimage = "payment_preimage"
                 case change
+                case quoteRequest
             }
         }
         
