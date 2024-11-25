@@ -79,6 +79,8 @@ extension CashuSwift {
             
             public var state: QuoteState?
             
+            public var quoteRequest: RequestMeltQuote?
+            
             public let quote: String
             public let amount: Int
             public var feeReserve: Int

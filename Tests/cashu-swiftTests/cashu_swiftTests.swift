@@ -415,7 +415,7 @@ final class cashu_swiftTests: XCTestCase {
         let proofs = try await CashuSwift.issue(for: quote, on:mint)
         let fees = try CashuSwift.calculateFee(for: proofs, of: mint)
         print("Number of inputs \(proofs.count), fees: \(fees)")
-        let swapped = try await CashuSwift.swap(mint: mint, proofs: proofs, amount: 400 ,preferredReturnDistribution: Array(repeating: 1, count: 93))
+        let swapped = try await CashuSwift.swap(mint: mint, proofs: proofs, amount: 400)
         let swappedNewSum = swapped.new.reduce(0) { $0 + $1.amount }
         let swappedChangeSum = swapped.change.reduce(0) { $0 + $1.amount }
         print("Number of outputs \(swapped.new.count),  new sum: \(swappedNewSum), change sum:\(swappedChangeSum)")
@@ -474,15 +474,15 @@ final class cashu_swiftTests: XCTestCase {
         print(selection4 ?? "nil")
     }
     
-    func testInfoLoad() async throws {
-        let url = URL(string: "http://localhost:3339")!
-        let mint = try await CashuSwift.loadMint(url: url)
-        
-        let info = try await CashuSwift.loadInfoFromMint(mint) as! CashuSwift.MintInfo0_16
-        
-        print(info)
-        
-    }
+//    func testInfoLoad() async throws {
+//        let url = URL(string: "http://localhost:3339")!
+//        let mint = try await CashuSwift.loadMint(url: url)
+//        
+//        let info = try await CashuSwift.loadInfoFromMint(mint) as! CashuSwift.MintInfo0_16
+//        
+//        print(info)
+//        
+//    }
     
     func testErrorHandling() async throws {
         

@@ -116,13 +116,15 @@ public enum CashuSwift {
             var result = try await Network.post(url: url,
                                                 body: quoteRequest,
                                                 expected: Bolt11.MintQuote.self)
-            result.requestDetail = quoteRequest
+            result.requestDetail = quoteRequest // simplifies working with quotes on the frontend
             return result
         case let quoteRequest as Bolt11.RequestMeltQuote:
             url.append(path: "/v1/melt/quote/bolt11")
-            return try await Network.post(url: url,
-                                          body:quoteRequest,
-                                          expected: Bolt11.MeltQuote.self)
+            var response = try await Network.post(url: url,
+                                                  body:quoteRequest,
+                                                  expected: Bolt11.MeltQuote.self)
+            response.quoteRequest = quoteRequest // simplifies working with quotes on the frontend
+            return response
         default:
             throw CashuError.typeMismatch("User tried to call getQuote using unsupported QuoteRequest type.")
         }
@@ -156,7 +158,7 @@ public enum CashuSwift {
             distribution = CashuSwift.splitIntoBase2Numbers(requestDetail.amount)
         }
         
-        guard var activeKeyset = mint.keysets.first(where: { $0.active == true &&
+        guard let activeKeyset = mint.keysets.first(where: { $0.active == true &&
                                                        $0.unit == requestDetail.unit }) else {
             throw CashuError.noActiveKeysetForUnit("Could not determine an ACTIVE keyset for this unit \(requestDetail.unit.uppercased())")
         }
