@@ -127,7 +127,7 @@ extension CashuSwift {
             for i in 0..<promises.count {
                 let promise = promises[i]
                 guard let pubkeyData = try? keyset.keys[String(promise.amount)]?.bytes else {
-                    fatalError("Could not associate mint pubkey from keyset. unblinding not possible")
+                    throw CashuError.cryptoError("Could not associate mint pubkey from keyset. unblinding not possible")
                 }
                 
                 let mintPubKey = try PublicKey(dataRepresentation: pubkeyData, format: .compressed)

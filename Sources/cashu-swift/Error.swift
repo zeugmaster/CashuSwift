@@ -10,6 +10,7 @@ import Foundation
 public enum CashuError: Swift.Error {
     
     case networkError
+    case cryptoError(String)
     
     case quoteNotPaid // 20001
     case blindedMessageAlreadySigned // 10002
@@ -18,6 +19,7 @@ public enum CashuError: Swift.Error {
     case invalidToken
     case tokenEncoding
     case tokenDecoding
+    case unsupportedToken(String)
     case inputError(String)
     case insufficientInputs(String)
     case unitIsNotSupported(String) // 11005

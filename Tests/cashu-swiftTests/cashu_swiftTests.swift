@@ -507,4 +507,49 @@ final class cashu_swiftTests: XCTestCase {
             XCTFail("unexpected type of error")
         }
     }
+    
+    func testSafeDeserializationFail() {
+        
+        do {
+            _ = try """
+                    cashuAeyJtZW1vIjoiIiwidW5pdCI6InNhdCIsInRva2VuIjpbeyJtaW50IjoiaHR0cHM6XC9cL\
+                    21pbnQubWFjYWRhbWlhLmNhc2giLCJwcm9vZnMiOlt7ImFtb3VudCI6OCwiaWQiOiIwMDhiMmRjZ\
+                    jIzY2I2ZjJjIiwic2VjcmV0IjoiNDBjMjIzOThjOTY2YjU3NGJiZDQ0MzFlODkzOTE0ZjkyOGY3Z\
+                    mY2OWMyNTVhNjE2NjFlNWRjOTcyMGFiYzg3MCIsIkMiOiIwMmI1Y2IwMjY1ZTU0NDkzYWExZGUyO\
+                    TVjZjFjNjQyYzJkMmIyNDA3MTk3ZjA1NWE3YWRlNzM4NWYyOTgzZDEwNzAifSx7ImlkIjoiMDA4Yj\
+                    JkY2YyM2NiNmYyYyIsInNlY3JldCI6IjhiODdjZTIzNzU0MzhiODU2NDIxYzIxYjhhMzNiMjk0MDE\
+                    5YTAzY2I0NzYwNzU3MjVmZmVjZDJiMTc4NDY5NGUiLCJhbW91bnQiOjQsIkMiOiIwMjNlNTEwMjFl\
+                    MjRiMGNiMTg2YjRlYWQ4Y2ZmYjBlMTU2MGUyNjAyYTA4MDYxODE0ZTlkYzE5MzA0MjY5ZWI2M2Yif\
+                    Sx7ImlkIjoiMDA4YjJkY2YyM2NiNmYyYyIsInNlY3JldCI6IjFlNWU0NGM1MTI5ZWVhMmNiYjc1Mj\
+                    ljM2RjNzk2MTA3ODYzMTNjM2QzOGFiOGY2MGUyZTRlNzRkM2JiZTBhYTkiLCJhbW91bnQiOjIsIkM\
+                    iOiIwMjZiMTY5MDYxOTcyNjcxMzk1Yjc0ODc4NzgyN2JiYTc2OTg3MjhlYjBlNjk2NzIxNTI2N2M5\
+                    ZjM2MTFkYWZjMjQifSx7InNlY3JldCI6IjE1OTBlYmNlMTAxZWVmN2YzMzRlNThhZTAwNDYyZTY0N\
+                    jA2ZWQ1NzY0ZmFkOGQwZmJkYmU0NzJlZGE5ZjE0MjYiLCJpZCI6IjAwOGIyZGNmMjNjYjZmMmMiLC\
+                    JhbW91bnQiOjEsIkMiOiIwMjE1YzFlYWY0YzBhN2ViNzIyOGMxZWNjM2MzNzMzYTQ1Yjk3ZGJlZmY\
+                    5ZTliOGIzNDExMzljYmRhNmM3YjliYjMifV19XX0=
+                    """.deserializeToken()
+        } catch {
+            print(error)
+        }
+        
+        do {
+            _ = try "not_a_valid_token".deserializeToken()
+        } catch {
+            print(error)
+        }
+        
+        do {
+            _ = try """
+                    cashuBo2FteBtodHRwczovL3Rlc3RudXQuY2FzaHUuc3BhY2VhdWNzYXRhdIGiYWlIAJofKTJT5B5hc\
+                    IOjYWEQYXN4QGYxZGI3ZTQ3YjAzYmY1YTE3NjRjYjBkZmU0OGNhZGYxZjMxN2ZiMWUxOTJmZTc5MTQ1\
+                    ZWUyNzQyZjZjMzE5NTlhY1ghA5wwM6EZSyElJ2Gb4nPM0XLWDewGLwLOfdIMqvQMFhKEo2FhBGFzeEB\
+                    jOWE0ZmE0ZWQ5YTVlMmJiY2RjMGViNDJhNjkwZTk5YmVkYTM4ODU4ZmU0NzJhNjY0YjlmMjY4YjZhND\
+                    YzNWJjYWNYIQKAloVdh0Zf6Lm-mTWvtAXKwEUvEi5OKody4OglWEWrv6NhYQFhc3hAYWIyNjU5MTdmM\
+                    DdjODk1ZTVkMjg3ODViNzcwNTRmMjgxYWQyYTViZjMyMzgxYTYwYjE4MDAyNDM4YTVkMzE1MGFjWCEC\
+                    JMe6T-xGSiYctU_igSY3prkJe065rrj7CxrLvnJASlY
+                    """.deserializeToken()
+        } catch {
+            print(error)
+        }
+    }
 }

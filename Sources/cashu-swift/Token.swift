@@ -44,7 +44,7 @@ extension CashuSwift {
             case .V3:
                 try encodeV3(token: self)
             case .V4:
-                fatalError("V4 encoding has not been implemented yet")
+                throw CashuError.unsupportedToken("V4 tokens are not supported yet, but will be soon\u{2122}.")
             }
         }
         
@@ -56,7 +56,7 @@ extension CashuSwift {
         }
         
         private func encodeV4cbor(token:Token) throws -> String {
-            fatalError("V4 encoding has not been implemented yet")
+            throw CashuError.unsupportedToken("V4 tokens are not supported yet, but will be soon\u{2122}.")
         }
         
         static func decodeV3(tokenString:String) throws -> Token {
@@ -75,7 +75,7 @@ extension CashuSwift {
         }
         
         static func decodeV4(tokenString:String) throws -> Token {
-            fatalError("V4 decoding has not been implemented yet")
+            throw CashuError.unsupportedToken("V4 tokens are not supported yet, but will be soon\u{2122}.")
         }
         
         func prettyJSON() -> String {
