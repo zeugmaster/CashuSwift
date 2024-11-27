@@ -37,7 +37,9 @@ This library provides basic functionality and model representation for using the
 
 ## Basic Usage
 
-Most methods on `Mint` have additional parameters for customizing their behaviour (e.g. `preferredDistribution`, `seed` for deterministic secret generation)
+Most methods on `Mint` have additional parameters for customizing their behaviour (e.g. `preferredDistribution`, `seed` for deterministic secret generation).
+The library defines basic types like `Mint`, `Proof` etc., that conform to corresponding protocols. This allows a library user to either reuse these types or define their own in accordance with these protocols.
+
 
 #### Initializing a mint
 
@@ -49,15 +51,17 @@ let mint = try await Mint(with: mintURL)
 #### Minting ecash 
 
 ```swift
-let quote = try await mint.getQuote(quoteRequest: Bolt11.RequestMintQuote(unit: "sat",
-                                                                          amount: 21))
-let proofs = try await mint.issue(for: quote)
+let amount = 511
+let quote = try await CashuSwift.getQuote(mint: mint,
+                                          quoteRequest: CashuSwift.Bolt11.RequestMintQuote(unit: "sat",
+                                                                                           amount: amount))
+let proofs = try await CashuSwift.issue(for: quote, on: mint) as! [CashuSwift.Proof]
 ```
 
 #### Sending ecash
 
 ```swift
-let (token, change) = try await mint.send(proofs: proofs, amount: 15)
+let (token, change) = try await CashuSwift.send(mint: mint, proofs: proofs, amount: 15)
 
 // The token object can be serialized to a string (currently only V3 format supported)
 let tokenString = try token.serialize(.V3)
@@ -68,15 +72,16 @@ let tokenString = try token.serialize(.V3)
 ```swift
 let token = try "cashuAey...".deserializeToken()
 // This will swap the ecash contained in the token and return your new proofs
-let proofs = try await mint.receive(token: token)
+let proofs = try await CashuSwift.receive(mint: mint, token: token)
 ```
 
 #### Melting ecash
 
 ```swift
-let meltQuoteRequest = Bolt11.RequestMeltQuote(unit: "sat", request: q2.request, options: nil)
-let meltQ = try await mint.getQuote(quoteRequest: meltQuoteRequest)
-let result = try await mint.melt(quote: meltQ, proofs: proofs)
+let quoteRequest = CashuSwift.Bolt11.RequestMeltQuote(unit: "sat", request: q2.request, options: nil)
+let quote = try await CashuSwift.getQuote(mint:mint, quoteRequest: quoteRequest)
+
+let result = try await CashuSwift.melt(mint: mint, quote: quote, proofs: proofs)
 // result.paid == true if the Bolt11 lightning payment successful
 ```        
 

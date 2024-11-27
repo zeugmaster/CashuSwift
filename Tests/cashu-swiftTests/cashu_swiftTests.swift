@@ -181,11 +181,8 @@ final class cashu_swiftTests: XCTestCase {
     func testMinting() async throws {
         
         let mintURL = URL(string: "http://localhost:3339")!
-        
         let mint = try await CashuSwift.loadMint(url: mintURL)
-        
         let amount = 511
-        
         let quote = try await CashuSwift.getQuote(mint: mint,
                                                   quoteRequest: CashuSwift.Bolt11.RequestMintQuote(unit: "sat",
                                                                                                    amount: amount))
@@ -280,11 +277,10 @@ final class cashu_swiftTests: XCTestCase {
         
         let q2 = try await CashuSwift.getQuote(mint:mint, quoteRequest: CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 64)) as! CashuSwift.Bolt11.MintQuote
         
+        let quoteRequest = CashuSwift.Bolt11.RequestMeltQuote(unit: "sat", request: q2.request, options: nil)
+        let quote = try await CashuSwift.getQuote(mint:mint, quoteRequest: quoteRequest)
         
-        let meltQuoteRequest = CashuSwift.Bolt11.RequestMeltQuote(unit: "sat", request: q2.request, options: nil)
-        let meltQ = try await CashuSwift.getQuote(mint:mint, quoteRequest: meltQuoteRequest)
-        
-        let result = try await CashuSwift.melt(mint: mint, quote: meltQ, proofs: proofs)
+        let result = try await CashuSwift.melt(mint: mint, quote: quote, proofs: proofs)
         // result.change is a list of proofs if you overpay on the melt quote
         // result.paid == true if the Bolt11 lightning payment successful
         print(CashuSwift.sum(result.change))
