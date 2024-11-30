@@ -14,7 +14,7 @@ public enum CashuSwift {
         var keysetsWithKeys = [Keyset]()
         for keyset in keysetList.keysets {
             var new = keyset
-            new.keys = try await Network.get(url: url.appending(path: "/v1/keys/\(keyset.keysetID.makeURLSafe())"),
+            new.keys = try await Network.get(url: url.appending(path: "/v1/keys/\(keyset.keysetID.urlSafe)"),
                                              expected: KeysetList.self).keysets[0].keys
             keysetsWithKeys.append(new)
         }
@@ -57,7 +57,7 @@ public enum CashuSwift {
             var keysetsWithKeys = [Keyset]()
             for keyset in remoteKeysetList.keysets {
                 var new = keyset
-                new.keys = try await Network.get(url: mintURL.appending(path: "/v1/keys/\(keyset.keysetID.makeURLSafe())"),
+                new.keys = try await Network.get(url: mintURL.appending(path: "/v1/keys/\(keyset.keysetID.urlSafe)"),
                                                  expected: KeysetList.self).keysets[0].keys
                 keysetsWithKeys.append(new)
             }
@@ -87,7 +87,7 @@ public enum CashuSwift {
             var keysetsWithKeys = [Keyset]()
             for keyset in remoteKeysetList.keysets {
                 var new = keyset
-                new.keys = try await Network.get(url: mintURL.appending(path: "/v1/keys/\(keyset.keysetID.makeURLSafe())"),
+                new.keys = try await Network.get(url: mintURL.appending(path: "/v1/keys/\(keyset.keysetID.urlSafe)"),
                                                  expected: KeysetList.self).keysets[0].keys
                 
                 let detsecCounter = mint.keysets.first(where: {$0.keysetID == keyset.keysetID})?.derivationCounter ?? 0
@@ -202,7 +202,7 @@ public enum CashuSwift {
                             proofs:[ProofRepresenting],
                             amount:Int? = nil,
                             seed:String? = nil,
-                            memo:String? = nil) async throws -> (token:Token,
+                            memo:String? = nil) async throws -> (token:TokenV3,
                                                         change:[ProofRepresenting]) {
         
         let proofSum = sum(proofs)
@@ -232,14 +232,14 @@ public enum CashuSwift {
         }
 
         let proofContainer = ProofContainer(mint: mint.url.absoluteString, proofs: normalize(sendProofs))
-        let token = Token(token: [proofContainer], memo: memo, unit: units.first)
+        let token = TokenV3(token: [proofContainer], memo: memo, unit: units.first)
         
         return (token, changeProofs)
     }
     
     // MARK: - RECEIVE
     public static func receive(mint:MintRepresenting,
-                               token:Token,
+                               token:TokenV3,
                                seed:String? = nil) async throws -> [ProofRepresenting] {
         // this should check whether proofs are from this mint and not multi unit FIXME: potentially wonky and not very descriptive
         guard token.token.count == 1 else {
@@ -444,42 +444,6 @@ public enum CashuSwift {
     
     // MARK: - RESTORE
     // TODO: should increase batch size, default 10 is way to small
-//    public static func restore(mint:MintRepresenting,
-//                               with seed:String,
-//                               batchSize:Int = 10) async throws -> (proofs: [(ProofRepresenting, String)],
-//                                                                    derivationCounters:[String:Int]) {
-//        // no need to check validity of seed as function would otherwise crash during first det sec generation
-//        var restoredProofs = [(ProofRepresenting, String)]()
-//        var derivationCounters = [String:Int]()
-//        for keyset in mint.keysets {
-//            logger.info("Attempting restore for keyset: \(keyset.keysetID) of mint: \(mint.url.absoluteString)")
-//            let (proofs, _, lastMatchCounter) = try await restoreForKeyset(mint:mint, keyset:keyset, with: seed, batchSize: batchSize)
-//            print("last match counter: \(String(describing: lastMatchCounter))")
-//            
-//            // if we dont have any restorable proofs on this keyset, move on to the next
-//            if proofs.isEmpty {
-//                logger.debug("No ecash to restore for keyset \(keyset.keysetID).")
-//                continue
-//            }
-//            
-//            derivationCounters[keyset.keysetID] = lastMatchCounter + 1
-//            
-//            let states = try await check(proofs, mint: mint) // ignores pending but should not
-//
-//            guard states.count == proofs.count else {
-//                throw CashuError.restoreError("unable to filter for unspent ecash during restore")
-//            }
-//
-//            var spendableProofs = [ProofRepresenting]()
-//            for i in 0..<states.count {
-//                if states[i] == .unspent { spendableProofs.append(proofs[i]) }
-//            }
-//            
-//            spendableProofs.forEach({ restoredProofs.append(($0, keyset.unit)) })
-//            logger.info("Found \(spendableProofs.count) spendable proofs for keyset \(keyset.keysetID)")
-//        }
-//        return (restoredProofs, derivationCounters)
-//    }
     
     public static func restore(mint:MintRepresenting,
                                with seed:String,
@@ -723,7 +687,7 @@ public enum CashuSwift {
 extension Array where Element : MintRepresenting {
     
     // docs: deprecated and only for redeeming legace V3 multi mint token
-    public func receive(token:CashuSwift.Token,
+    public func receive(token:CashuSwift.TokenV3,
                         seed:String? = nil) async throws -> Dictionary<String, [ProofRepresenting]> {
         
         guard token.token.count == self.count else {
@@ -753,33 +717,11 @@ extension Array where Element : MintRepresenting {
         var proofs = Dictionary<String, [ProofRepresenting]>()
         for token in token.token {
             let mint = self.first(where: { $0.url.absoluteString == token.mint })!
-            let singleMintToken = CashuSwift.Token(token: [token])
+            let singleMintToken = CashuSwift.TokenV3(token: [token])
             proofs[mint.url.absoluteString] = try await CashuSwift.receive(mint: mint, token: singleMintToken, seed: seed)
         }
         return proofs
     }
-    
-//    public func restore(with seed:String, batchSize:Int = 10) async throws -> [(proof:ProofRepresenting, unit:String)] {
-//        // call mint.restore on each of the mints
-//        var restoredProofs = [(ProofRepresenting, String)]()
-//        for mint in self {
-//            let proofs = try await CashuSwift.restore(mint:mint, with: seed, batchSize: batchSize)
-//            restoredProofs.append(contentsOf: proofs)
-//        }
-//        return restoredProofs
-//    }
-
-//    public func getQuote(request:QuoteRequest) async throws -> [Quote] {
-//        // intended for melt quote request before MPP
-//        fatalError()
-//    }
-//    
-//    public func melt(quotes:[Quote], proofs:[Proof]) async throws -> [Proof] {
-//        // intended for multi nut payment (MPP)
-//        // check input proofs against mint info and keysets
-//        // make sure quote is Bolt11
-//        fatalError()
-//    }
     
 }
 

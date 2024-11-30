@@ -25,7 +25,9 @@ let package = Package(
         .package(url: "https://github.com/mkrd/Swift-BigInt.git",
                  from: "2.0.0"),
         .package(url: "https://github.com/pengpengliu/BIP39.git",
-                 from: "1.0.0")
+                 from: "1.0.0"),
+        .package(url: "https://github.com/myfreeweb/SwiftCBOR.git",
+                 from: "0.4.4")
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
@@ -36,7 +38,8 @@ let package = Package(
                 .product(name: "secp256k1", package: "secp256k1.swift"),
                 .product(name: "BIP32", package: "BIP32"),
                 .product(name: "BigNumber", package: "Swift-BigInt"),
-                .product(name: "BIP39", package: "BIP39")
+                .product(name: "BIP39", package: "BIP39"),
+                .product(name: "SwiftCBOR", package: "SwiftCBOR")
             ]),
 
         .testTarget(

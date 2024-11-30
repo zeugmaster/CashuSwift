@@ -1,162 +1,132 @@
 //
 //  File.swift
-//  
+//  CashuSwift
 //
-//  Created by zm on 07.05.24.
+//  Created by zm on 29.11.24.
 //
 
 import Foundation
-import OSLog
 
-fileprivate var logger = Logger(subsystem: "cashu-swift", category: "Token")
 
 extension CashuSwift {
-    public enum TokenVersion:Codable {
-        case V3
-        case V4
-    }
-
-    public class Token:Codable, Equatable {
-        public static func == (lhs: Token, rhs: Token) -> Bool {
-            lhs.token == rhs.token && lhs.memo == rhs.memo && lhs.unit == rhs.unit
-        }
+    
+    ///General purpose struct for storing version agnostic token information that can be transformed into `TokenV3` or `TokenV4` for serialization.
+    public struct Token {
+        ///Unit string like "sat". "eur" or "usd"
+        public let unit: String
         
-        public let token:[ProofContainer]
-        public let memo:String?
-        public let unit:String?
+        ///Optional memo for the recipient
+        public let memo: String?
         
-        public init(token: [ProofContainer],
-             memo: String? = nil,
-             unit:String? = nil) {
-            self.token = token
-            self.memo = memo
-            self.unit = unit
-        }
+        ///Dictionary containing the mint URL absolute string as key and a list of `ProofRepresenting` as the proofs for this token.
+        public let proofs: Dictionary<String, [ProofRepresenting]>
         
-        enum CodingKeys:String, CodingKey {
-            case token
-            case memo
-            case unit
-        }
-        
-        public func serialize(_ toVersion:TokenVersion = .V4) throws -> String {
-            switch toVersion {
+        public func serialize(to version: CashuSwift.TokenVersion = .V3) throws -> String {
+            switch version {
             case .V3:
-                try encodeV3(token: self)
+                return try self.makeV3().serialize()
             case .V4:
-                throw CashuError.unsupportedToken("V4 tokens are not supported yet, but will be soon\u{2122}.")
+                return try self.makeV4().serialize()
             }
         }
         
-        private func encodeV3(token:Token) throws -> String {
-            let jsonData = try JSONEncoder().encode(self)
-            let jsonString = String(data: jsonData, encoding: .utf8)!
-            let safeString = try jsonString.encodeBase64UrlSafe()
-            return "cashuA" + safeString
-        }
-        
-        private func encodeV4cbor(token:Token) throws -> String {
-            throw CashuError.unsupportedToken("V4 tokens are not supported yet, but will be soon\u{2122}.")
-        }
-        
-        static func decodeV3(tokenString:String) throws -> Token {
-            let noPrefix = String(tokenString.dropFirst(6))
-            guard let jsonString = noPrefix.decodeBase64UrlSafe() else {
-                throw CashuError.invalidToken
-            }
-            let jsonData = jsonString.data(using: .utf8)!
-            do {
-                let token:Token = try JSONDecoder().decode(Token.self, from: jsonData)
-                return token
-            } catch {
-                logger.warning("Could not deserialize token. error: \(String(describing: error))")
-                throw CashuError.invalidToken
-            }
-        }
-        
-        static func decodeV4(tokenString:String) throws -> Token {
-            throw CashuError.unsupportedToken("V4 tokens are not supported yet, but will be soon\u{2122}.")
-        }
-        
-        func prettyJSON() -> String {
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = .prettyPrinted
-            do {
-                let data = try encoder.encode(self)
-                return String(data: data, encoding: .utf8) ?? ""
-            } catch {
-                return ""
-            }
-        }
-    }
-
-    public struct ProofContainer:Codable, Equatable {
-        public let mint:String
-        public let proofs:[Proof]
-        
-        public init(mint: String, proofs: [Proof]) {
-            self.mint = mint
+        init(proofs: [String: [ProofRepresenting]],
+             unit: String,
+             memo: String? = nil) {
             self.proofs = proofs
+            self.unit = unit
+            self.memo = memo
+        }
+        
+        init(token:TokenV3) throws {
+            self.memo = token.memo
+            self.unit = token.unit ?? "sat" // technically not ideal, there might be non-sat V3 tokens
+            self.proofs = Dictionary(uniqueKeysWithValues: token.token.map { ($0.mint, $0.proofs) })
+        }
+        
+        init(token:TokenV4) throws {
+            self.memo = token.memo
+            self.unit = token.unit
+            
+            var proofsPerMint = [String: [ProofRepresenting]]()
+            var ps = [ProofRepresenting]()
+            
+            for entry in token.tokens {
+                ps.append(contentsOf: entry.proofs.map({ p in
+                    Proof(keysetID: String(bytes: entry.keysetID),
+                          amount: p.amount,
+                          secret: p.secret,
+                          C: String(bytes: p.signature))
+                    // TODO: needs to take DLEQ data into account
+                }))
+            }
+            
+            proofsPerMint[token.mint] = ps
+            
+            self.proofs = proofsPerMint
+        }
+        
+        private func makeV3() throws -> TokenV3 {
+            
+            let proofsContainers = proofs.map { (mintURLString, proofList) in
+                ProofContainer(mint: mintURLString,
+                               proofs: proofList.map({ p in
+                    Proof(keysetID: p.keysetID,
+                          amount: p.amount,
+                          secret: p.secret,
+                          C: p.C)
+                }))
+            }
+            
+            return TokenV3(token: proofsContainers,
+                           memo: self.memo,
+                           unit: self.unit)
+            
+        }
+        
+        private func makeV4() throws -> TokenV4 {
+            guard proofs.count < 2 else {
+                throw CashuError.tokenEncoding
+            }
+            
+            guard let (mintURLstring, proofList) = proofs.first else {
+                throw CashuError.tokenEncoding
+            }
+            
+            let byKeysetID = Dictionary(grouping: proofList, by: { $0.keysetID })
+            
+            let tokenEntries = try byKeysetID.map { (id, ps) in
+                TokenV4.TokenEntry(keysetID: Data(try id.bytes),
+                                   proofs: try ps.map({ p in
+                    TokenV4.TokenEntry.Proof(amount: p.amount,
+                                             secret: p.secret,
+                                             signature: Data(try p.C.bytes),
+                                             dleqProof: nil,
+                                             witness: nil)
+                }))
+            }
+            
+            return TokenV4(mint: mintURLstring,
+                           unit: self.unit,
+                           memo: self.memo,
+                           tokens: tokenEntries)
         }
     }
 }
 
 extension String {
+    
     public func deserializeToken() throws -> CashuSwift.Token {
-        var noPrefix = self
-        // needs to be in the right order to avoid only stripping cashu: and leaving //
-        if self.hasPrefix("cashu://") {
-            noPrefix = String(self.dropFirst("cashu://".count))
-        }
-        if self.hasPrefix("cashu:") {
-            noPrefix = String(self.dropFirst("cashu:".count))
-        }
         
-        if noPrefix.hasPrefix("cashuA") {
-            return try CashuSwift.Token.decodeV3(tokenString: noPrefix)
-        } else if noPrefix.hasPrefix("cashuB") {
-            return try CashuSwift.Token.decodeV4(tokenString: noPrefix)
+        if self.hasPrefix("cashuA") {
+            return try CashuSwift.Token(token: CashuSwift.TokenV3(tokenString: self))
+            
+        } else if self.hasPrefix("cashuB") {
+            return try CashuSwift.Token(token: CashuSwift.TokenV4(tokenString: self))
+            
         } else {
-            throw CashuError.invalidToken
+            throw CashuError.tokenDecoding("Token string does not start with 'cashuA' or 'cashuB'")
         }
     }
     
-    func decodeBase64UrlSafe() -> String? {
-        var base64 = self
-            .replacingOccurrences(of: "-", with: "+")
-            .replacingOccurrences(of: "_", with: "/")
-
-        // Check if padding is needed
-        let mod4 = base64.count % 4
-        if mod4 != 0 {
-            base64 += String(repeating: "=", count: 4 - mod4)
-        }
-        guard let data = Data(base64Encoded: base64, options: .ignoreUnknownCharacters) else {
-            return nil
-        }
-        let string = String(data: data, encoding: .ascii)
-        return string
-    }
-
-    func encodeBase64UrlSafe(removePadding: Bool = false) throws -> String {
-        guard let base64Encoded = self.data(using: .ascii)?.base64EncodedString() else {
-            throw CashuError.tokenEncoding
-        }
-        var urlSafeBase64 = base64Encoded
-            .replacingOccurrences(of: "+", with: "-")
-            .replacingOccurrences(of: "/", with: "_")
-
-        if removePadding {
-            urlSafeBase64 = urlSafeBase64.trimmingCharacters(in: CharacterSet(charactersIn: "="))
-        }
-
-        return urlSafeBase64
-    }
-    
-    func makeURLSafe() -> String {
-        return self
-            .replacingOccurrences(of: "+", with: "-")
-            .replacingOccurrences(of: "/", with: "_")
-            .replacingOccurrences(of: "=", with: "")
-    }
 }
