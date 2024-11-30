@@ -19,7 +19,7 @@ extension CashuSwift {
         public let memo: String?
         
         ///Dictionary containing the mint URL absolute string as key and a list of `ProofRepresenting` as the proofs for this token.
-        public let proofs: Dictionary<String, [ProofRepresenting]>
+        public let proofsByMint: Dictionary<String, [ProofRepresenting]>
         
         public func serialize(to version: CashuSwift.TokenVersion = .V3) throws -> String {
             switch version {
@@ -33,7 +33,7 @@ extension CashuSwift {
         init(proofs: [String: [ProofRepresenting]],
              unit: String,
              memo: String? = nil) {
-            self.proofs = proofs
+            self.proofsByMint = proofs
             self.unit = unit
             self.memo = memo
         }
@@ -41,7 +41,7 @@ extension CashuSwift {
         init(token:TokenV3) throws {
             self.memo = token.memo
             self.unit = token.unit ?? "sat" // technically not ideal, there might be non-sat V3 tokens
-            self.proofs = Dictionary(uniqueKeysWithValues: token.token.map { ($0.mint, $0.proofs) })
+            self.proofsByMint = Dictionary(uniqueKeysWithValues: token.token.map { ($0.mint, $0.proofs) })
         }
         
         init(token:TokenV4) throws {
@@ -63,12 +63,12 @@ extension CashuSwift {
             
             proofsPerMint[token.mint] = ps
             
-            self.proofs = proofsPerMint
+            self.proofsByMint = proofsPerMint
         }
         
         private func makeV3() throws -> TokenV3 {
             
-            let proofsContainers = proofs.map { (mintURLString, proofList) in
+            let proofsContainers = proofsByMint.map { (mintURLString, proofList) in
                 ProofContainer(mint: mintURLString,
                                proofs: proofList.map({ p in
                     Proof(keysetID: p.keysetID,
@@ -85,11 +85,11 @@ extension CashuSwift {
         }
         
         private func makeV4() throws -> TokenV4 {
-            guard proofs.count < 2 else {
+            guard proofsByMint.count < 2 else {
                 throw CashuError.tokenEncoding
             }
             
-            guard let (mintURLstring, proofList) = proofs.first else {
+            guard let (mintURLstring, proofList) = proofsByMint.first else {
                 throw CashuError.tokenEncoding
             }
             

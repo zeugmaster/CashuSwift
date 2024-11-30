@@ -202,7 +202,7 @@ public enum CashuSwift {
                             proofs:[ProofRepresenting],
                             amount:Int? = nil,
                             seed:String? = nil,
-                            memo:String? = nil) async throws -> (token:TokenV3,
+                            memo:String? = nil) async throws -> (token:Token,
                                                         change:[ProofRepresenting]) {
         
         let proofSum = sum(proofs)
@@ -230,31 +230,35 @@ public enum CashuSwift {
         guard units.count == 1 else {
             throw CashuError.unitError("units needs to contain exactly ONE entry, more means multi unit, less means none found - no bueno")
         }
-
-        let proofContainer = ProofContainer(mint: mint.url.absoluteString, proofs: normalize(sendProofs))
-        let token = TokenV3(token: [proofContainer], memo: memo, unit: units.first)
+        
+        let proofsPerMint = [mint.url.absoluteString: sendProofs]
+        let token = Token(proofs: proofsPerMint,
+                          unit: units.first ?? "sat",
+                          memo: memo)
+    
         
         return (token, changeProofs)
     }
     
     // MARK: - RECEIVE
     public static func receive(mint:MintRepresenting,
-                               token:TokenV3,
+                               token:Token,
                                seed:String? = nil) async throws -> [ProofRepresenting] {
         // this should check whether proofs are from this mint and not multi unit FIXME: potentially wonky and not very descriptive
-        guard token.token.count == 1 else {
+        guard token.proofsByMint.count == 1 else {
             logger.error("You tried to receive a token that either contains no proofs at all, or proofs from more than one mint.")
             throw CashuError.invalidToken
         }
         
-        if token.token.first!.mint != mint.url.absoluteString {
+        if token.proofsByMint.keys.first! != mint.url.absoluteString {
             logger.warning("Mint URL field from token does not seem to match this mints URL.")
         }
         
-        guard let inputProofs = token.token.first?.proofs,
+        guard let inputProofs = token.proofsByMint.first?.value,
               try units(for: inputProofs, of: mint).count == 1 else {
             throw CashuError.unitError("Proofs to swap are either of mixed unit or foreign to this mint.")
         }
+        
         return try await swap(mint:mint, proofs: inputProofs, seed: seed).new
     }
     
@@ -687,26 +691,26 @@ public enum CashuSwift {
 extension Array where Element : MintRepresenting {
     
     // docs: deprecated and only for redeeming legace V3 multi mint token
-    public func receive(token:CashuSwift.TokenV3,
+    public func receive(token:CashuSwift.Token,
                         seed:String? = nil) async throws -> Dictionary<String, [ProofRepresenting]> {
         
-        guard token.token.count == self.count else {
-            logger.error("Number of mints in list does not match number of mints in token.")
+        guard token.proofsByMint.count == self.count else {
+            logger.error("Number of mints in array does not match number of mints in token.")
             throw CashuError.invalidToken
         }
         
         // strictly make sure that mint URLs match
-        guard token.token.allSatisfy({ token in
-            self.contains(where: { token.mint == $0.url.absoluteString })
+        guard token.proofsByMint.keys.allSatisfy({ mintURLstring in
+            self.contains(where: { mintURLstring == $0.url.absoluteString })
         }) else {
-            logger.error("URLs from token do not match mint list.")
+            logger.error("URLs from token do not match mint array.")
             throw CashuError.invalidToken
         }
         
         var tokenStates = [CashuSwift.Proof.ProofState]()
-        for token in token.token {
-            let mint = self.first(where: { $0.url.absoluteString == token.mint })!
-            tokenStates.append(contentsOf: try await CashuSwift.check(token.proofs, mint: mint))
+        for (mintURLstring, proofs) in token.proofsByMint {
+            let mint = self.first(where: { $0.url.absoluteString == mintURLstring })!
+            tokenStates.append(contentsOf: try await CashuSwift.check(proofs, mint: mint))
         }
         
         guard tokenStates.allSatisfy({ $0 == .unspent }) else {
@@ -714,13 +718,14 @@ extension Array where Element : MintRepresenting {
             throw CashuError.alreadySpent
         }
         
-        var proofs = Dictionary<String, [ProofRepresenting]>()
-        for token in token.token {
-            let mint = self.first(where: { $0.url.absoluteString == token.mint })!
-            let singleMintToken = CashuSwift.TokenV3(token: [token])
-            proofs[mint.url.absoluteString] = try await CashuSwift.receive(mint: mint, token: singleMintToken, seed: seed)
+        var aggregateProofs = Dictionary<String, [ProofRepresenting]>()
+        
+        for (url, proofs) in token.proofsByMint {
+            let mint = self.first(where: { $0.url.absoluteString == url })!
+            let singleMintToken = CashuSwift.Token(proofs: [url: proofs], unit: token.unit)
+            aggregateProofs[url] = try await CashuSwift.receive(mint: mint, token: singleMintToken, seed: seed)
         }
-        return proofs
+        return aggregateProofs
     }
     
 }
