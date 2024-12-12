@@ -428,12 +428,6 @@ final class cashu_swiftTests: XCTestCase {
         XCTAssertEqual(proof.stringRepresentation, "0218b90f0de65ae3447624fc8895c31302e61cef56dbca927717cb501cf591ce32")
     }
     
-    func testNegateKey() throws {
-        let k = try CashuSwift.Crypto.PublicKey(dataRepresentation: "0299c661b9032754db2812d7fe7d50d693e56fc4799d0b87a328e3e4e47640adbf".bytes, format: .compressed)
-        print(k.stringRepresentation)
-        print("original key: \(k.stringRepresentation), negated: \(CashuSwift.Crypto.negatePublicKey(key: k).stringRepresentation)")
-    }
-    
     typealias Proof = CashuSwift.Proof
     
     func testProofSelection() async throws {

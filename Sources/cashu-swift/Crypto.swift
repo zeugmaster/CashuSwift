@@ -145,7 +145,7 @@ extension CashuSwift {
         
         static func unblind(C_:PublicKey, r: PrivateKey, A: PublicKey) throws -> PublicKey {
             let rA = try A.multiply(r.dataRepresentation.bytes)
-            let C = try C_.combine([negatePublicKey(key: rA)])
+            let C = try C_.combine([rA.negation])
             return C
         }
         
@@ -171,25 +171,6 @@ extension CashuSwift {
             
             // If no valid point is found, throw an error
             throw Error.hashToCurve("No point on the secp256k1 curve could be found.")
-        }
-        
-        //MARK: - HELPER
-        
-        static func negatePublicKey(key: PublicKey) -> PublicKey {
-            let serialized = key.dataRepresentation
-            var firstByte = serialized.first!
-            let remainder = serialized.dropFirst()
-            switch firstByte {
-            case 0x03:
-                firstByte = 0x02
-            case 0x02:
-                firstByte = 0x03
-            default:
-                break
-            }
-            let newKeyData = Data([firstByte]) + remainder
-            let newKey = try! PublicKey(dataRepresentation: newKeyData, format: .compressed)
-            return newKey
         }
         
         //MARK: - DETERMINISTIC KEY GENERATION
