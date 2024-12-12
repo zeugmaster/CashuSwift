@@ -9,19 +9,10 @@ import Foundation
 
 extension CashuSwift {
     static func splitIntoBase2Numbers(_ n:Int) -> [Int] {
-        var remaining = n
-        var result: [Int] = []
-        while remaining > 0 {
-            var powerOfTwo = 1
-            while (powerOfTwo * 2) <= remaining {
-                powerOfTwo *= 2
-            }
-            remaining -= powerOfTwo
-            result.append(powerOfTwo)
-        }
-        return result
+        (0 ..< Int.bitWidth - n.leadingZeroBitCount)
+            .map { 1 << $0 }
+            .filter { n & $0 != 0 }
     }
-    
 }
 
 extension Encodable {
