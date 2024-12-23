@@ -263,7 +263,9 @@ public enum CashuSwift {
                             quote:Quote,
                             proofs:[ProofRepresenting],
                             seed:String? = nil,
-                            timeout:Double = 600) async throws -> (paid:Bool, change:[ProofRepresenting]) {
+                            timeout:Double = 600) async throws -> (paid:Bool,
+                                                                   change:[ProofRepresenting],
+                                                                   derivationCounterIncrease: Int) {
         
         guard let quote = quote as? Bolt11.MeltQuote else {
             throw CashuError.typeMismatch("you need to pass a Bolt11 melt quote to this function, nothing else is supported yet.")
@@ -333,19 +335,19 @@ public enum CashuSwift {
         }
         
         if let paid = meltResponse.paid {
-            return (paid, change)
+            return (paid, change, blankOutputs.count)
         } else if let state = meltResponse.state {
             switch state {
             case .paid:
-                return (true, change)
+                return (true, change, blankOutputs.count)
             case .unpaid:
-                return (false, change)
+                return (false, change, blankOutputs.count)
             case .pending:
-                return (false, change)
+                return (false, change, blankOutputs.count)
             }
         } else {
             logger.error("could not find payment state info in response.")
-            return (false, [])
+            return (false, [], 0)
         }
     }
     
