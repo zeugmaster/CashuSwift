@@ -10,8 +10,10 @@ import Foundation
 
 extension CashuSwift {
     
-    ///General purpose struct for storing version agnostic token information that can be transformed into `TokenV3` or `TokenV4` for serialization.
-    public struct Token {
+    ///General purpose struct for storing version agnostic token information
+    ///that can be transformed into `TokenV3` or `TokenV4` for serialization.
+    public struct Token: Codable, Equatable {
+        
         ///Unit string like "sat". "eur" or "usd"
         public let unit: String
         
@@ -19,7 +21,7 @@ extension CashuSwift {
         public let memo: String?
         
         ///Dictionary containing the mint URL absolute string as key and a list of `ProofRepresenting` as the proofs for this token.
-        public let proofsByMint: Dictionary<String, [ProofRepresenting]>
+        public let proofsByMint: Dictionary<String, [any ProofRepresenting]>
         
         public func serialize(to version: CashuSwift.TokenVersion = .V3) throws -> String {
             switch version {
@@ -30,7 +32,7 @@ extension CashuSwift {
             }
         }
         
-        init(proofs: [String: [ProofRepresenting]],
+        init(proofs: [String: [any ProofRepresenting]],
              unit: String,
              memo: String? = nil) {
             self.proofsByMint = proofs
@@ -40,7 +42,7 @@ extension CashuSwift {
         
         init(token:TokenV3) throws {
             self.memo = token.memo
-            self.unit = token.unit ?? "sat" // technically not ideal, there might be non-sat V3 tokens
+            self.unit = token.unit ?? "sat" // FIXME: technically not ideal, there might be non-sat V3 tokens
             self.proofsByMint = Dictionary(uniqueKeysWithValues: token.token.map { ($0.mint, $0.proofs) })
         }
         
@@ -48,8 +50,8 @@ extension CashuSwift {
             self.memo = token.memo
             self.unit = token.unit
             
-            var proofsPerMint = [String: [ProofRepresenting]]()
-            var ps = [ProofRepresenting]()
+            var proofsPerMint = [String: [any ProofRepresenting]]()
+            var ps = [any ProofRepresenting]()
             
             for entry in token.tokens {
                 ps.append(contentsOf: entry.proofs.map({ p in
@@ -111,6 +113,66 @@ extension CashuSwift {
                            memo: self.memo,
                            tokens: tokenEntries)
         }
+    }
+}
+
+extension CashuSwift.Token {
+    private enum CodingKeys: String, CodingKey {
+        case unit
+        case memo
+        case proofsByMint
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        self.unit = try container.decode(String.self, forKey: .unit)
+        self.memo = try container.decodeIfPresent(String.self, forKey: .memo)
+        
+        // Decode as concrete Proof type, which conforms to ProofRepresenting
+        let proofs = try container.decode([String: [CashuSwift.Proof]].self, forKey: .proofsByMint)
+        self.proofsByMint = proofs.mapValues { $0 } // Type erasure happens here
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        
+        try container.encode(unit, forKey: .unit)
+        try container.encodeIfPresent(memo, forKey: .memo)
+        
+        // Cast dictionary values to concrete Proof type for encoding
+        let concreteProofs = proofsByMint.mapValues { proofs in
+            proofs.compactMap { $0 as? CashuSwift.Proof }
+        }
+        try container.encode(concreteProofs, forKey: .proofsByMint)
+    }
+}
+
+extension CashuSwift.Token {
+    public static func == (lhs: CashuSwift.Token, rhs: CashuSwift.Token) -> Bool {
+        guard lhs.unit == rhs.unit,
+              lhs.memo == rhs.memo,
+              lhs.proofsByMint.keys == rhs.proofsByMint.keys else {
+            return false
+        }
+        
+        for (mint, lhsProofs) in lhs.proofsByMint {
+            guard let rhsProofs = rhs.proofsByMint[mint],
+                  lhsProofs.count == rhsProofs.count else {
+                return false
+            }
+            
+            for (lp, rp) in zip(lhsProofs, rhsProofs) {
+                guard lp.keysetID == rp.keysetID,
+                      lp.amount == rp.amount,
+                      lp.secret == rp.secret,
+                      lp.C == rp.C else {
+                    return false
+                }
+            }
+        }
+        
+        return true
     }
 }
 

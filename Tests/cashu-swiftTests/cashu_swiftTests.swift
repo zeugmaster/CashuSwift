@@ -528,6 +528,11 @@ final class cashu_swiftTests: XCTestCase {
                                      unit: qr.unit,
                                      memo: "bingo bango")
         
+        let codable = try JSONEncoder().encode(token1)
+        let decodable = try JSONDecoder().decode(CashuSwift.Token.self, from: codable)
+        
+        XCTAssertEqual(token1, decodable)
+        
         print(try token1.serialize(to: .V3))
         
         let q2 = try await CashuSwift.getQuote(mint: mint,
