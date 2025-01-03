@@ -32,7 +32,7 @@ extension CashuSwift {
             }
         }
         
-        init(proofs: [String: [any ProofRepresenting]],
+        public init(proofs: [String: [any ProofRepresenting]],
              unit: String,
              memo: String? = nil) {
             self.proofsByMint = proofs
