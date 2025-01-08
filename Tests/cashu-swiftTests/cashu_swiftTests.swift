@@ -3,31 +3,9 @@ import XCTest
 import SwiftData
 import secp256k1
 import BIP39
+import SwiftCBOR
 
 final class cashu_swiftTests: XCTestCase {
-    
-    func testEncoding() throws {
-        
-        let proof1 = CashuSwift.Proof(keysetID: "009a1f293253e41e",
-                           amount: 2,
-                           secret: "407915bc212be61a77e3e6d2aeb4c727980bda51cd06a6afc29e2861768a7837",
-                           C: "02bc9097997d81afb2cc7346b5e4345a9346bd2a506eb7958598a72f0cf85163ea")
-        let proof2 = CashuSwift.Proof(keysetID: proof1.keysetID,
-                           amount: 8,
-                           secret: "fe15109314e61d7756b0f8ee0f23a624acaa3f4e042f61433c728c7057b931be",
-                           C: "029e8e5050b890a7d6c0968db16bc1d5d5fa040ea1de284f6ec69d61299f671059")
-        
-        let proofContainer = CashuSwift.ProofContainer(mint: "https://8333.space:8333",
-                                            proofs: [proof1, proof2])
-        
-        let token = CashuSwift.Token(token: [proofContainer], memo: "Thank you.", unit: "sat")
-        
-        print(token.prettyJSON())
-        
-        let testToken = try token.serialize(.V3)
-        
-        XCTAssertEqual(token, try testToken.deserializeToken())
-    }
     
     func testSecretSerialization() throws {
         
@@ -76,9 +54,6 @@ final class cashu_swiftTests: XCTestCase {
                 print(String(data: data, encoding: .utf8) ?? "could not ")
             case .encoding:
                 print("there was an error encoding the data")
-            default:
-                print(error)
-                throw error
             }
         }
     }
@@ -188,7 +163,7 @@ final class cashu_swiftTests: XCTestCase {
                                                                                                    amount: amount))
         let proofs = try await CashuSwift.issue(for: quote, on: mint) as! [CashuSwift.Proof]
         
-        let token = CashuSwift.Token(token: [CashuSwift.ProofContainer(mint: mint.url.absoluteString, proofs: proofs)])
+        let token = CashuSwift.TokenV3(token: [CashuSwift.ProofContainer(mint: mint.url.absoluteString, proofs: proofs)])
                 
         //        print(try token.serialize(.V3))
         // (mew, change)
@@ -229,7 +204,7 @@ final class cashu_swiftTests: XCTestCase {
         }
     }
     
-//    func testMintingWithDetSec() async throws {
+    func testMintingWithDetSec() async throws {
 //        let mintURL = URL(string: "http://localhost:3339")!
 //        
 //        let mint = try await CashuSwift.loadMint(url: mintURL)
@@ -248,7 +223,7 @@ final class cashu_swiftTests: XCTestCase {
 //        for _ in 0...3 {
 //            (proofs, _) = try await CashuSwift.swap(mint: mint, proofs: proofs, seed: seed)
 //        }
-//    }
+    }
     
     func testSendReceive() async throws {
         let url = URL(string: "http://localhost:3339")!
@@ -258,9 +233,9 @@ final class cashu_swiftTests: XCTestCase {
         let proofs = try await CashuSwift.issue(for: q, on: mint)
         
         let (token, change) = try await CashuSwift.send(mint: mint, proofs: proofs, amount: 15)
-        let tokenString = try token.serialize(.V3)
+//        let tokenString = try token.serialize(.V3)
         
-        print(token.token.first!.proofs.sum)
+        print(CashuSwift.sum(token.proofsByMint.first!.value))
         print(CashuSwift.sum(change))
         
         let received = try await CashuSwift.receive(mint: mint, token: token)
@@ -288,7 +263,7 @@ final class cashu_swiftTests: XCTestCase {
         XCTAssert(result.paid)
     }
     
-//    func testMeltExt() async throws {
+    func testMeltExt() async throws {
 //        let url = URL(string: "https://mint.macadamia.cash")!
 //        let mint = try await CashuSwift.loadMint(url: url, type: CashuSwift.Mint.self)
 //        let qr = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 128)
@@ -310,9 +285,9 @@ final class cashu_swiftTests: XCTestCase {
 //        print(CashuSwift.sum(result.change))
 //        
 //        XCTAssert(result.paid)
-//    }
+    }
     
-//    func testMeltReal() async throws {
+    func testMeltReal() async throws {
 //        let mint1 = try await Mint(with: URL(string: "https://mint.macadamia.cash")!)
 //        let mint2 = try await Mint(with: URL(string: "https://8333.space:3338")!)
 //        
@@ -333,7 +308,7 @@ final class cashu_swiftTests: XCTestCase {
 //        let meltResult = try await mint1.melt(quote: meltQuote, proofs: proofs)
 //        print(meltResult)
 //        print(meltResult.change.sum)
-//    }
+    }
     
     func testBlankOutputCalculation() {
         let overpayed = 1000
@@ -368,7 +343,7 @@ final class cashu_swiftTests: XCTestCase {
         
         let (token, _) = try await CashuSwift.send(mint: mint, proofs: proofs)
         
-        _ = try await CashuSwift.swap(mint: mint, proofs: token.token.first!.proofs)
+        _ = try await CashuSwift.swap(mint: mint, proofs: token.proofsByMint.first!.value)
         
         let states = try await CashuSwift.check(proofs, mint: mint)
         print(states.debugPretty())
@@ -464,15 +439,14 @@ final class cashu_swiftTests: XCTestCase {
         print(selection4 ?? "nil")
     }
     
-//    func testInfoLoad() async throws {
+    func testInfoLoad() async throws {
 //        let url = URL(string: "http://localhost:3339")!
 //        let mint = try await CashuSwift.loadMint(url: url)
 //        
 //        let info = try await CashuSwift.loadInfoFromMint(mint) as! CashuSwift.MintInfo0_16
 //        
 //        print(info)
-//        
-//    }
+    }
     
     func testErrorHandling() async throws {
         
@@ -502,10 +476,9 @@ final class cashu_swiftTests: XCTestCase {
         }
     }
     
-    func testSafeDeserializationFail() {
+    func testSafeDeserializationFail() throws {
         
-        do {
-            _ = try """
+        let tokenV3 = try """
                     cashuAeyJtZW1vIjoiIiwidW5pdCI6InNhdCIsInRva2VuIjpbeyJtaW50IjoiaHR0cHM6XC9cL\
                     21pbnQubWFjYWRhbWlhLmNhc2giLCJwcm9vZnMiOlt7ImFtb3VudCI6OCwiaWQiOiIwMDhiMmRjZ\
                     jIzY2I2ZjJjIiwic2VjcmV0IjoiNDBjMjIzOThjOTY2YjU3NGJiZDQ0MzFlODkzOTE0ZjkyOGY3Z\
@@ -522,18 +495,8 @@ final class cashu_swiftTests: XCTestCase {
                     JhbW91bnQiOjEsIkMiOiIwMjE1YzFlYWY0YzBhN2ViNzIyOGMxZWNjM2MzNzMzYTQ1Yjk3ZGJlZmY\
                     5ZTliOGIzNDExMzljYmRhNmM3YjliYjMifV19XX0=
                     """.deserializeToken()
-        } catch {
-            print(error)
-        }
-        
-        do {
-            _ = try "not_a_valid_token".deserializeToken()
-        } catch {
-            print(error)
-        }
-        
-        do {
-            _ = try """
+
+        let tokenV4 = try """
                     cashuBo2FteBtodHRwczovL3Rlc3RudXQuY2FzaHUuc3BhY2VhdWNzYXRhdIGiYWlIAJofKTJT5B5hc\
                     IOjYWEQYXN4QGYxZGI3ZTQ3YjAzYmY1YTE3NjRjYjBkZmU0OGNhZGYxZjMxN2ZiMWUxOTJmZTc5MTQ1\
                     ZWUyNzQyZjZjMzE5NTlhY1ghA5wwM6EZSyElJ2Gb4nPM0XLWDewGLwLOfdIMqvQMFhKEo2FhBGFzeEB\
@@ -542,8 +505,73 @@ final class cashu_swiftTests: XCTestCase {
                     DdjODk1ZTVkMjg3ODViNzcwNTRmMjgxYWQyYTViZjMyMzgxYTYwYjE4MDAyNDM4YTVkMzE1MGFjWCEC\
                     JMe6T-xGSiYctU_igSY3prkJe065rrj7CxrLvnJASlY
                     """.deserializeToken()
-        } catch {
-            print(error)
-        }
+        
+        
+        _ = try tokenV4.serialize(to: .V3)
+        _ = try tokenV3.serialize(to: .V4)
+        
+    }
+    
+    func testTokenV4Serde() async throws {
+       
+        let url = URL(string: "https://testnut.cashu.space")!
+        let mint = try await CashuSwift.loadMint(url: url)
+        
+        let qr = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 21)
+        
+        let q1 = try await CashuSwift.getQuote(mint: mint,
+                                               quoteRequest: qr)
+        let p1 = try await CashuSwift.issue(for: q1,
+                                            on: mint)
+        
+        let token1 = CashuSwift.Token(proofs: [mint.url.absoluteString: p1],
+                                     unit: qr.unit,
+                                     memo: "bingo bango")
+        
+        let codable = try JSONEncoder().encode(token1)
+        let decodable = try JSONDecoder().decode(CashuSwift.Token.self, from: codable)
+        
+        XCTAssertEqual(token1, decodable)
+        
+        print(try token1.serialize(to: .V3))
+        
+        let q2 = try await CashuSwift.getQuote(mint: mint,
+                                               quoteRequest: qr)
+        let p2 = try await CashuSwift.issue(for: q2,
+                                            on: mint)
+        
+        let token2 = CashuSwift.Token(proofs: [mint.url.absoluteString: p2],
+                                      unit: qr.unit,
+                                      memo: "bob's your uncle")
+        
+        print(try token2.serialize(to: .V4))
+    }
+    
+    // MARK: - REVERSE
+    func testTokenV4Decoding() throws {
+        let reverse = "cashuBo2FteBtodHRwczovL3Rlc3RudXQuY2FzaHUuc3BhY2VhdWNzYXRhdIGiYWlIAJofKTJT5B5hcIOjYWEBYXN4QGE0Y2ZlMDM0NjEwYTMzNjk0NTcyNGQ4YjBkYjI4MWI5OGU0ODcwYTQ4MjRkYTA1ZmJhMGMxYzFmMjllNzUzNDFhY1ghAmK6bNpHFRHv4zSvY2Ro8atT7E75W2xhIwKx8fU99sfTo2FhBGFzeEA4MTZjMzQ0NjhmNjQ4ZDJlZmUyOWIwMTA5YjQxZjYzYzQ1OTQ5Y2YwYTE4YWQ5NjAwNmI3ZmIzNjU4OTViZDFmYWNYIQPGS7r49FNNltGz4oKaV198KWbdShHGy58X-apdipr6XqNhYRBhc3hAYWMxZDg0ZTFhNmY5MTNhMjg2ZjI4NjNhZmY3NDA4NWVkMjI5YjI0MzkwNWFkOTdkYjVmNTIzODE5MmIzYjE4MGFjWCED6vxDZwReE7zZ_Wj6DeBBZQhlCWESMWZu3J2EZ5m16no"
+        
+        print(try reverse.deserializeToken())
+
+    }
+    
+    func testCreateRandomPubkey() {
+        let priv = try! secp256k1.Signing.PrivateKey()
+        print(String(bytes: priv.publicKey.dataRepresentation))
+    }
+    
+    func testMultiReceive() async throws {
+//        let mint1 = try await CashuSwift.loadMint(url: URL(string: "https://testmint.macadamia.cash")!)
+//        let mint2 = try await CashuSwift.loadMint(url: URL(string: "https://testnut.cashu.space")!)
+//        
+//        let mints = [mint1, mint2]
+//        
+//        let mmt = "cashuAeyJtZW1vIjoiV2FsbGV0IERyYWluIiwidG9rZW4iOlt7Im1pbnQiOiJodHRwczpcL1wvdGVzdG51dC5jYXNodS5zcGFjZSIsInByb29mcyI6W3sic2VjcmV0IjoiMDAyYmU3NGIwNzQ5NDBlN2Y5N2VkMWZmMzRlMTVlMTkyM2I1ODMzZmY0NjhjMDU0YzFiMjA3ODZmYzZmOTEwYSIsImFtb3VudCI6MSwiaWQiOiIwMDlhMWYyOTMyNTNlNDFlIiwiQyI6IjAyOTg5NWQ0N2MyMWZjM2M3ZDQwOGQ4MGQ5ZmVlYjMzNDJjYWQ1MjY5ZjQ5MTRkZjBiMTE1N2Q1ZjMxNTgwZDIwNCJ9LHsiYW1vdW50Ijo0LCJpZCI6IjAwOWExZjI5MzI1M2U0MWUiLCJzZWNyZXQiOiIyMmZmMTM2MzJlMjM1ODRiY2Y4MWE4ZTAxNGQ5ZmQ4MmY2OGNhZTFhZGQzZmRkOGM4ZDk4NGY1ZWI4NjQ2ZTNjIiwiQyI6IjAzNWRkYjBlODhjNWFlZmNjYTAyNDZkODQzNmY2YTAxYWU0OTE2Yjk3ZTNkZTNmOGY3YzQ0MDIyODcyYzhhZjg0MCJ9LHsiaWQiOiIwMDlhMWYyOTMyNTNlNDFlIiwiYW1vdW50IjoxNiwiQyI6IjAzYjBiZmIzNWU0OGI1YmUxNmM4MGM3NGY3NTgyZDgzMjNlNmJkM2E3N2M1ZWY1ZmE4NjY3MDIwNThiNWViOGViYyIsInNlY3JldCI6Ijg3NzEzYjRhN2I0ZDcxMmY3Njc0M2IyODQ5NTQ3NjkxNDQ0M2U1YmExOGExZDIxMWM0NzU3Y2I3NmE1M2YwNWIifV19LHsibWludCI6Imh0dHBzOlwvXC90ZXN0bWludC5tYWNhZGFtaWEuY2FzaCIsInByb29mcyI6W3siQyI6IjAzMzVmYWFhZmE0ODgxNjI4M2IyM2U2YjNjNDRmODU2NDcwZmE1ZjgwMzdkNDg2OGNmNDkwNDY2MmRhYWE5NDRjMCIsImFtb3VudCI6Miwic2VjcmV0IjoiYWNlYWU0MzNiNTJhNGFjZWNiNWYyMTFiMzkwNTc4OTljZTlkMTBkY2I0MDM3YzUyZjIxNzNjMTljNTdiZGZiYiIsImlkIjoiMDBlYTBkNDE2NjQ0MTI4YyJ9LHsiYW1vdW50Ijo4LCJzZWNyZXQiOiI4N2Y4MWRiNGVkMmFiNWIzYjMwMjQxNTJmZjg2MzIzZThiMWMyYTM5MzI5MzI4MTBlMTVjODI5YWJkMmUwYTZjIiwiaWQiOiIwMGVhMGQ0MTY2NDQxMjhjIiwiQyI6IjAzZmU0YjRhZDIzNGY5MzI1YjA4MDIxMjcwMjBlY2IzNDg1MGJhZWIzNmZlZmEzZmE0MjFlZjc4M2M0MzA4YWE3NiJ9LHsic2VjcmV0IjoiYjEwYmFiZmZhZDhkZmNkYWQzZTkwYmE4MmI4ZWRiMGMxZTNjNGE5MDlmMjNmOWY2MGRmOTczMjRiMzg4YzJlMiIsImFtb3VudCI6MzIsImlkIjoiMDBlYTBkNDE2NjQ0MTI4YyIsIkMiOiIwMjJjNGI5MGIxNTc5M2RmNDJjMTIxMTUyNjM4NTBiNmE2MzRmNzBkMzZmNzljODc4MDlmYzgwNjRmNTM4OTlmNWMifV19XX0="
+//        
+//        let token = try mmt.deserializeToken()
+//        
+//        let receivedProofs = try await mints.receive(token: token)
+//        
+//        print(receivedProofs)
     }
 }

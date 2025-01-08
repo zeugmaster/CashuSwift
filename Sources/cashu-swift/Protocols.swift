@@ -15,7 +15,7 @@ public protocol MintRepresenting {
     init(url:URL, keysets:[CashuSwift.Keyset])
 }
 
-public protocol ProofRepresenting {
+public protocol ProofRepresenting/*: Codable, Equatable*/ {
     var keysetID:String { get }
     var C:String { get }
     var secret:String { get }
