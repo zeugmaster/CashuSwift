@@ -263,13 +263,40 @@ public enum CashuSwift {
     }
     
     // MARK: - MELT
+    public static func generateBlankOutputs(mint: MintRepresenting,
+                                            count: Int,
+                                            unit: String,
+                                            seed: String? = nil) throws -> ((outputs: [Output],
+                                                                             blindingFactors: [String],
+                                                                             secrets: [String])) {
+        
+        guard let activeKeyset = activeKeysetForUnit(unit, mint: mint) else {
+            throw CashuError.noActiveKeysetForUnit(unit)
+        }
+        
+        let deterministicFactors: (String, Int)?
+        
+        if let seed {
+            deterministicFactors = (seed, activeKeyset.derivationCounter)
+        } else {
+            deterministicFactors = nil
+        }
+        
+        return try Crypto.generateOutputs(amounts: Array(repeating: 0, count: count),
+                                          keysetID: activeKeyset.keysetID,
+                                          deterministicFactors: deterministicFactors)
+    }
+    
     public static func melt(mint:MintRepresenting,
                             quote:Quote,
                             proofs:[ProofRepresenting],
                             seed:String? = nil,
-                            timeout:Double = 600) async throws -> (paid:Bool,
-                                                                   change:[ProofRepresenting],
-                                                                   derivationCounterIncrease: Int) {
+                            timeout:Double = 600,
+                            blankOutputs: (outputs: [Output],
+                                           blindingFactors: [String],
+                                           secrets: [String])? = nil) async throws -> (paid:Bool,
+                                                                                       change:[ProofRepresenting],
+                                                                                       derivationCounterIncrease: Int) {
         
         guard let quote = quote as? Bolt11.MeltQuote else {
             throw CashuError.typeMismatch("you need to pass a Bolt11 melt quote to this function, nothing else is supported yet.")
@@ -305,19 +332,21 @@ public enum CashuSwift {
         let overpayed = sum(proofs) - quote.amount - inputFee
         let blankDistribution = Array(repeating: 0, count: calculateNumberOfBlankOutputs(overpayed))
         
-        let (blankOutputs, blindingFactors, secrets) = try Crypto.generateOutputs(amounts: blankDistribution,
+        var (outputs, blindingFactors, secrets) = try Crypto.generateOutputs(amounts: blankDistribution,
                                                                                   keysetID: keyset.keysetID,
                                                                                   deterministicFactors: deterministicFactors)
-        keyset.derivationCounter += blankOutputs.count
-        
-        if blankOutputs.isEmpty {
-            meltRequest = Bolt11.MeltRequest(quote: quote.quote, inputs: normalize(proofs), outputs: nil)
-        } else {
-            meltRequest = Bolt11.MeltRequest(quote: quote.quote, inputs: normalize(proofs), outputs: blankOutputs)
+        if let blankOutputs {
+            (outputs, blindingFactors, secrets) = blankOutputs
         }
         
+        // TODO: remove and test
+        keyset.derivationCounter += outputs.count
         
-        // TODO: HANDLE TIMEOUT MORE EXPLICITLY
+        if outputs.isEmpty {
+            meltRequest = Bolt11.MeltRequest(quote: quote.quote, inputs: normalize(proofs), outputs: nil)
+        } else {
+            meltRequest = Bolt11.MeltRequest(quote: quote.quote, inputs: normalize(proofs), outputs: outputs)
+        }
         
         let meltResponse:Bolt11.MeltQuote
         
@@ -328,7 +357,7 @@ public enum CashuSwift {
                                               timeout: timeout)
         
         if let promises = meltResponse.change {
-            guard promises.count <= blankOutputs.count else {
+            guard promises.count <= outputs.count else {
                 throw Crypto.Error.unblinding("could not unblind blank outputs for fee return")
             }
             
@@ -339,19 +368,77 @@ public enum CashuSwift {
         }
         
         if let paid = meltResponse.paid {
-            return (paid, change, blankOutputs.count)
+            return (paid, change, outputs.count)
         } else if let state = meltResponse.state {
             switch state {
             case .paid:
-                return (true, change, blankOutputs.count)
+                return (true, change, outputs.count)
             case .unpaid:
-                return (false, change, blankOutputs.count)
+                return (false, change, outputs.count)
             case .pending:
-                return (false, change, blankOutputs.count)
+                return (false, change, outputs.count)
             }
         } else {
             logger.error("could not find payment state info in response.")
             return (false, [], 0)
+        }
+    }
+    
+    ///Checks whether the invoice was successfully paid by the mint.
+    ///If the check returns `true` and the user has provided NUT-07 blank outputs for fee return
+    ///it will also unblind the mint's promises and return valid change proofs.
+    public static func meltState(mint: MintRepresenting,
+                                 quoteID: String,
+                                 blankOutputs: (outputs: [Output],
+                                                blindingFactors: [String],
+                                                secrets: [String])? = nil) async throws -> (paid: Bool,
+                                                                                            change: [ProofRepresenting]?) {
+        let url = mint.url.appending(path: "/v1/melt/quote/bolt11/\(quoteID)")
+        let quote = try await Network.get(url: url, expected: CashuSwift.Bolt11.MeltQuote.self)
+        
+        switch quote.state {
+        case .paid:
+            let ids = Set(mint.keysets.map({ $0.keysetID }))
+            
+            guard let promises = quote.change else {
+                logger.info("quote did not contain promises for overpaid LN fees")
+                return (true, [])
+            }
+            
+            guard let blankOutputs else {
+                logger.warning("checked melt quote that returns change for overpaid LN fees, but no blankOutputs were provided.")
+                return (true, [])
+            }
+            
+            guard Set([blankOutputs.blindingFactors.count,
+                       blankOutputs.secrets.count,
+                       blankOutputs.outputs.count,
+                       promises.count]).count == 1 else {
+                throw CashuError.unknownError("""
+                while unblinding change from overpaid LN fees:
+                blindingFactors, secrets, outputs and change promises
+                """)
+            }
+            
+            guard let id = ids.first, ids.count == 0 else {
+                throw CashuError.unknownError("could not determine singular keyset id from blankOutput list. result: \(ids)")
+            }
+            
+            guard let keyset = mint.keysets.first(where: { $0.keysetID == id }) else {
+                throw CashuError.unknownError("Could not find keyset for ID \(id)")
+            }
+            
+            let change = try Crypto.unblindPromises(promises,
+                                                    blindingFactors: blankOutputs.blindingFactors,
+                                                    secrets: blankOutputs.secrets,
+                                                    keyset: keyset)
+            return (true, change)
+        case .pending:
+            return (false, nil)
+        case .unpaid:
+            return (false, nil)
+        case .none:
+            throw CashuError.unknownError("Melt quote unmexpected state. \(String(describing: quote.state)) - quote id: \(quoteID)")
         }
     }
     

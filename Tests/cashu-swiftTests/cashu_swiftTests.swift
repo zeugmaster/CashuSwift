@@ -574,4 +574,19 @@ final class cashu_swiftTests: XCTestCase {
 //        
 //        print(receivedProofs)
     }
+    
+    func testMeltQuoteState() async throws {
+        let url = URL(string: "https://testmint.macadamia.cash")!
+        let mint = try await CashuSwift.loadMint(url: url)
+        
+        let quoteRequest = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 32)
+        let quote = try await CashuSwift.getQuote(mint: mint, quoteRequest: quoteRequest)
+        let proofs = try await CashuSwift.issue(for: quote, on:mint)
+        
+        let meltQuoteRequest = CashuSwift.Bolt11.RequestMeltQuote(unit: "sat", request: "lnbc10n1pncqzp0pp5kht9qmh87p59qfg3uuwk5g39f7s5ts8993xn97fdtlc9cff6qarqdqqcqzzsxqyz5vqsp5flgz3g0szvty3x9tk042ehvregv2pgr5593edp4c4ljaypv0zjcq9p4gqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqpqysgqz7va7hqrcz0vtnh0rvjze4k58eyjsdut8wgffn49mm0xjlgzrkz3l9jlhjguppt79h3ytjx7qjxcvyq6c3a7vg9vf687vll2yvvzrqcq568eu4", options: nil)
+        let meltQuote = try await CashuSwift.getQuote(mint: mint, quoteRequest: meltQuoteRequest)
+        let result = try await CashuSwift.melt(mint: mint, quote: meltQuote, proofs: proofs)
+        
+        print(meltQuote.quote)
+    }
 }

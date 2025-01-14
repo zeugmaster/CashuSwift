@@ -29,11 +29,11 @@ extension CashuSwift {
         /// Generate a list of blinded `Output`s and corresponding blindingFactors and secrets for later unblinding Promises from the Mint.
         /// Not specifying `deterministicFactors` will give you random outputs that can not be recreated via seed phrase backup
         static func generateOutputs(amounts:[Int],
-                             keysetID:String,
-                             deterministicFactors:(seed:String,
-                                                   counter:Int)? = nil)  throws -> (outputs: [Output],
-                                                                                    blindingFactors: [String],
-                                                                                    secrets:[String]) {
+                                           keysetID:String,
+                                           deterministicFactors:(seed:String,
+                                                                 counter:Int)? = nil)  throws -> (outputs: [Output],
+                                                                                                  blindingFactors: [String],
+                                                                                                  secrets:[String]) {
 
             var outputs = [Output]()
             var blindingFactors = [String]()
@@ -119,9 +119,14 @@ extension CashuSwift {
         //MARK: - UNBLINDING
         
         static func unblindPromises(_ promises:[Promise],
-                             blindingFactors:[String],
-                             secrets:[String],
-                             keyset:Keyset) throws -> [Proof] {
+                                           blindingFactors:[String],
+                                           secrets:[String],
+                                           keyset:Keyset) throws -> [Proof] {
+            
+            guard promises.count == blindingFactors.count &&
+                  blindingFactors.count == secrets.count else {
+                throw Crypto.Error.unblinding("promises, blindingFactors and secrets do not have matching counts!")
+            }
             
             var proofs = [Proof]()
             for i in 0..<promises.count {
