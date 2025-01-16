@@ -263,8 +263,9 @@ public enum CashuSwift {
     }
     
     // MARK: - MELT
-    public static func generateBlankOutputs(mint: MintRepresenting,
-                                            count: Int,
+    ///Allows a wallet to create and persist NUT-08 blank outputs for an overpaid amount `sum(proofs) - quote.amount - inputFee`
+    public static func generateBlankOutputs(for amountOverpaid: Int,
+                                            mint: MintRepresenting,
                                             unit: String,
                                             seed: String? = nil) throws -> ((outputs: [Output],
                                                                              blindingFactors: [String],
@@ -282,7 +283,9 @@ public enum CashuSwift {
             deterministicFactors = nil
         }
         
-        return try Crypto.generateOutputs(amounts: Array(repeating: 0, count: count),
+        let blankDistribution = Array(repeating: 0, count: calculateNumberOfBlankOutputs(amountOverpaid))
+        
+        return try Crypto.generateOutputs(amounts: blankDistribution,
                                           keysetID: activeKeyset.keysetID,
                                           deterministicFactors: deterministicFactors)
     }
