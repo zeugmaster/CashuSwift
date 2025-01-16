@@ -264,7 +264,8 @@ public enum CashuSwift {
     
     // MARK: - MELT
     ///Allows a wallet to create and persist NUT-08 blank outputs for an overpaid amount `sum(proofs) - quote.amount - inputFee`
-    public static func generateBlankOutputs(for amountOverpaid: Int,
+    public static func generateBlankOutputs(quote: CashuSwift.Bolt11.MeltQuote,
+                                            proofs: [some ProofRepresenting],
                                             mint: MintRepresenting,
                                             unit: String,
                                             seed: String? = nil) throws -> ((outputs: [Output],
@@ -282,6 +283,9 @@ public enum CashuSwift {
         } else {
             deterministicFactors = nil
         }
+        
+        let inputFee = try calculateFee(for: proofs, of: mint)
+        let amountOverpaid = proofs.sum - quote.amount - quote.feeReserve - inputFee
         
         let blankDistribution = Array(repeating: 0, count: calculateNumberOfBlankOutputs(amountOverpaid))
         
