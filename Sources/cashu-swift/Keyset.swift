@@ -13,7 +13,7 @@ extension CashuSwift {
         let keysets:[Keyset]
     }
 
-    public struct Keyset: Codable {
+    public struct Keyset: Codable, Sendable {
         public let keysetID: String
         public var keys: Dictionary<String, String>
         public var derivationCounter:Int
