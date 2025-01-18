@@ -578,7 +578,8 @@ public enum CashuSwift {
             let result = KeysetRestoreResult(keysetID: keyset.keysetID,
                                              derivationCounter: lastMatchCounter + 1,
                                              unitString: keyset.unit,
-                                             proofs: spendableProofs)
+                                             proofs: spendableProofs,
+                                             inputFeePPK: keyset.inputFeePPK)
             results.append(result)
             logger.info("Found \(spendableProofs.count) spendable proofs for keyset \(keyset.keysetID)")
         }
