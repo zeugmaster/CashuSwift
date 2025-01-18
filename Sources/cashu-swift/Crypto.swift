@@ -125,7 +125,7 @@ extension CashuSwift {
             
             guard promises.count == blindingFactors.count &&
                   blindingFactors.count == secrets.count else {
-                throw Crypto.Error.unblinding("promises, blindingFactors and secrets do not have matching counts!")
+                throw Crypto.Error.unblinding("promises, blindingFactors and secrets do not have matching counts! promises: \(promises.count), bfs: \(blindingFactors.count), secrets: \(secrets)")
             }
             
             var proofs = [Proof]()
