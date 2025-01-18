@@ -123,9 +123,10 @@ extension CashuSwift {
                                            secrets:[String],
                                            keyset:Keyset) throws -> [Proof] {
             
-            guard promises.count == blindingFactors.count &&
-                  blindingFactors.count == secrets.count else {
-                throw Crypto.Error.unblinding("promises, blindingFactors and secrets do not have matching counts! promises: \(promises.count), bfs: \(blindingFactors.count), secrets: \(secrets.count)")
+            // making sure promises is not larger than the other two lists to prevent out of bounds crash
+            guard promises.count <= blindingFactors.count &&
+                    promises.count <= secrets.count else {
+                throw Crypto.Error.unblinding("Number of promises to unblind is larger than blindingFactors or secrets. This can lead to a out-of-bounds crash!")
             }
             
             var proofs = [Proof]()

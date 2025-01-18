@@ -560,9 +560,7 @@ public enum CashuSwift {
                 logger.debug("No ecash to restore for keyset \(keyset.keysetID).")
                 continue
             }
-            
-//            derivationCounters[keyset.keysetID] = lastMatchCounter + 1
-            
+                        
             let states = try await check(proofs, mint: mint) // ignores pending but should not
 
             guard states.count == proofs.count else {
@@ -574,7 +572,6 @@ public enum CashuSwift {
                 if states[i] == .unspent { spendableProofs.append(proofs[i]) }
             }
             
-//            spendableProofs.forEach({ restoredProofs.append(($0, keyset.unit)) })
             let result = KeysetRestoreResult(keysetID: keyset.keysetID,
                                              derivationCounter: lastMatchCounter + 1,
                                              unitString: keyset.unit,
