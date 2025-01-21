@@ -397,7 +397,7 @@ public enum CashuSwift {
                 return (true, [])
             }
             
-            guard let id = ids.first, ids.count == 0 else {
+            guard let id = ids.first, ids.count == 1 else {
                 throw CashuError.unknownError("could not determine singular keyset id from blankOutput list. result: \(ids)")
             }
             
