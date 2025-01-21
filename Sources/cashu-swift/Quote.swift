@@ -98,6 +98,7 @@ extension CashuSwift {
                 case paymentPreimage = "payment_preimage"
                 case change
                 case quoteRequest
+                case state
             }
         }
         

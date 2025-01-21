@@ -397,16 +397,6 @@ public enum CashuSwift {
                 return (true, [])
             }
             
-            guard Set([blankOutputs.blindingFactors.count,
-                       blankOutputs.secrets.count,
-                       blankOutputs.outputs.count,
-                       promises.count]).count == 1 else {
-                throw CashuError.unknownError("""
-                while unblinding change from overpaid LN fees:
-                blindingFactors, secrets, outputs and change promises
-                """)
-            }
-            
             guard let id = ids.first, ids.count == 0 else {
                 throw CashuError.unknownError("could not determine singular keyset id from blankOutput list. result: \(ids)")
             }
