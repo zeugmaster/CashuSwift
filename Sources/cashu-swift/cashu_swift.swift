@@ -297,13 +297,11 @@ public enum CashuSwift {
     public static func melt(mint:MintRepresenting,
                             quote:Quote,
                             proofs:[ProofRepresenting],
-                            seed:String? = nil,
                             timeout:Double = 600,
                             blankOutputs: (outputs: [Output],
                                            blindingFactors: [String],
                                            secrets: [String])? = nil) async throws -> (paid:Bool,
-                                                                                       change:[ProofRepresenting],
-                                                                                       derivationCounterIncrease: Int) {
+                                                                                       change:[ProofRepresenting]?) {
         
         guard let quote = quote as? Bolt11.MeltQuote else {
             throw CashuError.typeMismatch("you need to pass a Bolt11 melt quote to this function, nothing else is supported yet.")
@@ -320,7 +318,6 @@ public enum CashuSwift {
         logger.debug("Attempting melt with quote amount: \(quote.amount), lightning fee reserve: \(lightningFee), input fee: \(inputFee).")
         
         let meltRequest:Bolt11.MeltRequest
-        var change = [Proof]()
         
         guard let units = try? units(for: proofs, of: mint), units.count == 1 else {
             throw CashuError.unitError("Could not determine singular unit for input proofs.")
@@ -330,29 +327,10 @@ public enum CashuSwift {
             throw CashuError.noActiveKeysetForUnit("No active keyset for unit \(units)")
         }
         
-        var deterministicFactors:(seed:String, counter:Int)? = nil
-        
-        if let seed {
-            deterministicFactors = (seed, keyset.derivationCounter)
-        }
-        
-        let overpayed = sum(proofs) - quote.amount - inputFee
-        let blankDistribution = Array(repeating: 0, count: calculateNumberOfBlankOutputs(overpayed))
-        
-        var (outputs, blindingFactors, secrets) = try Crypto.generateOutputs(amounts: blankDistribution,
-                                                                                  keysetID: keyset.keysetID,
-                                                                                  deterministicFactors: deterministicFactors)
         if let blankOutputs {
-            (outputs, blindingFactors, secrets) = blankOutputs
-        }
-        
-        // TODO: remove and test
-        keyset.derivationCounter += outputs.count
-        
-        if outputs.isEmpty {
-            meltRequest = Bolt11.MeltRequest(quote: quote.quote, inputs: normalize(proofs), outputs: nil)
+            meltRequest = Bolt11.MeltRequest(quote: quote.quote, inputs: normalize(proofs), outputs: blankOutputs.outputs)
         } else {
-            meltRequest = Bolt11.MeltRequest(quote: quote.quote, inputs: normalize(proofs), outputs: outputs)
+            meltRequest = Bolt11.MeltRequest(quote: quote.quote, inputs: normalize(proofs), outputs: nil)
         }
         
         let meltResponse:Bolt11.MeltQuote
@@ -363,31 +341,33 @@ public enum CashuSwift {
                                               expected: Bolt11.MeltQuote.self,
                                               timeout: timeout)
         
-        if let promises = meltResponse.change {
-            guard promises.count <= outputs.count else {
+        let change: [Proof]?
+        if let promises = meltResponse.change, let blankOutputs {
+            guard promises.count <= blankOutputs.outputs.count else {
                 throw Crypto.Error.unblinding("could not unblind blank outputs for fee return")
             }
             
             change = try Crypto.unblindPromises(promises,
-                                                blindingFactors: Array(blindingFactors.prefix(promises.count)),
-                                                secrets: Array(secrets.prefix(promises.count)),
+                                                blindingFactors: blankOutputs.blindingFactors,
+                                                secrets: blankOutputs.secrets,
                                                 keyset: keyset)
+        } else {
+            change = nil
         }
         
         if let paid = meltResponse.paid {
-            return (paid, change, outputs.count)
+            return (paid, change)
         } else if let state = meltResponse.state {
             switch state {
             case .paid:
-                return (true, change, outputs.count)
+                return (true, change)
             case .unpaid:
-                return (false, change, outputs.count)
+                return (false, change)
             case .pending:
-                return (false, change, outputs.count)
+                return (false, change)
             }
         } else {
-            logger.error("could not find payment state info in response.")
-            return (false, [], 0)
+            throw CashuError.unknownError("Unable to find payment state data in melt response.")
         }
     }
     
