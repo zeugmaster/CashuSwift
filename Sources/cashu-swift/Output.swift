@@ -10,6 +10,12 @@ import Foundation
 extension CashuSwift {
     // AKA BlindedMessage
     public struct Output: Codable {
+        enum CodingKeys: String, CodingKey {
+            case amount
+            case B_ = "B_"
+            case id
+        }
+        
         public let amount: Int
         public let B_: String
         public let id: String
