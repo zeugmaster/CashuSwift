@@ -22,5 +22,6 @@ extension CashuSwift {
         public let derivationCounter: Int
         public let unitString: String
         public let proofs: [ProofRepresenting]
+        public let inputFeePPK: Int
     }
 }
