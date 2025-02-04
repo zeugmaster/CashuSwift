@@ -4,9 +4,9 @@ import OSLog
 fileprivate let logger = Logger.init(subsystem: "CashuSwift", category: "wallet")
 
 extension CashuSwift {
-    open class Mint: Hashable, Codable, MintRepresenting {
+    public struct Mint: Hashable, Codable, MintRepresenting, Sendable {
         
-        public required init(url: URL, keysets: [CashuSwift.Keyset]) {
+        public init(url: URL, keysets: [CashuSwift.Keyset]) {
             self.url = url
             self.keysets = keysets
         }
