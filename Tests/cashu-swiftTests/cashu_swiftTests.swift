@@ -349,35 +349,41 @@ final class cashu_swiftTests: XCTestCase {
         print(states.debugPretty())
     }
     
-//    func testRestore() async throws {
-//        let mnemmonic = Mnemonic()
-//        let seed = String(bytes: mnemmonic.seed)
-//        
-//        // MARK: NEEDS TO BE TESTED WITH NO-FEE MINT
-//        let mint = try await CashuSwift.loadMint(url: URL(string: "http://localhost:3338")!)
-//        
-//        let quoteRequest = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 2047)
-//
-//        let quote = try await CashuSwift.getQuote(mint: mint, quoteRequest: quoteRequest)
-//        
-//        var proofs = try await CashuSwift.issue(for: quote, on: mint, seed: seed)
-//        
-//        // nighmare derivation counter handling
-//        if let index = mint.keysets.firstIndex(where: { $0.keysetID == proofs.first?.keysetID }) {
-//            var keyset = mint.keysets[index]
-//            keyset.derivationCounter += proofs.count
-//            mint.keysets[index] = keyset
-//        }
-//        
-//        let swapped = try await CashuSwift.swap(mint:mint, proofs: Array(proofs[0...2]), seed: seed)
-//        print(swapped)
-//                
-//        let restoredProofs = try await CashuSwift.restore(mint:mint, with: seed)
-//        
-////        XCTAssertEqual(CashuSwift.sum(proofs), CashuSwift.sum(restoredProofs.proofs.map({$0.0})))
-////        
-////        print(restoredProofs.derivationCounters)
-//    }
+    func testRestore() async throws {
+        let mnemmonic = Mnemonic()
+        let seed = String(bytes: mnemmonic.seed)
+        
+        let burnMnemonic = Mnemonic()
+        let burnSeed = String(bytes: burnMnemonic.seed)
+        
+        // MARK: NEEDS TO BE TESTED WITH NO-FEE MINT
+        var mint = try await CashuSwift.loadMint(url: URL(string: "https://testmint.macadamia.cash")!)
+        
+        let quoteRequest = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 2047)
+
+        let quote = try await CashuSwift.getQuote(mint: mint, quoteRequest: quoteRequest)
+        
+        guard var proofs = try await CashuSwift.issue(for: quote, on: mint, seed: seed) as? [CashuSwift.Proof] else {
+            XCTFail("failed due to type casting error")
+            return
+        }
+        
+        if let index = mint.keysets.firstIndex(where: { $0.keysetID == proofs.first?.keysetID }) {
+            var keyset = mint.keysets[index]
+            keyset.derivationCounter += proofs.count
+            mint.keysets[index] = keyset
+        }
+        
+        let swapped = try await CashuSwift.swap(mint: mint, proofs: Array(proofs.prefix(2)), seed: burnSeed)
+        
+        guard let restoredProofs = try await CashuSwift.restore(mint:mint, with: seed).first?.proofs as? [CashuSwift.Proof] else {
+            XCTFail("failed due to type casting error")
+            return
+        }
+        
+        XCTAssertEqual(Array(proofs.dropFirst(2)), restoredProofs)
+        XCTAssertEqual(Array(proofs.dropFirst(2)).sum, restoredProofs.sum)
+    }
     
     func testFeeCalculation() async throws {
         let mint = try await CashuSwift.loadMint(url: URL(string: "http://localhost:3339")!)

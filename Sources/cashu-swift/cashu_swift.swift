@@ -137,7 +137,7 @@ public enum CashuSwift {
     public static func issue(for quote:Quote,
                              on mint: MintRepresenting,
                              seed:String? = nil,
-                             preferredDistribution:[Int]? = nil) async throws -> [ProofRepresenting] {
+                             preferredDistribution:[Int]? = nil) async throws -> [some ProofRepresenting] {
         
         guard let quote = quote as? Bolt11.MintQuote else {
             throw CashuError.typeMismatch("Quote to issue proofs for was not a Bolt11.MintQuote")
