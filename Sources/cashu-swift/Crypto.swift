@@ -119,16 +119,20 @@ extension CashuSwift {
         //MARK: - UNBLINDING
         
         static func unblindPromises(_ promises:[Promise],
-                                           blindingFactors:[String],
-                                           secrets:[String],
-                                           keyset:Keyset) throws -> [Proof] {
+                                    blindingFactors:[String],
+                                    secrets:[String],
+                                    keyset:Keyset) throws -> [Proof] {
             
-            // making sure promises is not larger than the other two lists to prevent out of bounds crash
-            guard promises.count <= blindingFactors.count &&
-                    promises.count <= secrets.count else {
-                throw Crypto.Error.unblinding("Number of promises to unblind is larger than blindingFactors or secrets. This can lead to a out-of-bounds crash!")
+            guard promises.count == blindingFactors.count,
+                  promises.count == secrets.count else {
+                throw Crypto.Error.unblinding("""
+                    Array length mismatch: 
+                    promises: \(promises.count), 
+                    blindingFactors: \(blindingFactors.count), 
+                    secrets: \(secrets.count)
+                    """)
             }
-            
+                        
             var proofs = [Proof]()
             for i in 0..<promises.count {
                 let promise = promises[i]

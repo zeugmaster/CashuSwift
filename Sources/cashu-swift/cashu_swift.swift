@@ -590,6 +590,8 @@ public enum CashuSwift {
                     response.outputs.contains(where: {newOut in oldOutput.B_ == newOut.B_})
                 }) ?? 0
             }
+            
+            // filter blindingfactor and secret arrays to include only the ones for outputs that exist
             var rs = [String]()
             var xs = [String]()
             for i in 0..<outputs.count {
@@ -600,9 +602,9 @@ public enum CashuSwift {
             }
             
             let batchProofs = try Crypto.unblindPromises(response.signatures,
-                                                        blindingFactors: blindingFactors,
-                                                        secrets: secrets,
-                                                        keyset: keyset)
+                                                         blindingFactors: rs,
+                                                         secrets: xs,
+                                                         keyset: keyset)
             proofs.append(contentsOf: batchProofs)
         }
         currentCounter -= (emptyRuns + 1) * batchSize
