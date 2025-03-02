@@ -88,14 +88,20 @@ extension CashuSwift {
         
         private func makeV4() throws -> TokenV4 {
             guard proofsByMint.count < 2 else {
-                throw CashuError.tokenEncoding
+                throw CashuError.tokenEncoding("Token object contains proofs from more than one mint which can not be encoded into a V4 token.")
             }
             
             guard let (mintURLstring, proofList) = proofsByMint.first else {
-                throw CashuError.tokenEncoding
+                throw CashuError.tokenEncoding("Token object seems to contain no proofs. This is not valid for encoding.")
             }
             
             let byKeysetID = Dictionary(grouping: proofList, by: { $0.keysetID })
+            
+            guard !byKeysetID.keys.contains(where: { keysetID in
+                keysetID.count == 12
+            }) else {
+                throw CashuError.tokenEncoding("Token data seems to contain a non-hex keyset ID, which is not suported in Token V4 CBOR encoding.")
+            }
             
             let tokenEntries = try byKeysetID.map { (id, ps) in
                 TokenV4.TokenEntry(keysetID: Data(try id.bytes),

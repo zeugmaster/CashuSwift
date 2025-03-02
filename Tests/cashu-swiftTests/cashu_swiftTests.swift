@@ -558,7 +558,17 @@ final class cashu_swiftTests: XCTestCase {
         let reverse = "cashuBo2FteBtodHRwczovL3Rlc3RudXQuY2FzaHUuc3BhY2VhdWNzYXRhdIGiYWlIAJofKTJT5B5hcIOjYWEBYXN4QGE0Y2ZlMDM0NjEwYTMzNjk0NTcyNGQ4YjBkYjI4MWI5OGU0ODcwYTQ4MjRkYTA1ZmJhMGMxYzFmMjllNzUzNDFhY1ghAmK6bNpHFRHv4zSvY2Ro8atT7E75W2xhIwKx8fU99sfTo2FhBGFzeEA4MTZjMzQ0NjhmNjQ4ZDJlZmUyOWIwMTA5YjQxZjYzYzQ1OTQ5Y2YwYTE4YWQ5NjAwNmI3ZmIzNjU4OTViZDFmYWNYIQPGS7r49FNNltGz4oKaV198KWbdShHGy58X-apdipr6XqNhYRBhc3hAYWMxZDg0ZTFhNmY5MTNhMjg2ZjI4NjNhZmY3NDA4NWVkMjI5YjI0MzkwNWFkOTdkYjVmNTIzODE5MmIzYjE4MGFjWCED6vxDZwReE7zZ_Wj6DeBBZQhlCWESMWZu3J2EZ5m16no"
         
         print(try reverse.deserializeToken())
-
+        
+        // this token contains a non hex keyset id and should not be possible to serialize to V4
+        let v3 = "cashuAeyJ1bml0Ijoic2F0IiwidG9rZW4iOlt7Im1pbnQiOiJodHRwczpcL1wvODMzMy5zcGFjZTozMzM4IiwicHJvb2ZzIjpbeyJDIjoiMDM0MDUyNTg3Yjc0NzkxZWQyOTk2NDU5MGM3ZDBmM2ExZmRkOTAyOTI4MDBiNGI0MDJkMjY3NzRjZTljMjYzYjEwIiwiaWQiOiJJMnlOK2lSWWZrelQiLCJhbW91bnQiOjQsInNlY3JldCI6IjNjMTc3OThlMmRmMmQ0Y2E1MmQwODNjZWRiMDhmNjYwZGViYWU2NDk0Y2Y1ZWVkNDZhNzU1NWFkNWFiNDUyNGYifSx7ImlkIjoiSTJ5TitpUllma3pUIiwiQyI6IjAzZjBlNjQ3YWI0NzdhOTY4YzMwMTAxY2ZjMWJhY2VmNzQ5YmNmNjliY2MyN2Y5NGQzZTYzNzE3OWE3ZmY4NWE1YSIsInNlY3JldCI6IjYxY2NmN2M2Mjg0YzA1ODMxNzdlN2I5ZDAwN2ExY2U5Yzg1NDJlMWY4N2YxMGVhZmUzMGE5ZmM5ZWZiNzUwZWQiLCJhbW91bnQiOjJ9LHsiYW1vdW50Ijo0LCJDIjoiMDNmMzYwNDhjMmFjOWUzNjgyZWE2MDEwMGViNTVkN2I3Yzk5OWZhMjMzNjI5YjcyYWNiOGI3YjExNzk4OGFiZTMyIiwic2VjcmV0IjoiMTc1MmJjYTU3ZmJjMGI3MmVjN2U1MWI0ODMwNGYxZDU4NjI2NmY3OTNmNjIzY2YzYWUwNDNiZGY5NDljM2JmNCIsImlkIjoiSTJ5TitpUllma3pUIn1dfV0sIm1lbW8iOiJBbWVyaWNhbiBDcmFzaGl0byJ9"
+        let token = try v3.deserializeToken()
+        XCTAssertThrowsError(try token.serialize(to: .V4)) { error in
+            if let specificError = error as? CashuError {
+                XCTAssertEqual(specificError, .tokenEncoding(""))
+            } else {
+                XCTFail("error type mismatch")
+            }
+        }
     }
     
     func testCreateRandomPubkey() {

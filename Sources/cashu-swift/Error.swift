@@ -17,7 +17,7 @@ public enum CashuError: Swift.Error {
     case alreadySpent // 11001
     case transactionUnbalanced // 11002
     case invalidToken
-    case tokenEncoding
+    case tokenEncoding(String)
     case tokenDecoding(String)
     case unsupportedToken(String)
     case inputError(String)

@@ -93,7 +93,7 @@ extension String {
 
     func encodeBase64UrlSafe(removePadding: Bool = false) throws -> String {
         guard let base64Encoded = self.data(using: .ascii)?.base64EncodedString() else {
-            throw CashuError.tokenEncoding
+            throw CashuError.tokenEncoding(".encodeBase64UrlSafe failed for string: \(self)")
         }
         
         var urlSafeBase64 = base64Encoded.urlSafe
