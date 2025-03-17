@@ -22,6 +22,7 @@ public enum CashuSwift {
         return T(url: url, keysets: keysetsWithKeys)
     }
     
+    @available(*, deprecated)
     public static func loadInfoFromMint(_ mint:MintRepresenting) async throws -> MintInfo? {
         let mintInfoData = try await Network.get(url: mint.url.appending(path: "v1/info"))!
         
@@ -35,6 +36,11 @@ public enum CashuSwift {
             logger.warning("Could not parse mint info of \(mint.url.absoluteString) to any known version.")
             return nil
         }
+    }
+    
+    public static func loadInfo(of mint: MintRepresenting) async throws -> Mint.Info {
+        return try await Network.get(url: mint.url.appending(path: "v1/info"),
+                                     expected: Mint.Info.self)
     }
     
     public static func update(_ mint: inout MintRepresenting) async throws {

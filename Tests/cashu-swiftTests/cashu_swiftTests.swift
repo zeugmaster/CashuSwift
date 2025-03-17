@@ -446,12 +446,17 @@ final class cashu_swiftTests: XCTestCase {
     }
     
     func testInfoLoad() async throws {
-//        let url = URL(string: "http://localhost:3339")!
-//        let mint = try await CashuSwift.loadMint(url: url)
-//        
-//        let info = try await CashuSwift.loadInfoFromMint(mint) as! CashuSwift.MintInfo0_16
-//        
-//        print(info)
+        let urls = [
+//            "https://mint.macadamia.cash",
+            "https://testmint.macadamia.cash",
+//            "https://mint.coinos.io"
+        ]
+        
+        for string in urls {
+            let url = URL(string: string)!
+            let mint = try await CashuSwift.loadMint(url: url)
+            let info = try await CashuSwift.loadInfo(of: mint)
+        }
     }
     
     func testErrorHandling() async throws {

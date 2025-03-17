@@ -116,7 +116,7 @@ struct Network {
         case let s where s.contains("20007"):
             return CashuError.quoteIsExpired
         default:
-            return CashuError.unknownError(string)
+            return CashuError.unknownError("Response did not contain a standard error message. Response: \(string)")
         }
     }
 }
