@@ -205,7 +205,7 @@ final class cashu_swiftTests: XCTestCase {
     }
     
     func testMintingWithDetSec() async throws {
-//        let mintURL = URL(string: "http://localhost:3339")!
+//        let mintURL = URL(string: "https://testmint.macadamia.cash")!
 //        
 //        let mint = try await CashuSwift.loadMint(url: mintURL)
 //        
@@ -226,7 +226,7 @@ final class cashu_swiftTests: XCTestCase {
     }
     
     func testSendReceive() async throws {
-        let url = URL(string: "http://localhost:3339")!
+        let url = URL(string: "https://testmint.macadamia.cash")!
         let mint = try await CashuSwift.loadMint(url: url)
         let qr = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 32)
         let q = try await CashuSwift.getQuote(mint: mint, quoteRequest: qr)
@@ -244,7 +244,7 @@ final class cashu_swiftTests: XCTestCase {
     }
     
     func testMelt() async throws {
-        let url = URL(string: "http://localhost:3339")!
+        let url = URL(string: "https://testmint.macadamia.cash")!
         let mint = try await CashuSwift.loadMint(url: url, type: CashuSwift.Mint.self)
         let qr = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 128)
         let q = try await CashuSwift.getQuote(mint: mint, quoteRequest: qr)
@@ -317,7 +317,7 @@ final class cashu_swiftTests: XCTestCase {
     }
     
     func testDeliberateOverpay() async throws {
-        let url = URL(string: "http://localhost:3339")!
+        let url = URL(string: "https://testmint.macadamia.cash")!
         let mint = try await CashuSwift.loadMint(url: url)
         let qr = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 128)
         let q = try await CashuSwift.getQuote(mint:mint, quoteRequest: qr)
@@ -335,7 +335,7 @@ final class cashu_swiftTests: XCTestCase {
     }
     
     func testTokenStateCheck() async throws {
-        let mint = try await CashuSwift.loadMint(url: URL(string: "http://localhost:3339")!)
+        let mint = try await CashuSwift.loadMint(url: URL(string: "https://testmint.macadamia.cash")!)
         let quoteRequest = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 9)
         let quote = try await CashuSwift.getQuote(mint: mint, quoteRequest: quoteRequest)
         
@@ -386,7 +386,7 @@ final class cashu_swiftTests: XCTestCase {
     }
     
     func testFeeCalculation() async throws {
-        let mint = try await CashuSwift.loadMint(url: URL(string: "http://localhost:3339")!)
+        let mint = try await CashuSwift.loadMint(url: URL(string: "https://testmint.macadamia.cash")!)
         let quoteRequest = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 511)
         let quote = try await CashuSwift.getQuote(mint: mint, quoteRequest: quoteRequest)
         let proofs = try await CashuSwift.issue(for: quote, on:mint)
@@ -413,7 +413,7 @@ final class cashu_swiftTests: XCTestCase {
     
     func testProofSelection() async throws {
         
-        let mint = try await CashuSwift.loadMint(url: URL(string: "http://localhost:3339")!)
+        let mint = try await CashuSwift.loadMint(url: URL(string: "https://testmint.macadamia.cash")!)
         
         let keysetID = CashuSwift.activeKeysetForUnit("sat", mint: mint)!.keysetID
 
