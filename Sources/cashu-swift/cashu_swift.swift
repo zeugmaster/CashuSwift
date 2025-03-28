@@ -130,15 +130,16 @@ public enum CashuSwift {
     
     // MARK: - GET QUOTE
     
-    /// Gets a quote for minting or melting tokens from the mint
+    /// Gets a quote for minting or melting tokens from the mint.
+    ///
     /// - Parameters:
-    ///   - mint: The mint to request the quote from
+    ///   - mint: The mint to request the quote from.
     ///   - quoteRequest: The quote request details, must be either:
-    ///     - Bolt11.RequestMintQuote: For minting new tokens
-    ///     - Bolt11.RequestMeltQuote: For melting tokens to Lightning payment
-    /// - Returns: A Quote object containing the quote details and payment information
-    /// - Throws: CashuError.unitIsNotSupported if the requested unit isn't available
-    ///          CashuError.typeMismatch if an unsupported quote type is used
+    ///     - ``Bolt11/RequestMintQuote``: For minting new tokens.
+    ///     - ``Bolt11/RequestMeltQuote``: For melting tokens to Lightning payment.
+    /// - Returns: A ``Quote`` object containing the quote details and payment information.
+    /// - Throws: ``CashuError/unitIsNotSupported(_:)`` if the requested unit isn't available.
+    ///           ``CashuError/typeMismatch(_:)`` if an unsupported quote type is used.
     public static func getQuote(mint:MintRepresenting, quoteRequest:QuoteRequest) async throws -> Quote {
         var url = mint.url
         

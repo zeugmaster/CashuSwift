@@ -7,6 +7,7 @@
 
 import Foundation
 
+/// Errors relating to protocol or library failures
 public enum CashuError: Swift.Error {
     
     case networkError
@@ -27,6 +28,7 @@ public enum CashuError: Swift.Error {
     case amountOutsideOfLimitRange // 11006
     case proofsAlreadyIssuedForQuote // 20002
     case mintingDisabled // 20003
+    /// Type mismatch error
     case typeMismatch(String)
     case preferredDistributionMismatch(String)
     case noActiveKeysetForUnit(String)
