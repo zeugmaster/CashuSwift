@@ -8,6 +8,12 @@ public enum CashuSwift {
     
     // MARK: - MINT INITIALIZATION
     
+    /// Loads a mint from a given URL and retrieves its keysets
+    /// - Parameters:
+    ///   - url: The URL of the mint to load
+    ///   - type: The type conforming to MintRepresenting protocol (defaults to Mint.self)
+    /// - Returns: An initialized mint of type T
+    /// - Throws: Network or decoding errors
     public static func loadMint<T: MintRepresenting>(url:URL, type:T.Type = Mint.self) async throws -> T {
         let keysetList = try await Network.get(url: url.appending(path: "/v1/keysets"),
                                                expected: KeysetList.self)
@@ -22,6 +28,11 @@ public enum CashuSwift {
         return T(url: url, keysets: keysetsWithKeys)
     }
     
+    /// Loads mint information in a backward compatible way (deprecated)
+    /// - Parameter mint: The mint to load information from
+    /// - Returns: Optional MintInfo object
+    /// - Throws: Network or decoding errors
+    @available(*, deprecated)
     public static func loadInfoFromMint(_ mint:MintRepresenting) async throws -> MintInfo? {
         let mintInfoData = try await Network.get(url: mint.url.appending(path: "v1/info"))!
         
@@ -37,6 +48,18 @@ public enum CashuSwift {
         }
     }
     
+    /// Loads current mint information
+    /// - Parameter mint: The mint to load information from
+    /// - Returns: Mint.Info object containing current mint information
+    /// - Throws: Network or decoding errors
+    public static func loadInfo(of mint: MintRepresenting) async throws -> Mint.Info {
+        return try await Network.get(url: mint.url.appending(path: "v1/info"),
+                                     expected: Mint.Info.self)
+    }
+    
+    /// Updates the local representation of a mint's keysets
+    /// - Parameter mint: The mint to update
+    /// - Throws: Network or decoding errors
     public static func update(_ mint: inout MintRepresenting) async throws {
         let mintURL = mint.url  // Create a local copy of the URL
         let remoteKeysetList = try await Network.get(url: mintURL.appending(path: "/v1/keysets"),
@@ -67,6 +90,10 @@ public enum CashuSwift {
         }
     }
     
+    /// Gets updated keysets for a mint without modifying the mint
+    /// - Parameter mint: The mint to get updated keysets for
+    /// - Returns: Array of updated Keyset objects
+    /// - Throws: Network or decoding errors
     public static func updatedKeysetsForMint(_ mint:MintRepresenting) async throws -> [Keyset] {
         let mintURL = mint.url
         let remoteKeysetList = try await Network.get(url: mintURL.appending(path: "/v1/keysets"),
@@ -102,7 +129,17 @@ public enum CashuSwift {
     }
     
     // MARK: - GET QUOTE
-    /// Get a quote for minting or melting tokens from the mint
+    
+    /// Gets a quote for minting or melting tokens from the mint.
+    ///
+    /// - Parameters:
+    ///   - mint: The mint to request the quote from.
+    ///   - quoteRequest: The quote request details, must be either:
+    ///     - ``Bolt11/RequestMintQuote``: For minting new tokens.
+    ///     - ``Bolt11/RequestMeltQuote``: For melting tokens to Lightning payment.
+    /// - Returns: A ``Quote`` object containing the quote details and payment information.
+    /// - Throws: ``CashuError/unitIsNotSupported(_:)`` if the requested unit isn't available.
+    ///           ``CashuError/typeMismatch(_:)`` if an unsupported quote type is used.
     public static func getQuote(mint:MintRepresenting, quoteRequest:QuoteRequest) async throws -> Quote {
         var url = mint.url
         
@@ -132,12 +169,24 @@ public enum CashuSwift {
     
     // MARK: - ISSUE
     
-    /// After paying the quote amount to the mint, use this function to issue the actual ecash as a list of [`String`]s
-    /// Leaving `seed` empty will give you proofs from non-deterministic outputs which cannot be recreated from a seed phrase backup
+    /// Issues ecash tokens after paying a quote amount to the mint
+    /// - Parameters:
+    ///   - quote: The quote to issue tokens for (must be a Bolt11.MintQuote)
+    ///   - mint: The mint to issue tokens from
+    ///   - seed: Optional seed for deterministic outputs. When provided, the proofs can be
+    ///          restored from this seed if lost. Leave empty for non-deterministic outputs
+    ///   - preferredDistribution: Optional specific distribution of token amounts. Must sum
+    ///                           to the same amount as the quote. If not provided, amounts
+    ///                           will be split into powers of 2
+    /// - Returns: Array of ProofRepresenting objects representing the issued tokens
+    /// - Throws: CashuError.typeMismatch if quote is not a Bolt11.MintQuote
+    ///          CashuError.missingRequestDetail if quote lacks request details
+    ///          CashuError.preferredDistributionMismatch if distribution doesn't match amount
+    ///          CashuError.noActiveKeysetForUnit if no active keyset exists for the unit
     public static func issue(for quote:Quote,
-                             on mint: MintRepresenting,
-                             seed:String? = nil,
-                             preferredDistribution:[Int]? = nil) async throws -> [some ProofRepresenting] {
+                           on mint: MintRepresenting,
+                           seed:String? = nil,
+                           preferredDistribution:[Int]? = nil) async throws -> [some ProofRepresenting] {
         
         guard let quote = quote as? Bolt11.MintQuote else {
             throw CashuError.typeMismatch("Quote to issue proofs for was not a Bolt11.MintQuote")
@@ -198,12 +247,25 @@ public enum CashuSwift {
     
     // MARK: - SEND
     
+    /// Creates a token from proofs that can be sent to another user
+    /// - Parameters:
+    ///   - mint: The mint the proofs belong to
+    ///   - proofs: Array of proofs to send
+    ///   - amount: Optional specific amount to send. If nil, sends the sum of all proofs.
+    ///            Must not be larger than the sum of input proofs
+    ///   - seed: Optional seed for deterministic outputs. When provided, enables backup recovery
+    ///   - memo: Optional memo to attach to the token for the recipient
+    /// - Returns: Tuple containing:
+    ///           - token: The Token object that can be sent to another user
+    ///           - change: Array of change proofs if input amount was larger than requested
+    /// - Throws: CashuError.insufficientInputs if amount is larger than proof sum
+    ///          CashuError.unitError if proofs are from multiple units
     public static func send(mint:MintRepresenting,
-                            proofs:[ProofRepresenting],
-                            amount:Int? = nil,
-                            seed:String? = nil,
-                            memo:String? = nil) async throws -> (token:Token,
-                                                        change:[ProofRepresenting]) {
+                          proofs:[ProofRepresenting],
+                          amount:Int? = nil,
+                          seed:String? = nil,
+                          memo:String? = nil) async throws -> (token:Token,
+                                                             change:[ProofRepresenting]) {
         
         let proofSum = sum(proofs)
         let amount = amount ?? proofSum
@@ -263,14 +325,26 @@ public enum CashuSwift {
     }
     
     // MARK: - MELT
-    ///Allows a wallet to create and persist NUT-08 blank outputs for an overpaid amount `sum(proofs) - quote.amount - inputFee`
+    
+    /// Generates blank outputs for overpaid amounts in NUT-08 transactions
+    /// - Parameters:
+    ///   - quote: The melt quote containing payment and fee information
+    ///   - proofs: Array of proofs being used for the melt
+    ///   - mint: The mint processing the melt
+    ///   - unit: The currency unit being used (e.g., "sat" for satoshis)
+    ///   - seed: Optional seed for deterministic outputs. When provided, enables backup recovery
+    /// - Returns: Tuple containing:
+    ///           - outputs: Array of blank outputs for fee returns
+    ///           - blindingFactors: Array of blinding factors for each output
+    ///           - secrets: Array of secrets for each output
+    /// - Throws: CashuError.noActiveKeysetForUnit if no active keyset exists for the unit
     public static func generateBlankOutputs(quote: CashuSwift.Bolt11.MeltQuote,
-                                            proofs: [some ProofRepresenting],
-                                            mint: MintRepresenting,
-                                            unit: String,
-                                            seed: String? = nil) throws -> ((outputs: [Output],
-                                                                             blindingFactors: [String],
-                                                                             secrets: [String])) {
+                                          proofs: [some ProofRepresenting],
+                                          mint: MintRepresenting,
+                                          unit: String,
+                                          seed: String? = nil) throws -> ((outputs: [Output],
+                                                                         blindingFactors: [String],
+                                                                         secrets: [String])) {
         
         guard let activeKeyset = activeKeysetForUnit(unit, mint: mint) else {
             throw CashuError.noActiveKeysetForUnit(unit)
@@ -294,14 +368,28 @@ public enum CashuSwift {
                                           deterministicFactors: deterministicFactors)
     }
     
+    /// Melts (redeems) proofs for a Lightning payment
+    /// - Parameters:
+    ///   - mint: The mint to perform the melt operation
+    ///   - quote: The melt quote to process (must be Bolt11.MeltQuote)
+    ///   - proofs: Array of proofs to melt
+    ///   - timeout: Maximum time in seconds to wait for payment completion (default 600)
+    ///   - blankOutputs: Optional tuple containing outputs for fee returns. Required if expecting
+    ///                   change from overpaid Lightning network fees
+    /// - Returns: Tuple containing:
+    ///           - paid: Boolean indicating if payment was successful
+    ///           - change: Optional array of change proofs from overpaid fees
+    /// - Throws: CashuError.typeMismatch if quote is not a Bolt11.MeltQuote
+    ///          CashuError.insufficientInputs if proofs don't cover amount and fees
+    ///          CashuError.unitError if proofs are from multiple units
     public static func melt(mint:MintRepresenting,
-                            quote:Quote,
-                            proofs:[ProofRepresenting],
-                            timeout:Double = 600,
-                            blankOutputs: (outputs: [Output],
-                                           blindingFactors: [String],
-                                           secrets: [String])? = nil) async throws -> (paid:Bool,
-                                                                                       change:[ProofRepresenting]?) {
+                          quote:Quote,
+                          proofs:[ProofRepresenting],
+                          timeout:Double = 600,
+                          blankOutputs: (outputs: [Output],
+                                       blindingFactors: [String],
+                                       secrets: [String])? = nil) async throws -> (paid:Bool,
+                                                                                 change:[ProofRepresenting]?) {
         
         guard let quote = quote as? Bolt11.MeltQuote else {
             throw CashuError.typeMismatch("you need to pass a Bolt11 melt quote to this function, nothing else is supported yet.")
@@ -375,15 +463,23 @@ public enum CashuSwift {
         }
     }
     
-    ///Checks whether the invoice was successfully paid by the mint.
-    ///If the check returns `true` and the user has provided NUT-07 blank outputs for fee return
-    ///it will also unblind the mint's promises and return valid change proofs.
+    /// Checks the payment status of a melt operation and processes any fee returns
+    /// - Parameters:
+    ///   - mint: The mint to check the payment status
+    ///   - quoteID: The ID of the quote to check
+    ///   - blankOutputs: Optional tuple containing outputs for fee returns. Required if expecting
+    ///                   change from overpaid Lightning network fees
+    /// - Returns: Tuple containing:
+    ///           - paid: Boolean indicating if payment was successful
+    ///           - change: Optional array of change proofs from overpaid fees
+    /// - Throws: CashuError.unknownError if payment state cannot be determined
+    ///          CashuError for keyset identification or unblinding failures
     public static func meltState(mint: MintRepresenting,
-                                 quoteID: String,
-                                 blankOutputs: (outputs: [Output],
-                                                blindingFactors: [String],
-                                                secrets: [String])? = nil) async throws -> (paid: Bool,
-                                                                                            change: [ProofRepresenting]?) {
+                               quoteID: String,
+                               blankOutputs: (outputs: [Output],
+                                            blindingFactors: [String],
+                                            secrets: [String])? = nil) async throws -> (paid: Bool,
+                                                                                      change: [ProofRepresenting]?) {
         let url = mint.url.appending(path: "/v1/melt/quote/bolt11/\(quoteID)")
         let quote = try await Network.get(url: url, expected: CashuSwift.Bolt11.MeltQuote.self)
         
@@ -430,12 +526,30 @@ public enum CashuSwift {
     }
     
     // MARK: - SWAP
+    
+    /// Swaps proofs for new ones from the mint, optionally with a specific amount
+    /// - Parameters:
+    ///   - mint: The mint to perform the swap
+    ///   - proofs: Array of proofs to swap
+    ///   - amount: Optional specific amount to swap for. If nil, swaps for the total amount
+    ///            minus fees. Must not be larger than the sum of input proofs
+    ///   - seed: Optional seed for deterministic outputs. When provided, enables backup recovery
+    ///          of the new proofs if they are lost
+    ///   - preferredReturnDistribution: Optional specific distribution for return amounts. Must sum
+    ///                                 to the same amount as the change amount. If not provided,
+    ///                                 amounts will be split into powers of 2
+    /// - Returns: Tuple containing:
+    ///           - new: Array of new proofs from the swap
+    ///           - change: Array of change proofs if input amount was larger than requested
+    /// - Throws: CashuError.insufficientInputs if amount plus fees exceeds proof sum
+    ///          CashuError.unitError if proofs are from multiple units
+    ///          CashuError.preferredDistributionMismatch if distribution doesn't match change amount
     public static func swap(mint:MintRepresenting,
-                            proofs:[ProofRepresenting],
-                            amount:Int? = nil,
-                            seed:String? = nil,
-                            preferredReturnDistribution:[Int]? = nil) async throws -> (new:[ProofRepresenting],
-                                                                         change:[ProofRepresenting]) {
+                          proofs:[ProofRepresenting],
+                          amount:Int? = nil,
+                          seed:String? = nil,
+                          preferredReturnDistribution:[Int]? = nil) async throws -> (new:[ProofRepresenting],
+                                                                                   change:[ProofRepresenting]) {
         let fee = try calculateFee(for: proofs, of: mint)
         let proofSum = sum(proofs)
         
@@ -523,11 +637,17 @@ public enum CashuSwift {
     }
     
     // MARK: - RESTORE
-    // TODO: should increase batch size, default 10 is way to small
     
+    /// Restores proofs from a seed phrase
+    /// - Parameters:
+    ///   - mint: The mint to restore proofs from
+    ///   - seed: The seed phrase to use for restoration
+    ///   - batchSize: Number of proofs to attempt to restore at once (default 10)
+    /// - Returns: Array of KeysetRestoreResult containing restored proofs
+    /// - Throws: CashuError for restoration failures
     public static func restore(mint:MintRepresenting,
-                               with seed:String,
-                               batchSize:Int = 10) async throws -> [KeysetRestoreResult] {
+                             with seed:String,
+                             batchSize:Int = 10) async throws -> [KeysetRestoreResult] {
         // no need to check validity of seed as function would otherwise crash during first det sec generation
         var results = [KeysetRestoreResult]()
         for keyset in mint.keysets {
@@ -563,12 +683,20 @@ public enum CashuSwift {
         return results
     }
     
+    /// Restores proofs for a specific keyset
+    /// - Parameters:
+    ///   - mint: The mint to restore from
+    ///   - keyset: The specific keyset to restore
+    ///   - seed: The seed phrase to use
+    ///   - batchSize: Number of proofs to attempt at once
+    /// - Returns: Tuple containing restored proofs, total restored count, and last match counter
+    /// - Throws: CashuError for restoration failures
     static func restoreForKeyset(mint:MintRepresenting,
-                                 keyset:Keyset,
-                                 with seed:String,
-                                 batchSize:Int) async throws -> (proofs:[ProofRepresenting],
-                                                                 totalRestored:Int,
-                                                                 lastMatchCounter:Int) {
+                               keyset:Keyset,
+                               with seed:String,
+                               batchSize:Int) async throws -> (proofs:[ProofRepresenting],
+                                                             totalRestored:Int,
+                                                             lastMatchCounter:Int) {
         var proofs = [Proof]()
         var emtpyResponses = 0
         var currentCounter = 0
@@ -623,6 +751,12 @@ public enum CashuSwift {
         return (proofs, proofs.count, currentCounter)
     }
     
+    /// Checks the state of proofs with the mint
+    /// - Parameters:
+    ///   - proofs: Array of proofs to check
+    ///   - mint: The mint to check against
+    /// - Returns: Array of proof states
+    /// - Throws: Network or encoding errors
     public static func check(_ proofs:[ProofRepresenting], mint:MintRepresenting) async throws -> [Proof.ProofState] {
         let ys = try proofs.map { proof in
             try Crypto.secureHashToCurve(message: proof.secret).stringRepresentation
@@ -637,6 +771,12 @@ public enum CashuSwift {
         }
     }
     
+    /// Checks the state of proofs with a specific mint URL
+    /// - Parameters:
+    ///   - proofs: Array of proofs to check
+    ///   - url: The URL of the mint to check against
+    /// - Returns: Array of proof states
+    /// - Throws: Network or encoding errors
     public static func check(_ proofs:[ProofRepresenting], url:URL) async throws -> [Proof.ProofState] {
         let ys = try proofs.map { proof in
             try Crypto.secureHashToCurve(message: proof.secret).stringRepresentation
@@ -653,20 +793,33 @@ public enum CashuSwift {
 
     // MARK: - MISC
     
+    /// Normalizes an array of ProofRepresenting to internal Proof type
+    /// - Parameter proofs: Array of proofs to normalize
+    /// - Returns: Array of normalized Proof objects
     static func normalize(_ proofs:[ProofRepresenting]) -> [Proof] {
         proofs.map({ CashuSwift.Proof($0) })
     }
     
+    /// Calculates the sum of amounts in an array of proofs
+    /// - Parameter proofRepresenting: Array of proofs to sum
+    /// - Returns: Total amount of all proofs
     static func sum(_ proofRepresenting:[ProofRepresenting]) -> Int {
         proofRepresenting.reduce(0) { $0 + $1.amount }
     }
     
+    /// Picks proofs that sum to a target amount, considering fees
+    /// - Parameters:
+    ///   - proofs: Available proofs to pick from
+    ///   - amount: Target amount to reach
+    ///   - mint: The mint for fee calculation
+    ///   - ignoreFees: Whether to ignore fee calculation
+    /// - Returns: Optional tuple containing selected proofs, change proofs, and fee amount
     public static func pick(_ proofs: [ProofRepresenting],
-                            amount: Int,
-                            mint: MintRepresenting,
-                            ignoreFees: Bool = false) -> (selected: [ProofRepresenting],
-                                                          change: [ProofRepresenting],
-                                                          fee: Int)? {
+                          amount: Int,
+                          mint: MintRepresenting,
+                          ignoreFees: Bool = false) -> (selected: [ProofRepresenting],
+                                                      change: [ProofRepresenting],
+                                                      fee: Int)? {
         // Checks ...
 
         // Sort proofs in descending order
@@ -695,6 +848,11 @@ public enum CashuSwift {
     }
 
     
+    /// Selects proofs that sum exactly to a target amount
+    /// - Parameters:
+    ///   - proofs: Available proofs to select from
+    ///   - targetAmount: Exact amount to reach
+    /// - Returns: Optional tuple containing selected proofs and remaining proofs
     static func selectProofsToSumTarget(proofs: [ProofRepresenting], targetAmount: Int) -> ([ProofRepresenting], [ProofRepresenting])? {
         guard targetAmount > 0 else {
             return nil
@@ -726,6 +884,12 @@ public enum CashuSwift {
         return nil
     }
     
+    /// Calculates the total fee for a set of proofs
+    /// - Parameters:
+    ///   - proofs: Proofs to calculate fees for
+    ///   - mint: The mint to use for fee rates
+    /// - Returns: Total fee amount
+    /// - Throws: CashuError if fee calculation fails
     public static func calculateFee(for proofs: [ProofRepresenting], of mint:MintRepresenting) throws -> Int {
         var sumFees = 0
         for proof in proofs {
@@ -738,6 +902,11 @@ public enum CashuSwift {
         return (sumFees + 999) / 1000
     }
     
+    /// Gets the active keyset for a specific unit
+    /// - Parameters:
+    ///   - unit: The unit to find keyset for
+    ///   - mint: The mint to search in
+    /// - Returns: Optional Keyset that is active for the unit
     public static func activeKeysetForUnit(_ unit:String, mint:MintRepresenting) -> Keyset? {
         mint.keysets.first(where: {
             $0.active == true &&
@@ -745,7 +914,12 @@ public enum CashuSwift {
         })
     }
     
-    /// Returns a set of units represented in the proofs
+    /// Gets the set of units represented in the proofs
+    /// - Parameters:
+    ///   - proofs: Proofs to check units for
+    ///   - mint: The mint to validate against
+    /// - Returns: Set of unit strings
+    /// - Throws: CashuError if units cannot be determined or are invalid
     static func units(for proofs:[ProofRepresenting], of mint:MintRepresenting) throws -> Set<String> {
         guard !mint.keysets.isEmpty, !proofs.isEmpty else {
             throw CashuError.unitError("empty inputs to function .check() proofs: \(proofs.count), keysete\(mint.keysets.count)")
@@ -765,10 +939,14 @@ public enum CashuSwift {
 }
 
 extension Array where Element : MintRepresenting {
-    
-    // docs: deprecated and only for redeeming legace V3 multi mint token
+    /// Receives a token across multiple mints (deprecated)
+    /// - Parameters:
+    ///   - token: The token to receive
+    ///   - seed: Optional seed for deterministic outputs
+    /// - Returns: Dictionary mapping mint URLs to received proofs
+    /// - Throws: CashuError for invalid tokens or partially spent tokens
     public func receive(token:CashuSwift.Token,
-                        seed:String? = nil) async throws -> Dictionary<String, [ProofRepresenting]> {
+                       seed:String? = nil) async throws -> Dictionary<String, [ProofRepresenting]> {
         
         guard token.proofsByMint.count == self.count else {
             logger.error("Number of mints in array does not match number of mints in token.")
@@ -808,14 +986,23 @@ extension Array where Element : MintRepresenting {
 
 extension Array where Element : ProofRepresenting {
     
+    /// Calculates the sum of all proof amounts in the array
+    /// - Returns: Total amount of all proofs combined
     public var sum: Int {
         self.reduce(0) { $0 + $1.amount }
     }
     
+    /// Picks proofs that sum to a specific amount
+    /// - Parameter amount: Target amount to reach
+    /// - Returns: Optional tuple containing picked proofs and change proofs
+    /// - Note: Returns nil if no combination of proofs sums to the target amount
     public func pick(_ amount:Int) -> (picked:[ProofRepresenting], change:[ProofRepresenting])? {
         CashuSwift.selectProofsToSumTarget(proofs: self, targetAmount: amount)
     }
     
+    /// Converts proofs to internal Proof type for processing
+    /// - Returns: Array of internal Proof objects
+    /// - Note: Used for internal type consistency when processing proofs
     func internalize() -> [CashuSwift.Proof] {
         map({ CashuSwift.Proof($0) })
     }
