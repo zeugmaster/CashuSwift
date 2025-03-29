@@ -323,7 +323,7 @@ public enum CashuSwift {
             throw CashuError.unitError("Could not determine singular unit for input proofs.")
         }
         
-        guard var keyset = activeKeysetForUnit(units.first!, mint: mint) else {
+        guard let keyset = activeKeysetForUnit(units.first!, mint: mint) else {
             throw CashuError.noActiveKeysetForUnit("No active keyset for unit \(units)")
         }
         
@@ -334,7 +334,6 @@ public enum CashuSwift {
         }
         
         let meltResponse:Bolt11.MeltQuote
-        
         
         meltResponse = try await Network.post(url: mint.url.appending(path: "/v1/melt/bolt11"),
                                               body: meltRequest,
@@ -347,10 +346,15 @@ public enum CashuSwift {
                 throw Crypto.Error.unblinding("could not unblind blank outputs for fee return")
             }
             
-            change = try Crypto.unblindPromises(promises,
-                                                blindingFactors: blankOutputs.blindingFactors,
-                                                secrets: blankOutputs.secrets,
-                                                keyset: keyset)
+            do {
+                change = try Crypto.unblindPromises(promises,
+                                                    blindingFactors: Array(blankOutputs.blindingFactors.prefix(promises.count)),
+                                                    secrets: Array(blankOutputs.secrets.prefix(promises.count)),
+                                                    keyset: keyset)
+            } catch {
+                logger.error("Unable to unblind change form melt operation due to error: \(error). operation will still return successful.")
+                change = nil
+            }
         } else {
             change = nil
         }
@@ -405,11 +409,17 @@ public enum CashuSwift {
                 throw CashuError.unknownError("Could not find keyset for ID \(id)")
             }
             
-            let change = try Crypto.unblindPromises(promises,
-                                                    blindingFactors: blankOutputs.blindingFactors,
-                                                    secrets: blankOutputs.secrets,
-                                                    keyset: keyset)
-            return (true, change)
+            do {
+                let change = try Crypto.unblindPromises(promises,
+                                                        blindingFactors: Array(blankOutputs.blindingFactors.prefix(promises.count)),
+                                                        secrets: Array(blankOutputs.secrets.prefix(promises.count)),
+                                                        keyset: keyset)
+                return (true, change)
+            } catch {
+                logger.error("Unable to unblind change form melt operation due to error: \(error). operation will still return successful.")
+                return (true, [])
+            }
+            
         case .pending:
             return (false, nil)
         case .unpaid:

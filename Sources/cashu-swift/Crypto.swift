@@ -15,7 +15,18 @@ fileprivate let logger = Logger(subsystem: "cashu-swift", category: "cryptograph
 extension CashuSwift {
     enum Crypto {
         
-        enum Error: Swift.Error {
+        enum Error: Swift.Error, CustomStringConvertible {
+            var description: String {
+                switch self {
+                case .secretDerivation(let message):
+                    return "Secret Derivation Error: \(message ?? "Unknown error")"
+                case .unblinding(let message):
+                    return "Unblinding Error: \(message ?? "Unknown error")"
+                case .hashToCurve(let message):
+                    return "Hash to Curve Error: \(message ?? "Unknown error")"
+                }
+            }
+            
             case secretDerivation(String?)
             case unblinding(String?)
             case hashToCurve(String?)
