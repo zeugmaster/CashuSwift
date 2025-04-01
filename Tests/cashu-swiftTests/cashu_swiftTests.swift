@@ -4,6 +4,7 @@ import SwiftData
 import secp256k1
 import BIP39
 import SwiftCBOR
+import CryptoKit
 
 final class cashu_swiftTests: XCTestCase {
     
@@ -604,5 +605,31 @@ final class cashu_swiftTests: XCTestCase {
         let result = try await CashuSwift.melt(mint: mint, quote: meltQuote, proofs: proofs)
         
         print(meltQuote.quote)
+    }
+    
+    func testBasicSchnorrSigningWithArbitraryMessage() throws {
+        // Create a private key
+        let privateKey = try secp256k1.Schnorr.PrivateKey()
+        
+        // Create an arbitrary message and hash it to 32 bytes
+        let message = "Hello, this is an arbitrary message for testing!".data(using: .utf8)!
+        var messageDigest = SHA256.hash(data: message).bytes
+        
+        var auxRand = [UInt8](repeating: 0, count: 32)
+        let status = SecRandomCopyBytes(kSecRandomDefault, auxRand.count, &auxRand)
+        XCTAssertEqual(status, errSecSuccess, "Failed to generate random bytes")
+        
+        // Create the signature
+        let signature = try privateKey.signature(message: &messageDigest, auxiliaryRand: &auxRand)
+        
+        // Verify the signature
+        XCTAssertTrue(privateKey.xonly.isValid(signature, for: &messageDigest))
+        
+        // Verify signature length is 64 bytes
+        XCTAssertEqual(signature.dataRepresentation.count, 64)
+        
+        // Print the signature for inspection (optional)
+        print("Message: \(message.base64EncodedString())")
+        print("Signature: \(signature.dataRepresentation.base64EncodedString())")
     }
 }
