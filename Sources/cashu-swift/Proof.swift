@@ -8,7 +8,7 @@
 import Foundation
 
 extension CashuSwift {
-    open class Proof: Codable, Equatable, CustomStringConvertible, Identifiable, ProofRepresenting {        
+    public struct Proof: Codable, Equatable, CustomStringConvertible, Identifiable, ProofRepresenting, Sendable {
         
         public var id:String { get { C } }
         
@@ -48,7 +48,7 @@ extension CashuSwift {
             try container.encode(C, forKey: .C)
         }
         
-        required public init(from decoder: Decoder) throws {
+        public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             keysetID = try container.decode(String.self, forKey: .keysetID)
             amount = try container.decode(Int.self, forKey: .amount)
