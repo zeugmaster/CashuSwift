@@ -40,8 +40,10 @@ let package = Package(
                 .product(name: "BigNumber", package: "Swift-BigInt"),
                 .product(name: "BIP39", package: "BIP39"),
                 .product(name: "SwiftCBOR", package: "SwiftCBOR")
+            ],
+            swiftSettings: [
+              .enableExperimentalFeature("StrictConcurrency")
             ]),
-
         .testTarget(
             name: "cashu-swiftTests",
             dependencies: ["CashuSwift"]),

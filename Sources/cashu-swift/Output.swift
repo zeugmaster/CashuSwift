@@ -22,7 +22,7 @@ extension CashuSwift {
     }
 
     // AKA BlindedSignature
-    public struct Promise: Codable {
+    public struct Promise: Codable, Sendable {
         public let id: String
         public let amount: Int
         public let C_: String

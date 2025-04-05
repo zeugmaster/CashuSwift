@@ -8,18 +8,18 @@
 import Foundation
 
 extension CashuSwift {
-    public protocol QuoteRequest:Codable {
+    public protocol QuoteRequest: Codable, Sendable {
         var unit:String { get }
     }
 
-    public protocol Quote:Codable {
+    public protocol Quote: Codable, Sendable {
         var quote:String { get }
         var paid:Bool? { get }          // paid and state are both optional for compatibility
         var state:QuoteState? { get }   // TODO: use custom decoding to unify
         var expiry:Int { get }
     }
 
-    public enum QuoteState: String,Codable {
+    public enum QuoteState: String, Codable, Sendable {
         case paid = "PAID"
         case unpaid = "UNPAID"
         case pending = "PENDING"
@@ -38,8 +38,8 @@ extension CashuSwift {
         
         public struct RequestMeltQuote: QuoteRequest {
             
-            public struct Options:Codable {
-                public struct MPP:Codable {
+            public struct Options: Codable, Sendable {
+                public struct MPP: Codable, Sendable {
                     public let amount:Int
                     
                     public init(amount: Int) {
@@ -71,7 +71,7 @@ extension CashuSwift {
             public let paid:Bool?
             public let state:QuoteState?
             public let expiry:Int
-            public var requestDetail:RequestMintQuote?
+            public var requestDetail: RequestMintQuote?
         }
 
         public struct MeltQuote: Quote {
