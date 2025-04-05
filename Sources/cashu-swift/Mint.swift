@@ -11,6 +11,11 @@ extension CashuSwift {
             self.keysets = keysets
         }
         
+        public init(_ mintRepresentation: MintRepresenting) {
+            self.url = mintRepresentation.url
+            self.keysets = mintRepresentation.keysets
+        }
+        
         public var url: URL
         public var keysets: [Keyset]
         public static func == (lhs: Mint, rhs: Mint) -> Bool {
