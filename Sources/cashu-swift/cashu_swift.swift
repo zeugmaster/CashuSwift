@@ -825,98 +825,101 @@ extension Array where Element : ProofRepresenting {
 // Add these overloads after the existing functions
 
 // MARK: - Mint Initialization Overloads
-public static func loadMint(url: URL) async throws -> Mint {
-    return try await loadMint(url: url, type: Mint.self)
-}
-
-// MARK: - Issue Overloads
-public static func issue(for quote: Quote,
-                       on mint: Mint,
-                       seed: String? = nil,
-                       preferredDistribution: [Int]? = nil) async throws -> [Proof] {
-    return try await issue(for: quote,
-                         on: mint as MintRepresenting,
-                         seed: seed,
-                         preferredDistribution: preferredDistribution) as! [Proof]
-}
-
-// MARK: - Send Overloads
-public static func send(mint: Mint,
-                       proofs: [Proof],
-                       amount: Int? = nil,
-                       seed: String? = nil,
-                       memo: String? = nil) async throws -> (token: Token, change: [Proof]) {
-    let result = try await send(mint: mint as MintRepresenting,
-                               proofs: proofs as [ProofRepresenting],
-                               amount: amount,
-                               seed: seed,
-                               memo: memo)
-    return (result.token, result.change as! [Proof])
-}
-
-// MARK: - Receive Overloads
-public static func receive(mint: Mint,
-                         token: Token,
-                         seed: String? = nil) async throws -> [Proof] {
-    return try await receive(mint: mint as MintRepresenting,
-                            token: token,
-                            seed: seed) as! [Proof]
-}
-
-// MARK: - Melt Overloads
-public static func melt(mint: Mint,
-                       quote: Quote,
-                       proofs: [Proof],
-                       timeout: Double = 600,
-                       blankOutputs: (outputs: [Output],
-                                    blindingFactors: [String],
-                                    secrets: [String])? = nil) async throws -> (paid: Bool, change: [Proof]?) {
-    let result = try await melt(mint: mint as MintRepresenting,
-                               quote: quote,
-                               proofs: proofs as [ProofRepresenting],
-                               timeout: timeout,
-                               blankOutputs: blankOutputs)
-    return (result.paid, result.change as! [Proof]?)
-}
-
-// MARK: - Swap Overloads
-public static func swap(mint: Mint,
-                       proofs: [Proof],
-                       amount: Int? = nil,
-                       seed: String? = nil,
-                       preferredReturnDistribution: [Int]? = nil) async throws -> (new: [Proof], change: [Proof]) {
-    let result = try await swap(mint: mint as MintRepresenting,
-                               proofs: proofs as [ProofRepresenting],
-                               amount: amount,
-                               seed: seed,
-                               preferredReturnDistribution: preferredReturnDistribution)
-    return (result.new as! [Proof], result.change as! [Proof])
-}
-
-// MARK: - Check Overloads
-public static func check(_ proofs: [Proof], mint: Mint) async throws -> [Proof.ProofState] {
-    return try await check(proofs as [ProofRepresenting], mint: mint as MintRepresenting)
-}
-
-// MARK: - Pick Overloads
-public static func pick(_ proofs: [Proof],
-                       amount: Int,
-                       mint: Mint,
-                       ignoreFees: Bool = false) -> (selected: [Proof],
-                                                   change: [Proof],
-                                                   fee: Int)? {
-    guard let result = pick(proofs as [ProofRepresenting],
-                           amount: amount,
-                           mint: mint as MintRepresenting,
-                           ignoreFees: ignoreFees) else {
-        return nil
+extension CashuSwift {
+    public static func loadMint(url: URL) async throws -> Mint {
+        return try await loadMint(url: url, type: Mint.self)
     }
-    return (result.selected as! [Proof],
-            result.change as! [Proof],
-            result.fee)
-}
 
-// MARK: - Calculate Fee Overloads
-public static func calculateFee(for proofs: [Proof], of mint: Mint) throws -> Int {
-    return try calculateFee(for: proofs as [ProofRepresenting], of: mint as MintRepresenting)
+    // MARK: - Issue Overloads
+    public static func issue(for quote: Quote,
+                           on mint: Mint,
+                           seed: String? = nil,
+                           preferredDistribution: [Int]? = nil) async throws -> [Proof] {
+        return try await issue(for: quote,
+                             on: mint as MintRepresenting,
+                             seed: seed,
+                             preferredDistribution: preferredDistribution) as! [Proof]
+    }
+
+    // MARK: - Send Overloads
+    public static func send(mint: Mint,
+                           proofs: [Proof],
+                           amount: Int? = nil,
+                           seed: String? = nil,
+                           memo: String? = nil) async throws -> (token: Token, change: [Proof]) {
+        let result = try await send(mint: mint as MintRepresenting,
+                                   proofs: proofs as [ProofRepresenting],
+                                   amount: amount,
+                                   seed: seed,
+                                   memo: memo)
+        return (result.token, result.change as! [Proof])
+    }
+
+    // MARK: - Receive Overloads
+    public static func receive(mint: Mint,
+                             token: Token,
+                             seed: String? = nil) async throws -> [Proof] {
+        return try await receive(mint: mint as MintRepresenting,
+                                token: token,
+                                seed: seed) as! [Proof]
+    }
+
+    // MARK: - Melt Overloads
+    public static func melt(mint: Mint,
+                           quote: Quote,
+                           proofs: [Proof],
+                           timeout: Double = 600,
+                           blankOutputs: (outputs: [Output],
+                                        blindingFactors: [String],
+                                        secrets: [String])? = nil) async throws -> (paid: Bool, change: [Proof]?) {
+        let result = try await melt(mint: mint as MintRepresenting,
+                                   quote: quote,
+                                   proofs: proofs as [ProofRepresenting],
+                                   timeout: timeout,
+                                   blankOutputs: blankOutputs)
+        return (result.paid, result.change as! [Proof]?)
+    }
+
+    // MARK: - Swap Overloads
+    public static func swap(mint: Mint,
+                           proofs: [Proof],
+                           amount: Int? = nil,
+                           seed: String? = nil,
+                           preferredReturnDistribution: [Int]? = nil) async throws -> (new: [Proof], change: [Proof]) {
+        let result = try await swap(mint: mint as MintRepresenting,
+                                   proofs: proofs as [ProofRepresenting],
+                                   amount: amount,
+                                   seed: seed,
+                                   preferredReturnDistribution: preferredReturnDistribution)
+        return (result.new as! [Proof], result.change as! [Proof])
+    }
+
+    // MARK: - Check Overloads
+    public static func check(_ proofs: [Proof], mint: Mint) async throws -> [Proof.ProofState] {
+        return try await check(proofs as [ProofRepresenting], mint: mint as MintRepresenting)
+    }
+
+    // MARK: - Pick Overloads
+//    public static func pick(_ proofs: [Proof],
+//                           amount: Int,
+//                           mint: Mint,
+//                           ignoreFees: Bool = false) -> (selected: [Proof],
+//                                                       change: [Proof],
+//                                                       fee: Int)? {
+//        guard let result = pick(proofs as [ProofRepresenting],
+//                               amount: amount,
+//                               mint: mint as MintRepresenting,
+//                               ignoreFees: ignoreFees) else {
+//            return nil
+//        }
+//        return (result.selected as! [Proof],
+//                result.change as! [Proof],
+//                result.fee)
+//    }
+
+    // MARK: - Calculate Fee Overloads
+    public static func calculateFee(for proofs: [Proof], of mint: Mint) throws -> Int {
+        return try calculateFee(for: proofs as [ProofRepresenting], of: mint as MintRepresenting)
+    }
+
 }
