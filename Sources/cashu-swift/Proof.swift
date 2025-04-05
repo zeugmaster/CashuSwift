@@ -56,7 +56,7 @@ extension CashuSwift {
             C = try container.decode(String.self, forKey: .C)
         }
         
-        init(keysetID:String, amount:Int, secret:String, C:String) {
+        public init(keysetID:String, amount:Int, secret:String, C:String) {
             self.keysetID = keysetID
             self.amount = amount
             self.secret = secret
