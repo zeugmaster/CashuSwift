@@ -822,15 +822,13 @@ extension Array where Element : ProofRepresenting {
     }
 }
 
-// Add these overloads after the existing functions
 
-// MARK: - Mint Initialization Overloads
+// function overloads for concrete argument types, making sendability simpler on the library side
 extension CashuSwift {
     public static func loadMint(url: URL) async throws -> Mint {
         return try await loadMint(url: url, type: Mint.self)
     }
 
-    // MARK: - Issue Overloads
     public static func issue(for quote: Quote,
                            on mint: Mint,
                            seed: String? = nil,
@@ -841,7 +839,6 @@ extension CashuSwift {
                              preferredDistribution: preferredDistribution) as! [Proof]
     }
 
-    // MARK: - Send Overloads
     public static func send(mint: Mint,
                            proofs: [Proof],
                            amount: Int? = nil,
@@ -855,7 +852,6 @@ extension CashuSwift {
         return (result.token, result.change as! [Proof])
     }
 
-    // MARK: - Receive Overloads
     public static func receive(mint: Mint,
                              token: Token,
                              seed: String? = nil) async throws -> [Proof] {
@@ -864,7 +860,6 @@ extension CashuSwift {
                                 seed: seed) as! [Proof]
     }
 
-    // MARK: - Melt Overloads
     public static func melt(mint: Mint,
                            quote: Quote,
                            proofs: [Proof],
@@ -880,7 +875,6 @@ extension CashuSwift {
         return (result.paid, result.change as! [Proof]?)
     }
 
-    // MARK: - Swap Overloads
     public static func swap(mint: Mint,
                            proofs: [Proof],
                            amount: Int? = nil,
@@ -894,7 +888,6 @@ extension CashuSwift {
         return (result.new as! [Proof], result.change as! [Proof])
     }
 
-    // MARK: - Check Overloads
     public static func check(_ proofs: [Proof], mint: Mint) async throws -> [Proof.ProofState] {
         return try await check(proofs as [ProofRepresenting], mint: mint as MintRepresenting)
     }
