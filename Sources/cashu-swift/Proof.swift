@@ -85,5 +85,6 @@ extension CashuSwift {
             let states: [ProofStateListEntry]
         }
     }
-
 }
+
+

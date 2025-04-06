@@ -12,7 +12,7 @@ extension CashuSwift {
     
     ///General purpose struct for storing version agnostic token information
     ///that can be transformed into `TokenV3` or `TokenV4` for serialization.
-    public struct Token: Codable, Equatable {
+    public struct Token: Codable, Equatable, Sendable {
         
         ///Unit string like "sat". "eur" or "usd"
         public let unit: String
@@ -21,7 +21,7 @@ extension CashuSwift {
         public let memo: String?
         
         ///Dictionary containing the mint URL absolute string as key and a list of `ProofRepresenting` as the proofs for this token.
-        public let proofsByMint: Dictionary<String, [any ProofRepresenting]>
+        public let proofsByMint: Dictionary<String, [Proof]>
         
         public func serialize(to version: CashuSwift.TokenVersion = .V3) throws -> String {
             switch version {
@@ -33,13 +33,16 @@ extension CashuSwift {
         }
         
         public init(proofs: [String: [any ProofRepresenting]],
-             unit: String,
-             memo: String? = nil) {
-            self.proofsByMint = proofs
+                   unit: String,
+                   memo: String? = nil) {
+            self.proofsByMint = proofs.mapValues { proofArray in
+                proofArray.map { proofRepresenting in
+                    Proof(proofRepresenting)
+                }
+            }
             self.unit = unit
             self.memo = memo
         }
-        
         init(token:TokenV3) throws {
             self.memo = token.memo
             self.unit = token.unit ?? "sat" // FIXME: technically not ideal, there might be non-sat V3 tokens
@@ -50,8 +53,8 @@ extension CashuSwift {
             self.memo = token.memo
             self.unit = token.unit
             
-            var proofsPerMint = [String: [any ProofRepresenting]]()
-            var ps = [any ProofRepresenting]()
+            var proofsPerMint = [String: [Proof]]()
+            var ps = [Proof]()
             
             for entry in token.tokens {
                 ps.append(contentsOf: entry.proofs.map({ p in
@@ -148,7 +151,7 @@ extension CashuSwift.Token {
         
         // Cast dictionary values to concrete Proof type for encoding
         let concreteProofs = proofsByMint.mapValues { proofs in
-            proofs.compactMap { $0 as? CashuSwift.Proof }
+            proofs.compactMap { $0 }
         }
         try container.encode(concreteProofs, forKey: .proofsByMint)
     }

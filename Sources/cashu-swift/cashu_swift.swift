@@ -212,8 +212,6 @@ public enum CashuSwift {
             throw CashuError.insufficientInputs("amount must not be larger than input proofs")
         }
         
-//        let _proofs:[Proof] = normalize(proofs)
-        
         let sendProofs:[ProofRepresenting]
         let changeProofs:[ProofRepresenting]
         
@@ -235,7 +233,6 @@ public enum CashuSwift {
         let token = Token(proofs: proofsPerMint,
                           unit: units.first ?? "sat",
                           memo: memo)
-    
         
         return (token, changeProofs)
     }
