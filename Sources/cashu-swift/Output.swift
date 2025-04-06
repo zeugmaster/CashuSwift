@@ -9,7 +9,7 @@ import Foundation
 
 extension CashuSwift {
     // AKA BlindedMessage
-    public struct Output: Codable {
+    public struct Output: Codable, Sendable {
         enum CodingKeys: String, CodingKey {
             case amount
             case B_ = "B_"
