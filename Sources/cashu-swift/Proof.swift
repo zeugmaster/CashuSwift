@@ -65,7 +65,7 @@ extension CashuSwift {
         
         // MARK: - Additional nested types
         
-        public enum ProofState: String, Codable {
+        public enum ProofState: String, Codable, Sendable {
             case unspent = "UNSPENT"
             case pending = "PENDING"
             case spent = "SPENT"
