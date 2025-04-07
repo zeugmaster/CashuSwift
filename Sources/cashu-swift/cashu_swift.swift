@@ -888,6 +888,17 @@ extension CashuSwift {
     public static func check(_ proofs: [Proof], mint: Mint) async throws -> [Proof.ProofState] {
         return try await check(proofs as [ProofRepresenting], mint: mint as MintRepresenting)
     }
+    
+    public static func meltState(mint: Mint,
+                                 quoteID: String,
+                                 blankOutputs: (outputs: [Output],
+                                                blindingFactors: [String],
+                                                secrets: [String])? = nil) async throws -> (paid: Bool,
+                                                                                            change: [Proof]?) {
+        return try await meltState(mint: mint as MintRepresenting,
+                                   quoteID: quoteID,
+                                   blankOutputs: blankOutputs) as! (Bool, [Proof])
+    }
 
     // MARK: - Pick Overloads
 //    public static func pick(_ proofs: [Proof],
