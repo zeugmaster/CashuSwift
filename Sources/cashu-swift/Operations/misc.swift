@@ -186,6 +186,45 @@ public enum CashuSwift {
         }
         return units
     }
+    
+    static func splitIntoBase2Numbers(_ n:Int) -> [Int] {
+        (0 ..< Int.bitWidth - n.leadingZeroBitCount)
+            .map { 1 << $0 }
+            .filter { n & $0 != 0 }
+    }
+    
+    // concrete type overloads
+    public static func check(_ proofs: [Proof], mint: Mint) async throws -> [Proof.ProofState] {
+        return try await check(proofs as [ProofRepresenting], mint: mint as MintRepresenting)
+    }
+    
+    // MARK: - Calculate Fee Overloads
+    public static func calculateFee(for proofs: [Proof], of mint: Mint) throws -> Int {
+        return try calculateFee(for: proofs as [ProofRepresenting], of: mint as MintRepresenting)
+    }
+
+}
+
+extension Encodable {
+    func debugPretty() -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .prettyPrinted
+        do {
+            let data = try encoder.encode(self)
+            return String(data: data, encoding: .utf8) ?? "Unable to convert JSON data to UTF-8 string"
+        } catch {
+            return "Could not encode object as pretty JSON string."
+        }
+    }
+}
+
+
+func calculateNumberOfBlankOutputs(_ overpayed:Int) -> Int {
+    if overpayed <= 0 {
+        return 0
+    } else {
+        return max(Int(ceil(log2(Double(overpayed)))), 1)
+    }
 }
 
 extension Array where Element : MintRepresenting {
@@ -244,23 +283,5 @@ extension Array where Element : ProofRepresenting {
     func internalize() -> [CashuSwift.Proof] {
         map({ CashuSwift.Proof($0) })
     }
-}
-
-
-// function overloads for concrete argument types, making sendability simpler on the library side
-extension CashuSwift {
-    
-
-    public static func check(_ proofs: [Proof], mint: Mint) async throws -> [Proof.ProofState] {
-        return try await check(proofs as [ProofRepresenting], mint: mint as MintRepresenting)
-    }
-    
-    
-    
-    // MARK: - Calculate Fee Overloads
-    public static func calculateFee(for proofs: [Proof], of mint: Mint) throws -> Int {
-        return try calculateFee(for: proofs as [ProofRepresenting], of: mint as MintRepresenting)
-    }
-
 }
 
