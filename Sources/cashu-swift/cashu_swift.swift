@@ -544,7 +544,7 @@ public enum CashuSwift {
                 throw CashuError.restoreError("unable to filter for unspent ecash during restore")
             }
 
-            var spendableProofs = [ProofRepresenting]()
+            var spendableProofs = [Proof]()
             for i in 0..<states.count {
                 if states[i] == .unspent { spendableProofs.append(proofs[i]) }
             }
@@ -563,7 +563,7 @@ public enum CashuSwift {
     static func restoreForKeyset(mint:MintRepresenting,
                                  keyset:Keyset,
                                  with seed:String,
-                                 batchSize:Int) async throws -> (proofs:[ProofRepresenting],
+                                 batchSize:Int) async throws -> (proofs:[Proof],
                                                                  totalRestored:Int,
                                                                  lastMatchCounter:Int) {
         var proofs = [Proof]()
@@ -900,24 +900,14 @@ extension CashuSwift {
                                    blankOutputs: blankOutputs) as! (Bool, [Proof])
     }
 
-    // MARK: - Pick Overloads
-//    public static func pick(_ proofs: [Proof],
-//                           amount: Int,
-//                           mint: Mint,
-//                           ignoreFees: Bool = false) -> (selected: [Proof],
-//                                                       change: [Proof],
-//                                                       fee: Int)? {
-//        guard let result = pick(proofs as [ProofRepresenting],
-//                               amount: amount,
-//                               mint: mint as MintRepresenting,
-//                               ignoreFees: ignoreFees) else {
-//            return nil
-//        }
-//        return (result.selected as! [Proof],
-//                result.change as! [Proof],
-//                result.fee)
-//    }
-
+    public static func restore(mint:Mint,
+                               with seed:String,
+                               batchSize:Int = 10) async throws -> [KeysetRestoreResult] {
+        return try await restore(mint: mint as MintRepresenting,
+                                 with: seed,
+                                 batchSize: batchSize)
+    }
+    
     // MARK: - Calculate Fee Overloads
     public static func calculateFee(for proofs: [Proof], of mint: Mint) throws -> Int {
         return try calculateFee(for: proofs as [ProofRepresenting], of: mint as MintRepresenting)
