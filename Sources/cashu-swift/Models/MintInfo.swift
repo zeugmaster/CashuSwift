@@ -8,6 +8,8 @@
 import Foundation
 
 extension CashuSwift {
+    
+    @available(*, deprecated)
     public class MintInfo: Codable {
         public let name: String
         public let pubkey: String
@@ -188,6 +190,181 @@ extension CashuSwift {
             case method, unit, commands
             case minAmount = "min_amount"
             case maxAmount = "max_amount"
+        }
+    }
+}
+
+
+extension CashuSwift.Mint {
+    public struct Info: Codable {
+        let name: String?
+        let pubkey: String?
+        let version: String?
+        let description: String?
+        let descriptionLong: String?
+        let contact: [Contact]?
+        let motd: String?
+        let iconUrl: String?
+        let urls: [String]?
+        let time: Int?
+        let tosUrl: String?
+        let nuts: Nuts?
+        
+        public struct Contact: Codable {
+            let method: String
+            let info: String
+        }
+        
+        enum CodingKeys: String, CodingKey {
+            case name, pubkey, version, description, contact, motd, urls, time, nuts
+            case descriptionLong = "description_long"
+            case iconUrl = "icon_url"
+            case tosUrl = "tos_url"
+        }
+        
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            
+            // Decode all the standard fields
+            name = try container.decodeIfPresent(String.self, forKey: .name)
+            pubkey = try container.decodeIfPresent(String.self, forKey: .pubkey)
+            version = try container.decodeIfPresent(String.self, forKey: .version)
+            description = try container.decodeIfPresent(String.self, forKey: .description)
+            descriptionLong = try container.decodeIfPresent(String.self, forKey: .descriptionLong)
+            contact = try container.decodeIfPresent([Contact].self, forKey: .contact)
+            motd = try container.decodeIfPresent(String.self, forKey: .motd)
+            iconUrl = try container.decodeIfPresent(String.self, forKey: .iconUrl)
+            urls = try container.decodeIfPresent([String].self, forKey: .urls)
+            time = try container.decodeIfPresent(Int.self, forKey: .time)
+            tosUrl = try container.decodeIfPresent(String.self, forKey: .tosUrl)
+            
+            // Try to decode nuts field, but if it fails, set to nil
+            do {
+                nuts = try container.decodeIfPresent(Nuts.self, forKey: .nuts)
+            } catch {
+                print("Failed to decode nuts field: \(error)")
+                nuts = nil
+            }
+        }
+        
+        public struct Nuts: Codable {
+            let nut04: PaymentMethodList?
+            let nut05: PaymentMethodList?
+            let nut07: NutSupportFlag?
+            let nut08: NutSupportFlag?
+            let nut09: NutSupportFlag?
+            let nut10: NutSupportFlag?
+            let nut12: NutSupportFlag?
+            
+            enum CodingKeys: String, CodingKey {
+                case nut04 = "4"
+                case nut05 = "5"
+                case nut07 = "7"
+                case nut08 = "8"
+                case nut09 = "9"
+                case nut10 = "10"
+                case nut12 = "12"
+            }
+            
+            public init(from decoder: Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                
+                // Try to decode each nut individually, setting to nil if one fails
+                do {
+                    nut04 = try container.decodeIfPresent(PaymentMethodList.self, forKey: .nut04)
+                } catch {
+                    print("Failed to decode nut04: \(error)")
+                    nut04 = nil
+                }
+                
+                do {
+                    nut05 = try container.decodeIfPresent(PaymentMethodList.self, forKey: .nut05)
+                } catch {
+                    print("Failed to decode nut05: \(error)")
+                    nut05 = nil
+                }
+                
+                do {
+                    nut07 = try container.decodeIfPresent(NutSupportFlag.self, forKey: .nut07)
+                } catch {
+                    print("Failed to decode nut07: \(error)")
+                    nut07 = nil
+                }
+                
+                do {
+                    nut08 = try container.decodeIfPresent(NutSupportFlag.self, forKey: .nut08)
+                } catch {
+                    print("Failed to decode nut08: \(error)")
+                    nut08 = nil
+                }
+                
+                do {
+                    nut09 = try container.decodeIfPresent(NutSupportFlag.self, forKey: .nut09)
+                } catch {
+                    print("Failed to decode nut09: \(error)")
+                    nut09 = nil
+                }
+                
+                do {
+                    nut10 = try container.decodeIfPresent(NutSupportFlag.self, forKey: .nut10)
+                } catch {
+                    print("Failed to decode nut10: \(error)")
+                    nut10 = nil
+                }
+                
+                do {
+                    nut12 = try container.decodeIfPresent(NutSupportFlag.self, forKey: .nut12)
+                } catch {
+                    print("Failed to decode nut12: \(error)")
+                    nut12 = nil
+                }
+            }
+        }
+        
+        public struct PaymentMethodList: Codable {
+            let methods: [PaymentMethod]?
+            let disabled: Bool?
+            
+            enum CodingKeys: String, CodingKey {
+                case methods, disabled
+            }
+            
+            public init(from decoder: Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                
+                // Try to decode methods, but allow failure
+                do {
+                    methods = try container.decodeIfPresent([PaymentMethod].self, forKey: .methods)
+                } catch {
+                    print("Failed to decode PaymentMethodList.methods: \(error)")
+                    methods = nil
+                }
+                
+                // Try to decode supported flag, but allow failure
+                do {
+                    disabled = try container.decodeIfPresent(Bool.self, forKey: .disabled)
+                } catch {
+                    print("Failed to decode PaymentMethodList.supported: \(error)")
+                    disabled = nil
+                }
+            }
+        }
+        
+        public struct PaymentMethod: Codable {
+            let method: String
+            let unit: String
+            let minAmount: Int
+            let maxAmount: Int
+            
+            enum CodingKeys: String, CodingKey {
+                case method, unit
+                case minAmount = "min_amount"
+                case maxAmount = "max_amount"
+            }
+        }
+        
+        public struct NutSupportFlag: Codable {
+            let supported: Bool
         }
     }
 }
