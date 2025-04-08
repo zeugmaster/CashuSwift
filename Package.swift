@@ -18,8 +18,8 @@ let package = Package(
             targets: ["CashuSwift"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/GigaBitcoin/secp256k1.swift.git", 
-                 from: "0.17.0"),
+        .package(url: "https://github.com/zeugmaster/swift-secp256k1.git",
+                 branch: "main"),
         .package(url: "https://github.com/zeugmaster/BIP32.git",
                  branch: "main"),
         .package(url: "https://github.com/mkrd/Swift-BigInt.git",
@@ -35,7 +35,7 @@ let package = Package(
         .target(
             name: "CashuSwift",
             dependencies: [
-                .product(name: "secp256k1", package: "secp256k1.swift"),
+                .product(name: "secp256k1", package: "swift-secp256k1"),
                 .product(name: "BIP32", package: "BIP32"),
                 .product(name: "BigNumber", package: "Swift-BigInt"),
                 .product(name: "BIP39", package: "BIP39"),

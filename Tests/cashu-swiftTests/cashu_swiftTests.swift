@@ -605,4 +605,37 @@ final class cashu_swiftTests: XCTestCase {
         
         print(meltQuote.quote)
     }
+    
+    func testKeyLenght() throws {
+        let sk = try secp256k1.Signing.PrivateKey()
+        let pk = try sk.publicKey.multiply(secp256k1.Signing.PrivateKey().publicKey.dataRepresentation.bytes, format: .uncompressed)
+        let pk2 = sk.publicKey
+        
+    }
+    
+    func testDLEQverification() throws {
+        
+        let A = try secp256k1.Signing.PublicKey(dataRepresentation: "0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8".bytes, format: .uncompressed)
+        let B_ = try secp256k1.Signing.PublicKey(dataRepresentation: "04a9acc1e48c25eeeb9289b5031cc57da9fe72f3fe2861d264bdc074209b107ba270b2031fef3acf8e13ea7a395e375491bdc37be1cd79e073d82bfd5ba8d35d68".bytes, format: .uncompressed)
+        let C_ = try secp256k1.Signing.PublicKey(dataRepresentation: "04a9acc1e48c25eeeb9289b5031cc57da9fe72f3fe2861d264bdc074209b107ba270b2031fef3acf8e13ea7a395e375491bdc37be1cd79e073d82bfd5ba8d35d68".bytes, format: .uncompressed)
+        
+        let e = try Data("9818e061ee51d5c8edc3342369a554998ff7b4381c8652d724cdf46429be73d9".bytes)
+        let s = try Data("9818e061ee51d5c8edc3342369a554998ff7b4381c8652d724cdf46429be73da".bytes)
+        
+        let result = try CashuSwift.Crypto.verifyDLEQ(A: A, B_: B_, C_: C_, e: e, s: s)
+        
+        XCTAssertTrue(result)
+    }
+    
+    func testHashConcat() throws {
+        let k = try secp256k1.Signing.PublicKey(dataRepresentation: "0400000000000000000000000000000000000000000000000000000000000000014218f20ae6c646b363db68605822fb14264ca8d2587fdd6fbc750d587e76a7ee".bytes, format: .uncompressed)
+        let C_ = try secp256k1.Signing.PublicKey(dataRepresentation: "04a9acc1e48c25eeeb9289b5031cc57da9fe72f3fe2861d264bdc074209b107ba270b2031fef3acf8e13ea7a395e375491bdc37be1cd79e073d82bfd5ba8d35d68".bytes, format: .uncompressed)
+        
+        let hash = CashuSwift.Crypto.hashConcat([k, k, k, C_])
+        
+        XCTAssertEqual(String(bytes: hash), "a4dc034b74338c28c6bc3ea49731f2a24440fc7c4affc08b31a93fc9fbe6401e")
+        
+        print(String(bytes: hash))
+    }
+    
 }

@@ -194,6 +194,44 @@ extension CashuSwift {
             throw Error.hashToCurve("No point on the secp256k1 curve could be found.")
         }
         
+        /// Public key
+        public static func verifyDLEQ(A: PublicKey, B_: PublicKey, C_: PublicKey, e: Data, s: Data) throws -> Bool {
+            // R1 = s*G - e*A
+            // R2 = s*B' - e*C'
+            // e == hash(R1,R2,A,C') # must be True
+            
+            let sTimesG = try PrivateKey(dataRepresentation: s).publicKey
+            let eTimesA = try A.multiply([UInt8](e))
+            
+            let R1 = try sTimesG.subtract(eTimesA, format: .uncompressed)
+            
+            let sTimesBprime = try B_.multiply([UInt8](s))
+            let eTimesCprime = try C_.multiply([UInt8](e))
+            
+            let R2 = try sTimesBprime.subtract(eTimesCprime, format: .uncompressed)
+
+            let hash = hashConcat([R1, R2, A, C_])
+            
+            if hash == e {
+                return true
+            } else {
+                return false
+            }
+        }
+        
+        public static func hashConcat(_ publicKeys: [PublicKey]) -> Data {
+            
+            var concat = ""
+            for k in publicKeys {
+                guard k.dataRepresentation.count == 65 else {
+                    fatalError("input public keys need to be UNCOMPRESSED for this function to work properly")
+                }
+                concat.append(String(bytes: k.dataRepresentation))
+            }
+            
+            return Data(SHA256.hash(data: concat.data(using: .utf8)!))
+        }
+        
         //MARK: - DETERMINISTIC KEY GENERATION
         
         fileprivate static func childPrivateKeyForDerivationPath(seed:String, derivationPath:String) throws -> PrivateKey {
@@ -251,6 +289,10 @@ func convertHexKeysetID(keysetID: String) -> Int? {
 extension secp256k1.Signing.PublicKey {
     var stringRepresentation:String {
         return String(bytes: self.dataRepresentation)
+    }
+    
+    func subtract(_ publicKey: secp256k1.Signing.PublicKey, format: secp256k1.Format = .compressed) throws -> secp256k1.Signing.PublicKey {
+        try self.combine([publicKey.negation], format: format)
     }
 }
 
