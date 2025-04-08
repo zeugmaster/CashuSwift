@@ -615,9 +615,9 @@ final class cashu_swiftTests: XCTestCase {
     
     func testDLEQverification() throws {
         
-        let A = try secp256k1.Signing.PublicKey(dataRepresentation: "0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8".bytes, format: .uncompressed)
-        let B_ = try secp256k1.Signing.PublicKey(dataRepresentation: "04a9acc1e48c25eeeb9289b5031cc57da9fe72f3fe2861d264bdc074209b107ba270b2031fef3acf8e13ea7a395e375491bdc37be1cd79e073d82bfd5ba8d35d68".bytes, format: .uncompressed)
-        let C_ = try secp256k1.Signing.PublicKey(dataRepresentation: "04a9acc1e48c25eeeb9289b5031cc57da9fe72f3fe2861d264bdc074209b107ba270b2031fef3acf8e13ea7a395e375491bdc37be1cd79e073d82bfd5ba8d35d68".bytes, format: .uncompressed)
+        let A = try secp256k1.Signing.PublicKey(dataRepresentation: "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798".bytes, format: .compressed)
+        let B_ = try secp256k1.Signing.PublicKey(dataRepresentation: "02a9acc1e48c25eeeb9289b5031cc57da9fe72f3fe2861d264bdc074209b107ba2".bytes, format: .compressed)
+        let C_ = try secp256k1.Signing.PublicKey(dataRepresentation: "02a9acc1e48c25eeeb9289b5031cc57da9fe72f3fe2861d264bdc074209b107ba2".bytes, format: .compressed)
         
         let e = try Data("9818e061ee51d5c8edc3342369a554998ff7b4381c8652d724cdf46429be73d9".bytes)
         let s = try Data("9818e061ee51d5c8edc3342369a554998ff7b4381c8652d724cdf46429be73da".bytes)
@@ -628,8 +628,8 @@ final class cashu_swiftTests: XCTestCase {
     }
     
     func testHashConcat() throws {
-        let k = try secp256k1.Signing.PublicKey(dataRepresentation: "0400000000000000000000000000000000000000000000000000000000000000014218f20ae6c646b363db68605822fb14264ca8d2587fdd6fbc750d587e76a7ee".bytes, format: .uncompressed)
-        let C_ = try secp256k1.Signing.PublicKey(dataRepresentation: "04a9acc1e48c25eeeb9289b5031cc57da9fe72f3fe2861d264bdc074209b107ba270b2031fef3acf8e13ea7a395e375491bdc37be1cd79e073d82bfd5ba8d35d68".bytes, format: .uncompressed)
+        let k = try secp256k1.Signing.PublicKey(dataRepresentation: "020000000000000000000000000000000000000000000000000000000000000001".bytes, format: .compressed)
+        let C_ = try secp256k1.Signing.PublicKey(dataRepresentation: "02a9acc1e48c25eeeb9289b5031cc57da9fe72f3fe2861d264bdc074209b107ba2".bytes, format: .compressed)
         
         let hash = CashuSwift.Crypto.hashConcat([k, k, k, C_])
         
