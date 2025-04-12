@@ -606,13 +606,6 @@ final class cashu_swiftTests: XCTestCase {
         print(meltQuote.quote)
     }
     
-    func testKeyLenght() throws {
-        let sk = try secp256k1.Signing.PrivateKey()
-        let pk = try sk.publicKey.multiply(secp256k1.Signing.PrivateKey().publicKey.dataRepresentation.bytes, format: .uncompressed)
-        let pk2 = sk.publicKey
-        
-    }
-    
     func testDLEQverification() throws {
         
         let A = try secp256k1.Signing.PublicKey(dataRepresentation: "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798".bytes, format: .compressed)

@@ -210,7 +210,7 @@ extension CashuSwift {
             
             let R2 = try sTimesBprime.subtract(eTimesCprime, format: .uncompressed)
 
-            let hash = try hashConcat([R1, R2, A.toFormat(.uncompressed), C_.toFormat(.uncompressed)])
+            let hash = hashConcat([R1, R2, A, C_])
             
             if hash == e {
                 return true
@@ -222,9 +222,9 @@ extension CashuSwift {
         public static func hashConcat(_ publicKeys: [PublicKey]) -> Data {
             
             var concat = ""
-            for var k in publicKeys {
-                k = try! k.toFormat(.uncompressed)
-                concat.append(String(bytes: k.dataRepresentation))
+            for k in publicKeys {
+                let kData = k.uncompressedRepresentation
+                concat.append(String(bytes: kData))
             }
             
             return Data(SHA256.hash(data: concat.data(using: .utf8)!))
