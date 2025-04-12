@@ -26,8 +26,6 @@ extension CashuSwift {
             case inputFeePPK = "input_fee_ppk"
         }
         
-        // Manual encoder / decoder functions are needed for Codable conformance AND Model macro
-        
         public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             keysetID = try container.decode(String.self, forKey: .keysetID)

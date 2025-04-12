@@ -67,7 +67,7 @@ extension CashuSwift {
         let promises = try await Network.post(url: mint.url.appending(path: "/v1/mint/bolt11"),
                                               body: mintRequest,
                                               expected: Bolt11.MintResponse.self)
-                    
+                            
         let proofs = try Crypto.unblindPromises(promises.signatures,
                                                 blindingFactors: outputs.blindingFactors,
                                                 secrets: outputs.secrets,

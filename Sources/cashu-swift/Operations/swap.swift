@@ -85,6 +85,9 @@ extension CashuSwift {
                                                                  deterministicFactors: deterministicFactors)
         
         let internalProofs = normalize(proofs)
+        
+        #warning("ensure we do not send blindingfactor to mint in the dleq field")
+        
         let swapRequest = SwapRequest(inputs: internalProofs, outputs: outputs)
         let swapResponse = try await Network.post(url: mint.url.appending(path: "/v1/swap"),
                                                   body: swapRequest,

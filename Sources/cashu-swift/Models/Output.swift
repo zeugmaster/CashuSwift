@@ -26,5 +26,12 @@ extension CashuSwift {
         public let id: String
         public let amount: Int
         public let C_: String
+        public let dleq: DLEQ?
+    }
+    
+    public struct DLEQ: Codable, Sendable {
+        public let e: String
+        public let s: String
+        public let r: String?
     }
 }
