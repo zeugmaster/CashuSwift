@@ -202,8 +202,14 @@ extension CashuSwift {
             throw Error.hashToCurve("No point on the secp256k1 curve could be found.")
         }
         
+//        public static func validDLEQ(for proofs: [Proof], with mint: Mint) -> Bool {
+//            proofs.allSatisfy { proof in
+//                
+//            }
+//        }
+        
         /// Public key
-        public static func verifyDLEQ(A: PublicKey, B_: PublicKey, C_: PublicKey, e: Data, s: Data) throws -> Bool {
+        static func verifyDLEQ(A: PublicKey, B_: PublicKey, C_: PublicKey, e: Data, s: Data) throws -> Bool {
             // R1 = s*G - e*A
             // R2 = s*B' - e*C'
             // e == hash(R1,R2,A,C') # must be True
@@ -225,6 +231,21 @@ extension CashuSwift {
             } else {
                 return false
             }
+        }
+        
+        static func verifyDLEQ(A: PublicKey, C: PublicKey, x: String, e: Data, s: Data, r: Data) throws -> Bool {
+            // Y = hash_to_curve(x)
+            // C' = C + r*A
+            // B' = Y + r*G
+            //
+            // R1 = ... (same as Alice)
+            let Y = try secureHashToCurve(message: x)
+            let rA =  try A.multiply([UInt8](r))
+            let C_ = try C.combine([rA])
+            let rG = try PrivateKey(dataRepresentation: r).publicKey
+            let B_ = try Y.combine([rG])
+            
+            return try verifyDLEQ(A: A, B_: B_, C_: C_, e: e, s: s)
         }
         
         public static func hashConcat(_ publicKeys: [PublicKey]) -> Data {
