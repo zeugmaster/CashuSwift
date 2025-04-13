@@ -73,6 +73,8 @@ extension CashuSwift {
                                                 secrets: outputs.secrets,
                                                 keyset: activeKeyset)
         
+        // TODO: verify DLEQ
+        
         return proofs
     }
 

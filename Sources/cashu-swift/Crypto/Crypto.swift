@@ -156,10 +156,18 @@ extension CashuSwift {
                 let C_ = try PublicKey(dataRepresentation: promise.C_.bytes, format: .compressed)
                 let C = try unblind(C_: C_, r: r, A: mintPubKey)
                 
-                proofs.append(Proof(keysetID: promises[i].id,
-                                    amount: promises[i].amount,
-                                    secret: secrets[i],
-                                    C: String(bytes: C.dataRepresentation)))
+                var dleq: DLEQ? = nil
+                if let promiseDLEQ = promise.dleq {
+                    dleq = DLEQ(e: promiseDLEQ.e, s: promiseDLEQ.s, r: blindingFactors[i])
+                }
+                
+                let proof = Proof(keysetID: promises[i].id,
+                                  amount: promises[i].amount,
+                                  secret: secrets[i],
+                                  C: String(bytes: C.dataRepresentation),
+                                  dleq: dleq)
+                
+                proofs.append(proof)
             }
             return proofs
         }

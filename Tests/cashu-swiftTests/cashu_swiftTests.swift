@@ -162,7 +162,9 @@ final class cashu_swiftTests: XCTestCase {
                                                   quoteRequest: CashuSwift.Bolt11.RequestMintQuote(unit: "sat",
                                                                                                    amount: amount))
         let proofs = try await CashuSwift.issue(for: quote, on: mint)
+        
         print(proofs.debugPretty())
+        
         let (_, _) = try await CashuSwift.swap(mint: mint, proofs: proofs, amount: 300)
         
     }
