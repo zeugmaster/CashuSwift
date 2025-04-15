@@ -19,13 +19,14 @@ extension CashuSwift {
         }
         
         public enum CodingKeys: String, CodingKey {
-            case keysetID = "id", amount, secret, C
+            case keysetID = "id", amount, secret, C, dleq
         }
         
         public let keysetID: String
         public let amount: Int
         public let secret: String
         public let C: String
+        public let dleq: DLEQ?
         
         public var description: String {
             return "C: ...\(C.suffix(6)), amount: \(amount)"
@@ -36,35 +37,36 @@ extension CashuSwift {
             self.C = proofRepresentation.C
             self.amount = proofRepresentation.amount
             self.secret = proofRepresentation.secret
+            #warning("patchwork: dleq must not be set to nil")
+            self.dleq = nil
         }
+                
+//        public func encode(to encoder: Encoder) throws {
+//            var container = encoder.container(keyedBy: CodingKeys.self)
+//            try container.encode(keysetID, forKey: .keysetID)
+//            try container.encode(amount, forKey: .amount)
+//            try container.encode(secret, forKey: .secret)
+//            try container.encode(C, forKey: .C)
+//        }
+//        
+//        public init(from decoder: Decoder) throws {
+//            let container = try decoder.container(keyedBy: CodingKeys.self)
+//            keysetID = try container.decode(String.self, forKey: .keysetID)
+//            amount = try container.decode(Int.self, forKey: .amount)
+//            secret = try container.decode(String.self, forKey: .secret)
+//            C = try container.decode(String.self, forKey: .C)
+//        }
         
-        // MARK: - Codable Implementation
-        
-        public func encode(to encoder: Encoder) throws {
-            var container = encoder.container(keyedBy: CodingKeys.self)
-            try container.encode(keysetID, forKey: .keysetID)
-            try container.encode(amount, forKey: .amount)
-            try container.encode(secret, forKey: .secret)
-            try container.encode(C, forKey: .C)
-        }
-        
-        public init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            keysetID = try container.decode(String.self, forKey: .keysetID)
-            amount = try container.decode(Int.self, forKey: .amount)
-            secret = try container.decode(String.self, forKey: .secret)
-            C = try container.decode(String.self, forKey: .C)
-        }
-        
-        public init(keysetID:String, amount:Int, secret:String, C:String) {
+        // TODO: remove default for dleq
+        public init(keysetID:String, amount:Int, secret:String, C:String, dleq: DLEQ? = nil) {
             self.keysetID = keysetID
             self.amount = amount
             self.secret = secret
             self.C = C
+            self.dleq = dleq
         }
         
         // MARK: - Additional nested types
-        
         public enum ProofState: String, Codable, Sendable {
             case unspent = "UNSPENT"
             case pending = "PENDING"

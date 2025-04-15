@@ -24,12 +24,15 @@ extension CashuSwift {
                     return "Unblinding Error: \(message ?? "Unknown error")"
                 case .hashToCurve(let message):
                     return "Hash to Curve Error: \(message ?? "Unknown error")"
+                case .DLEQVerification(let message):
+                    return message
                 }
             }
             
             case secretDerivation(String?)
             case unblinding(String?)
             case hashToCurve(String?)
+            case DLEQVerification(String)
         }
         
         typealias PrivateKey = secp256k1.Signing.PrivateKey
@@ -156,10 +159,18 @@ extension CashuSwift {
                 let C_ = try PublicKey(dataRepresentation: promise.C_.bytes, format: .compressed)
                 let C = try unblind(C_: C_, r: r, A: mintPubKey)
                 
-                proofs.append(Proof(keysetID: promises[i].id,
-                                    amount: promises[i].amount,
-                                    secret: secrets[i],
-                                    C: String(bytes: C.dataRepresentation)))
+                var dleq: DLEQ? = nil
+                if let promiseDLEQ = promise.dleq {
+                    dleq = DLEQ(e: promiseDLEQ.e, s: promiseDLEQ.s, r: blindingFactors[i])
+                }
+                
+                let proof = Proof(keysetID: promises[i].id,
+                                  amount: promises[i].amount,
+                                  secret: secrets[i],
+                                  C: String(bytes: C.dataRepresentation),
+                                  dleq: dleq)
+                
+                proofs.append(proof)
             }
             return proofs
         }
@@ -192,6 +203,85 @@ extension CashuSwift {
             
             // If no valid point is found, throw an error
             throw Error.hashToCurve("No point on the secp256k1 curve could be found.")
+        }
+        
+        public static func validDLEQ(for proofs: [Proof], with mint: Mint) throws -> Bool {
+            var checks = [Bool]()
+            
+            for p in proofs {
+                guard let keyset = mint.keysets.first(where: { $0.keysetID == p.keysetID }),
+                      let AString = keyset.keys[String(p.amount)] else {
+                    throw Crypto.Error.DLEQVerification("Could not associate keyset or public key from keyset for DLEQ verification.")
+                }
+                
+                guard let e = try p.dleq?.e.bytes,
+                      let s = try p.dleq?.s.bytes,
+                      let r = try p.dleq?.r?.bytes else {
+                    throw Crypto.Error.DLEQVerification("""
+                                                        At least one necessary parameter for DLEQ \
+                                                        verification is not contained in proof.
+                                                        proof.dleq: \(p.dleq.debugDescription)
+                                                        """)
+                }
+                
+                let A = try PublicKey(dataRepresentation: AString.bytes, format: .compressed)
+                let C = try PublicKey(dataRepresentation: p.C.bytes, format: .compressed)
+                
+                checks.append(try verifyDLEQ(A: A, C: C, x: p.secret, e: Data(e), s: Data(s), r: Data(r)))
+            }
+            
+            return checks.allSatisfy({ $0 == true })
+        }
+        
+        
+        static func verifyDLEQ(A: PublicKey, B_: PublicKey, C_: PublicKey, e: Data, s: Data) throws -> Bool {
+            // R1 = s*G - e*A
+            // R2 = s*B' - e*C'
+            // e == hash(R1,R2,A,C') # must be True
+            
+            let sTimesG = try PrivateKey(dataRepresentation: s).publicKey
+            let eTimesA = try A.multiply([UInt8](e))
+            
+            let R1 = try sTimesG.subtract(eTimesA, format: .uncompressed)
+            
+            let sTimesBprime = try B_.multiply([UInt8](s))
+            let eTimesCprime = try C_.multiply([UInt8](e))
+            
+            let R2 = try sTimesBprime.subtract(eTimesCprime, format: .uncompressed)
+
+            let hash = hashConcat([R1, R2, A, C_])
+            
+            if hash == e {
+                return true
+            } else {
+                return false
+            }
+        }
+        
+        static func verifyDLEQ(A: PublicKey, C: PublicKey, x: String, e: Data, s: Data, r: Data) throws -> Bool {
+            // Y = hash_to_curve(x)
+            // C' = C + r*A
+            // B' = Y + r*G
+            //
+            // R1 = ... (same as Alice)
+            let Y = try secureHashToCurve(message: x)
+            let rA =  try A.multiply([UInt8](r))
+            let C_ = try C.combine([rA])
+            let rG = try PrivateKey(dataRepresentation: r).publicKey
+            let B_ = try Y.combine([rG])
+            
+            return try verifyDLEQ(A: A, B_: B_, C_: C_, e: e, s: s)
+        }
+        
+        public static func hashConcat(_ publicKeys: [PublicKey]) -> Data {
+            
+            var concat = ""
+            for k in publicKeys {
+                let kData = k.uncompressedRepresentation
+                concat.append(String(bytes: kData))
+            }
+            
+            return Data(SHA256.hash(data: concat.data(using: .utf8)!))
         }
         
         //MARK: - DETERMINISTIC KEY GENERATION
@@ -251,6 +341,10 @@ func convertHexKeysetID(keysetID: String) -> Int? {
 extension secp256k1.Signing.PublicKey {
     var stringRepresentation:String {
         return String(bytes: self.dataRepresentation)
+    }
+    
+    func subtract(_ publicKey: secp256k1.Signing.PublicKey, format: secp256k1.Format = .compressed) throws -> secp256k1.Signing.PublicKey {
+        try self.combine([publicKey.negation], format: format)
     }
 }
 

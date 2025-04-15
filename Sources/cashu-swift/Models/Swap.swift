@@ -16,5 +16,4 @@ extension CashuSwift {
     struct SwapResponse: Codable {
         let signatures:[Promise]
     }
-
 }

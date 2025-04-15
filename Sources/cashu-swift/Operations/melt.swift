@@ -54,6 +54,8 @@ extension CashuSwift {
         
         let meltResponse:Bolt11.MeltQuote
         
+        #warning("ensure we do not send blindingfactor to mint in the dleq field")
+        
         meltResponse = try await Network.post(url: mint.url.appending(path: "/v1/melt/bolt11"),
                                               body: meltRequest,
                                               expected: Bolt11.MeltQuote.self,

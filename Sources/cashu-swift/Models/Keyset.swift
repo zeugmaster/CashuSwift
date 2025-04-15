@@ -15,7 +15,7 @@ extension CashuSwift {
 
     public struct Keyset: Codable, Sendable {
         public let keysetID: String
-        public var keys: Dictionary<String, String>
+        public var keys: Dictionary<String, String> //FIXME: this should have an integer as key
         public var derivationCounter:Int
         public var active:Bool
         public let unit:String
@@ -25,8 +25,6 @@ extension CashuSwift {
             case keysetID = "id" , keys, derivationCounter, active, unit
             case inputFeePPK = "input_fee_ppk"
         }
-        
-        // Manual encoder / decoder functions are needed for Codable conformance AND Model macro
         
         public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
