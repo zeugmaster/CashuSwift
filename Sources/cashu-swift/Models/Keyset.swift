@@ -15,7 +15,7 @@ extension CashuSwift {
 
     public struct Keyset: Codable, Sendable {
         public let keysetID: String
-        public var keys: Dictionary<String, String>
+        public var keys: Dictionary<String, String> //FIXME: this should have an integer as key
         public var derivationCounter:Int
         public var active:Bool
         public let unit:String

@@ -5,6 +5,8 @@ import secp256k1
 import BIP39
 import SwiftCBOR
 
+let dnsTestMint = "https://testmint.macadamia.cash"
+
 final class cashu_swiftTests: XCTestCase {
     
     func testSecretSerialization() throws {
@@ -642,4 +644,12 @@ final class cashu_swiftTests: XCTestCase {
         print(String(bytes: hash))
     }
     
+    func testDLEQAfterMinting() async throws {
+        let mint = try await CashuSwift.loadMint(url: URL(string: dnsTestMint)!)
+        let mintQuote = try await CashuSwift.getQuote(mint: mint, quoteRequest: CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 21))
+        let proofs = try await CashuSwift.issue(for: mintQuote, on: mint)
+        
+        let dleq = try CashuSwift.Crypto.validDLEQ(for: proofs, with: mint)
+        XCTAssertTrue(dleq)
+    }
 }

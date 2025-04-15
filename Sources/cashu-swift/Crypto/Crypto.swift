@@ -24,12 +24,15 @@ extension CashuSwift {
                     return "Unblinding Error: \(message ?? "Unknown error")"
                 case .hashToCurve(let message):
                     return "Hash to Curve Error: \(message ?? "Unknown error")"
+                case .DLEQVerification(let message):
+                    return message
                 }
             }
             
             case secretDerivation(String?)
             case unblinding(String?)
             case hashToCurve(String?)
+            case DLEQVerification(String)
         }
         
         typealias PrivateKey = secp256k1.Signing.PrivateKey
@@ -202,13 +205,35 @@ extension CashuSwift {
             throw Error.hashToCurve("No point on the secp256k1 curve could be found.")
         }
         
-//        public static func validDLEQ(for proofs: [Proof], with mint: Mint) -> Bool {
-//            proofs.allSatisfy { proof in
-//                
-//            }
-//        }
+        public static func validDLEQ(for proofs: [Proof], with mint: Mint) throws -> Bool {
+            var checks = [Bool]()
+            
+            for p in proofs {
+                guard let keyset = mint.keysets.first(where: { $0.keysetID == p.keysetID }),
+                      let AString = keyset.keys[String(p.amount)] else {
+                    throw Crypto.Error.DLEQVerification("Could not associate keyset or public key from keyset for DLEQ verification.")
+                }
+                
+                guard let e = try p.dleq?.e.bytes,
+                      let s = try p.dleq?.s.bytes,
+                      let r = try p.dleq?.r?.bytes else {
+                    throw Crypto.Error.DLEQVerification("""
+                                                        At least one necessary parameter for DLEQ \
+                                                        verification is not contained in proof.
+                                                        proof.dleq: \(p.dleq.debugDescription)
+                                                        """)
+                }
+                
+                let A = try PublicKey(dataRepresentation: AString.bytes, format: .compressed)
+                let C = try PublicKey(dataRepresentation: p.C.bytes, format: .compressed)
+                
+                checks.append(try verifyDLEQ(A: A, C: C, x: p.secret, e: Data(e), s: Data(s), r: Data(r)))
+            }
+            
+            return checks.allSatisfy({ $0 == true })
+        }
         
-        /// Public key
+        
         static func verifyDLEQ(A: PublicKey, B_: PublicKey, C_: PublicKey, e: Data, s: Data) throws -> Bool {
             // R1 = s*G - e*A
             // R2 = s*B' - e*C'
