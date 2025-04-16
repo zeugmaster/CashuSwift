@@ -205,7 +205,7 @@ extension CashuSwift {
             throw Error.hashToCurve("No point on the secp256k1 curve could be found.")
         }
         
-        public static func validDLEQ(for proofs: [Proof], with mint: Mint) throws -> Bool {
+        public static func validDLEQ(for proofs: [Proof], with mint: MintRepresenting) throws -> Bool {
             var checks = [Bool]()
             
             for p in proofs {

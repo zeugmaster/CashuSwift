@@ -163,7 +163,7 @@ final class cashu_swiftTests: XCTestCase {
         let quote = try await CashuSwift.getQuote(mint: mint,
                                                   quoteRequest: CashuSwift.Bolt11.RequestMintQuote(unit: "sat",
                                                                                                    amount: amount))
-        let proofs = try await CashuSwift.issue(for: quote, on: mint)
+        let proofs: [Proof] = try await CashuSwift.issue(for: quote, on: mint)
         
         print(proofs.debugPretty())
         
@@ -646,10 +646,36 @@ final class cashu_swiftTests: XCTestCase {
     
     func testDLEQAfterMinting() async throws {
         let mint = try await CashuSwift.loadMint(url: URL(string: dnsTestMint)!)
-        let mintQuote = try await CashuSwift.getQuote(mint: mint, quoteRequest: CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 21))
-        let proofs = try await CashuSwift.issue(for: mintQuote, on: mint)
+        let mintQuote = try await CashuSwift.getQuote(mint: mint, quoteRequest: CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 3))
+        let result = try await CashuSwift.issue(for: mintQuote, with: mint)
         
-        let dleq = try CashuSwift.Crypto.validDLEQ(for: proofs, with: mint)
-        XCTAssertTrue(dleq)
+        XCTAssertTrue(result.validDLEQ)
+    }
+    
+    func testSwapDLEQCheck() async throws {
+        let mint = try await CashuSwift.loadMint(url: URL(string: dnsTestMint)!)
+        let qr = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 3)
+        
+        let mintQuote = try await CashuSwift.getQuote(mint: mint, quoteRequest: qr)
+        
+        let mintResult = try await CashuSwift.issue(for: mintQuote, with: mint, preferredDistribution: [1, 1, 1])
+        
+        let swap1 = try await CashuSwift.swap(with: mint, inputs: [mintResult.proofs[0]], seed: nil)
+        XCTAssertTrue(swap1.validDLEQ)
+        
+        let p2 = mintResult.proofs[1]
+        let inputWithoutDLEQfields = Proof(keysetID: p2.keysetID, amount: p2.amount, secret: p2.secret, C: p2.C, dleq: nil)
+        let swap2 = try await CashuSwift.swap(with: mint, inputs: [inputWithoutDLEQfields], seed: nil)
+        XCTAssertTrue(swap2.validDLEQ)
+        
+        let r = "a6d13fcd7a18442e6076f5e1e7c887ad5de40a019824bdfa9fe740d302e8d861"
+        let e = "b31e58ac6527f34975ffab13e70a48b6d2b0d35abc4b03f0151f09ee1a9763d4"
+        let s = "8fbae004c59e754d71df67e392b6ae4e29293113ddc2ec86592a0431d16306d8"
+        let wrongDLEQ = CashuSwift.DLEQ(e: e, s: s, r: r)
+        
+        let p3 = mintResult.proofs[2]
+        let inputRandomDLEQdata = Proof(keysetID: p3.keysetID, amount: p3.amount, secret: p3.secret, C: p3.C, dleq: wrongDLEQ)
+        let swap3 = try await CashuSwift.swap(with: mint, inputs: [inputRandomDLEQdata], seed: nil)
+        XCTAssertFalse(swap3.validDLEQ)
     }
 }

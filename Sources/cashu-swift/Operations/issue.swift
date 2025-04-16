@@ -14,6 +14,8 @@ fileprivate let logger = Logger.init(subsystem: "CashuSwift", category: "wallet"
 extension CashuSwift {
     /// After paying the quote amount to the mint, use this function to issue the actual ecash as a list of [`String`]s
     /// Leaving `seed` empty will give you proofs from non-deterministic outputs which cannot be recreated from a seed phrase backup
+    // generic types without dleq return
+    @available(*, deprecated, message: "This method does not return the boolean flag for successful DLEQ verification which needs to be handled by a wallet application.")
     public static func issue(for quote:Quote,
                              on mint: MintRepresenting,
                              seed:String? = nil,
@@ -51,9 +53,6 @@ extension CashuSwift {
                                                  keysetID: activeKeyset.keysetID,
                                                  deterministicFactors: (seed: seed,
                                                                         counter: activeKeyset.derivationCounter))
-
-            
-            
             
         } else {
             outputs = try Crypto.generateOutputs(amounts: distribution,
@@ -63,7 +62,6 @@ extension CashuSwift {
         let mintRequest = Bolt11.MintRequest(quote: quote.quote, outputs: outputs.outputs)
         
         // TODO: PARSE COMMON ERRORS
-        // TODO: CHECK FOR DUPLICATE OUTPUT ERROR, RETRY ACC TO `skipDuplicateOutputs`
         let promises = try await Network.post(url: mint.url.appending(path: "/v1/mint/bolt11"),
                                               body: mintRequest,
                                               expected: Bolt11.MintResponse.self)
@@ -73,20 +71,35 @@ extension CashuSwift {
                                                 secrets: outputs.secrets,
                                                 keyset: activeKeyset)
         
-        // TODO: verify DLEQ
-        
         return proofs
+    }
+    
+    // static types without dleq return
+    @available(*, deprecated, message: "This method does not return the boolean flag for successful DLEQ verification which needs to be handled by a wallet application.")
+    public static func issue(for quote: Quote,
+                             on mint: Mint,
+                             seed: String? = nil,
+                             preferredDistribution: [Int]? = nil) async throws -> [Proof] {
+        return try await issue(for: quote,
+                               on: mint as MintRepresenting,
+                               seed: seed,
+                               preferredDistribution: preferredDistribution) as! [Proof]
     }
 
     
-    public static func issue(for quote: Quote,
-                           on mint: Mint,
-                           seed: String? = nil,
-                           preferredDistribution: [Int]? = nil) async throws -> [Proof] {
-        return try await issue(for: quote,
-                             on: mint as MintRepresenting,
-                             seed: seed,
-                             preferredDistribution: preferredDistribution) as! [Proof]
+    public static func issue(for quote:Quote,
+                             with mint: Mint,
+                             seed:String? = nil,
+                             preferredDistribution:[Int]? = nil) async throws -> (proofs: [Proof], validDLEQ: Bool) {
+        
+        // TODO: completely remove issue function without dleq check
+        let proofs = try await issue(for: quote,
+                                     on: mint,
+                                     seed: seed,
+                                     preferredDistribution: preferredDistribution)
+        
+        let dleqValid = try Crypto.validDLEQ(for: proofs, with: mint)
+        
+        return (proofs, dleqValid)
     }
-
 }

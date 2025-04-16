@@ -13,6 +13,8 @@ import OSLog
 fileprivate let logger = Logger.init(subsystem: "CashuSwift", category: "wallet")
 
 extension CashuSwift {
+    
+    @available(*, deprecated, message: "function does not check DLEQ")
     public static func swap(mint:MintRepresenting,
                             proofs:[ProofRepresenting],
                             amount:Int? = nil,
@@ -85,9 +87,7 @@ extension CashuSwift {
                                                                  deterministicFactors: deterministicFactors)
         
         let internalProofs = normalize(proofs)
-        
-        #warning("ensure we do not send blindingfactor to mint in the dleq field")
-        
+                
         let swapRequest = SwapRequest(inputs: internalProofs, outputs: outputs)
         let swapResponse = try await Network.post(url: mint.url.appending(path: "/v1/swap"),
                                                   body: swapRequest,
@@ -97,6 +97,7 @@ extension CashuSwift {
                                                    blindingFactors: bfs,
                                                    secrets: secrets,
                                                    keyset: activeKeyset)
+        
         var sendProofs = [Proof]()
         for n in swapDistribution {
             if let index = newProofs.firstIndex(where: {$0.amount == n}) {
@@ -108,7 +109,7 @@ extension CashuSwift {
         return (sendProofs, newProofs)
     }
 
-    
+    @available(*, deprecated, message: "function does not check DLEQ")
     public static func swap(mint: Mint,
                            proofs: [Proof],
                            amount: Int? = nil,
@@ -120,6 +121,44 @@ extension CashuSwift {
                                    seed: seed,
                                    preferredReturnDistribution: preferredReturnDistribution)
         return (result.new as! [Proof], result.change as! [Proof])
+    }
+    
+    public static func swap(with mint: Mint,
+                            inputs: [Proof],
+                            amount: Int? = nil,
+                            seed: String?,
+                            preferredReturnDistribution: [Int]? = nil) async throws -> (new: [Proof],
+                                                                                        change: [Proof],
+                                                                                        validDLEQ: Bool) {
+        
+        // check incoming proofs dleq
+        // check incoming inputs dleq but no not fail if the dleq data is missing
+        // only fail if dleq data is present but is invalid
+        let inputsValidDLEQ: Bool
+        do {
+            inputsValidDLEQ = try Crypto.validDLEQ(for: inputs, with: mint)
+        } catch {
+            // TODO: more precise error matching
+            inputsValidDLEQ = true
+        }
+        
+        // scrub dleq data before swap
+        let scrubbed = inputs.map { p in
+            Proof(keysetID: p.keysetID, amount: p.amount, secret: p.secret, C: p.C, dleq: nil)
+        }
+        
+        let swapResult = try await swap(mint: mint,
+                                        proofs: scrubbed,
+                                        amount: amount,
+                                        seed: seed,
+                                        preferredReturnDistribution: preferredReturnDistribution)
+        
+        // check output proofs dleq
+        let outputsValidDLEQ = try Crypto.validDLEQ(for: swapResult.new + swapResult.change, with: mint)
+        
+        let validDLEQ = (inputsValidDLEQ && outputsValidDLEQ)
+        
+        return (swapResult.new, swapResult.change, validDLEQ)
     }
 
 }
