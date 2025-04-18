@@ -37,8 +37,7 @@ extension CashuSwift {
             self.C = proofRepresentation.C
             self.amount = proofRepresentation.amount
             self.secret = proofRepresentation.secret
-            #warning("patchwork: dleq must not be set to nil")
-            self.dleq = nil
+            self.dleq = proofRepresentation.dleq
         }
                 
 //        public func encode(to encoder: Encoder) throws {
