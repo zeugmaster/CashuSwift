@@ -24,15 +24,18 @@ extension CashuSwift {
                     return "Unblinding Error: \(message ?? "Unknown error")"
                 case .hashToCurve(let message):
                     return "Hash to Curve Error: \(message ?? "Unknown error")"
-                case .DLEQVerification(let message):
-                    return message
+                case .DLEQVerificationNoData(let message):
+                    return "DLEQ Verification Error: \(message)"
+                case .DLEQVerificationUnknownKeyset(let message):
+                    return "DLEQ Verification Error: \(message)"
                 }
             }
             
             case secretDerivation(String?)
             case unblinding(String?)
             case hashToCurve(String?)
-            case DLEQVerification(String)
+            case DLEQVerificationNoData(String)
+            case DLEQVerificationUnknownKeyset(String)
         }
         
         typealias PrivateKey = secp256k1.Signing.PrivateKey
@@ -211,13 +214,17 @@ extension CashuSwift {
             for p in proofs {
                 guard let keyset = mint.keysets.first(where: { $0.keysetID == p.keysetID }),
                       let AString = keyset.keys[String(p.amount)] else {
-                    throw Crypto.Error.DLEQVerification("Could not associate keyset or public key from keyset for DLEQ verification.")
+                    throw Crypto.Error.DLEQVerificationUnknownKeyset("""
+                                                                     Could not associate mint keyset \
+                                                                     or public key from keyset \(p.keysetID) \
+                                                                     for DLEQ verification.
+                                                                     """)
                 }
                 
                 guard let e = try p.dleq?.e.bytes,
                       let s = try p.dleq?.s.bytes,
                       let r = try p.dleq?.r?.bytes else {
-                    throw Crypto.Error.DLEQVerification("""
+                    throw Crypto.Error.DLEQVerificationNoData("""
                                                         At least one necessary parameter for DLEQ \
                                                         verification is not contained in proof.
                                                         proof.dleq: \(p.dleq.debugDescription)
@@ -324,6 +331,7 @@ extension CashuSwift {
 
 //MARK: - HELPER
 
+@available(*, deprecated, message: "pre v1 keyset IDs are no longer supported")
 func convertKeysetID(keysetID: String) -> Int? {
     let data = [UInt8](Data(base64Encoded: keysetID)!)
     let big = BInt(bytes: data)

@@ -137,9 +137,15 @@ extension CashuSwift {
         let inputsValidDLEQ: Bool
         do {
             inputsValidDLEQ = try Crypto.validDLEQ(for: inputs, with: mint)
-        } catch {
-            // TODO: more precise error matching
+        } catch CashuSwift.Crypto.Error.DLEQVerificationNoData(let message) {
+            logger.warning("""
+                           DLEQ check could not be performed due to missing data but will still \
+                           evaluate as passing because not all wallets and mint support NUT-10. \
+                           future versions will consider the check failed.
+                           """)
             inputsValidDLEQ = true
+        } catch {
+            throw error
         }
         
         // scrub dleq data before swap
@@ -154,7 +160,19 @@ extension CashuSwift {
                                         preferredReturnDistribution: preferredReturnDistribution)
         
         // check output proofs dleq
-        let outputsValidDLEQ = try Crypto.validDLEQ(for: swapResult.new + swapResult.change, with: mint)
+        let outputsValidDLEQ: Bool
+        do {
+            outputsValidDLEQ = try Crypto.validDLEQ(for: swapResult.new + swapResult.change, with: mint)
+        } catch CashuSwift.Crypto.Error.DLEQVerificationNoData(let message) {
+            logger.warning("""
+                           DLEQ check could not be performed due to missing data but will still \
+                           evaluate as passing because not all wallets and mint support NUT-10. \
+                           future versions will consider the check failed.
+                           """)
+            outputsValidDLEQ = true
+        } catch {
+            throw error
+        }
         
         let validDLEQ = (inputsValidDLEQ && outputsValidDLEQ)
         

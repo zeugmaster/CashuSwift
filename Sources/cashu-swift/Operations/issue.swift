@@ -98,7 +98,19 @@ extension CashuSwift {
                                      seed: seed,
                                      preferredDistribution: preferredDistribution)
         
-        let dleqValid = try Crypto.validDLEQ(for: proofs, with: mint)
+        let dleqValid: Bool
+        do {
+            dleqValid = try Crypto.validDLEQ(for: proofs, with: mint)
+        } catch CashuSwift.Crypto.Error.DLEQVerificationNoData(let message) {
+            logger.warning("""
+                           DLEQ check could not be performed due to missing data but will still \
+                           evaluate as passing because not all wallets and mint support NUT-10. \
+                           future versions will consider the check failed.
+                           """)
+            dleqValid = true
+        } catch {
+            throw error
+        }
         
         return (proofs, dleqValid)
     }
