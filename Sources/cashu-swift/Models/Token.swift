@@ -109,11 +109,25 @@ extension CashuSwift {
             let tokenEntries = try byKeysetID.map { (id, ps) in
                 TokenV4.TokenEntry(keysetID: Data(try id.bytes),
                                    proofs: try ps.map({ p in
-                    TokenV4.TokenEntry.Proof(amount: p.amount,
-                                             secret: p.secret,
-                                             signature: Data(try p.C.bytes),
-                                             dleqProof: nil,
-                                             witness: nil)
+                    
+                    let dleq: TokenV4.TokenEntry.Proof.DLEQProof?
+                    if let data = p.dleq,
+                       let r = data.r,
+                       let eBytes = try? data.e.bytes,
+                       let sBytes = try? data.s.bytes,
+                       let rBytes = try? r.bytes {
+                        dleq = TokenV4.TokenEntry.Proof.DLEQProof(e: Data(eBytes),
+                                                                  s: Data(sBytes),
+                                                                  r: Data(rBytes))
+                    } else {
+                        dleq = nil
+                    }
+                    
+                    return TokenV4.TokenEntry.Proof(amount: p.amount,
+                                                    secret: p.secret,
+                                                    signature: Data(try p.C.bytes),
+                                                    dleqProof: dleq,
+                                                    witness: nil)
                 }))
             }
             
