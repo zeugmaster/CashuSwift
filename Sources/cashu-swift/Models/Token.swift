@@ -33,8 +33,8 @@ extension CashuSwift {
         }
         
         public init(proofs: [String: [any ProofRepresenting]],
-                   unit: String,
-                   memo: String? = nil) {
+                    unit: String,
+                    memo: String? = nil) {
             self.proofsByMint = proofs.mapValues { proofArray in
                 proofArray.map { proofRepresenting in
                     Proof(proofRepresenting)
@@ -57,12 +57,23 @@ extension CashuSwift {
             var ps = [Proof]()
             
             for entry in token.tokens {
+                
                 ps.append(contentsOf: entry.proofs.map({ p in
-                    Proof(keysetID: String(bytes: entry.keysetID),
-                          amount: p.amount,
-                          secret: p.secret,
-                          C: String(bytes: p.signature))
-                    // TODO: needs to take DLEQ data into account
+                    
+                    let dleq: CashuSwift.DLEQ?
+                    if let dleqFields = p.dleqProof {
+                        dleq = CashuSwift.DLEQ(e: String(bytes: dleqFields.e),
+                                               s: String(bytes: dleqFields.s),
+                                               r: String(bytes: dleqFields.r))
+                    } else {
+                        dleq = nil
+                    }
+                    
+                    return Proof(keysetID: String(bytes: entry.keysetID),
+                                 amount: p.amount,
+                                 secret: p.secret,
+                                 C: String(bytes: p.signature),
+                                 dleq: dleq)
                 }))
             }
             

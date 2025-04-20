@@ -677,5 +677,12 @@ final class cashu_swiftTests: XCTestCase {
         let inputRandomDLEQdata = Proof(keysetID: p3.keysetID, amount: p3.amount, secret: p3.secret, C: p3.C, dleq: wrongDLEQ)
         let swap3 = try await CashuSwift.swap(with: mint, inputs: [inputRandomDLEQdata], seed: nil)
         XCTAssertFalse(swap3.validDLEQ)
+        
+        
+    }
+    
+    func testTokenDeserializationWithDLEQ() throws {
+        let token = try "cashuBo2FteBtodHRwczovL3Rlc3RudXQuY2FzaHUuc3BhY2VhdWNzYXRhdIGiYWlIAJofKTJT5B5hcIGkYWEBYXN4QDcyMGVhMjcwYTQ4NDk0YThhNzMwM2E2YjczZTk5NDM1MTU1ZGFjMzFmYjIyYjg5YjllZjFmZGFlMzNjNmIzODVhY1ghAh9iiqwq9POuxIxSW8APMCT3Mw9d5bQv0uTZvUQow9V5YWSjYWVYIGMAHPJTvIcRDgIYcks-1CgWGCipn8QPxmrBvQRxA-RaYXNYICF1NnjVfZDs30T0TXUIORPbaNKkbYUI8vhUPJCxwCy6YXJYIE7keXw6yoxTzpgT_qGKJvWVrDP4NcCPAMlSMPY37LpO".deserializeToken()
+        print(token.debugPretty())
     }
 }
