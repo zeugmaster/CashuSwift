@@ -12,6 +12,8 @@ import OSLog
 fileprivate let logger = Logger.init(subsystem: "CashuSwift", category: "wallet")
 
 extension CashuSwift {
+    
+    @available(*, deprecated, message: "function does not check DLEQ")
     public static func restore(mint:MintRepresenting,
                                with seed:String,
                                batchSize:Int = 10) async throws -> [KeysetRestoreResult] {
@@ -110,11 +112,40 @@ extension CashuSwift {
         return (proofs, proofs.count, currentCounter)
     }
     
+    @available(*, deprecated, message: "function does not check DLEQ")
     public static func restore(mint:Mint,
                                with seed:String,
                                batchSize:Int = 10) async throws -> [KeysetRestoreResult] {
         return try await restore(mint: mint as MintRepresenting,
                                  with: seed,
                                  batchSize: batchSize)
+    }
+    
+    public static func restore(from mint: Mint,
+                               with seed: String,
+                               batchSize: Int = 50) async throws -> (result: [KeysetRestoreResult],
+                                                                     validDLEQ: Bool) {
+        
+        let results = try await restore(mint: mint as MintRepresenting,
+                                        with: seed,
+                                        batchSize: batchSize)
+        
+        let flatProofs = results.flatMap({ $0.proofs })
+        
+        let valid: Bool
+        do {
+            valid = try Crypto.validDLEQ(for: flatProofs, with: mint)
+        } catch CashuSwift.Crypto.Error.DLEQVerificationNoData(_) {
+            logger.warning("""
+                           DLEQ check could not be performed due to missing data but will still \
+                           evaluate as passing because not all wallets and mint support NUT-10. \
+                           future versions will consider the check failed.
+                           """)
+            valid = true
+        } catch {
+            throw error
+        }
+        
+        return (results, valid)
     }
 }

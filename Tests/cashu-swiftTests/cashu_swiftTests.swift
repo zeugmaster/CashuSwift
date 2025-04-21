@@ -382,6 +382,9 @@ final class cashu_swiftTests: XCTestCase {
         
         XCTAssertEqual(Array(proofs.dropFirst(2)), restoredProofs)
         XCTAssertEqual(Array(proofs.dropFirst(2)).sum, restoredProofs.sum)
+        
+        let (_, dleqValid) = try await CashuSwift.restore(from: mint, with: seed)
+        XCTAssertTrue(dleqValid)
     }
     
     func testFeeCalculation() async throws {
@@ -647,7 +650,7 @@ final class cashu_swiftTests: XCTestCase {
     func testDLEQAfterMinting() async throws {
         let mint = try await CashuSwift.loadMint(url: URL(string: dnsTestMint)!)
         let mintQuote = try await CashuSwift.getQuote(mint: mint, quoteRequest: CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 3))
-        let result = try await CashuSwift.issue(for: mintQuote, with: mint)
+        let result = try await CashuSwift.issue(for: mintQuote, with: mint, seed: nil)
         
         XCTAssertTrue(result.validDLEQ)
     }
@@ -658,7 +661,7 @@ final class cashu_swiftTests: XCTestCase {
         
         let mintQuote = try await CashuSwift.getQuote(mint: mint, quoteRequest: qr)
         
-        let mintResult = try await CashuSwift.issue(for: mintQuote, with: mint, preferredDistribution: [1, 1, 1])
+        let mintResult = try await CashuSwift.issue(for: mintQuote, with: mint, seed: nil, preferredDistribution: [1, 1, 1])
         
         let swap1 = try await CashuSwift.swap(with: mint, inputs: [mintResult.proofs[0]], seed: nil)
         XCTAssertTrue(swap1.validDLEQ)
@@ -685,4 +688,5 @@ final class cashu_swiftTests: XCTestCase {
         let token = try "cashuBo2FteBtodHRwczovL3Rlc3RudXQuY2FzaHUuc3BhY2VhdWNzYXRhdIGiYWlIAJofKTJT5B5hcIGkYWEBYXN4QDcyMGVhMjcwYTQ4NDk0YThhNzMwM2E2YjczZTk5NDM1MTU1ZGFjMzFmYjIyYjg5YjllZjFmZGFlMzNjNmIzODVhY1ghAh9iiqwq9POuxIxSW8APMCT3Mw9d5bQv0uTZvUQow9V5YWSjYWVYIGMAHPJTvIcRDgIYcks-1CgWGCipn8QPxmrBvQRxA-RaYXNYICF1NnjVfZDs30T0TXUIORPbaNKkbYUI8vhUPJCxwCy6YXJYIE7keXw6yoxTzpgT_qGKJvWVrDP4NcCPAMlSMPY37LpO".deserializeToken()
         print(token.debugPretty())
     }
+
 }

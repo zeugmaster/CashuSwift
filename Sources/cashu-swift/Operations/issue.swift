@@ -89,7 +89,7 @@ extension CashuSwift {
     
     public static func issue(for quote:Quote,
                              with mint: Mint,
-                             seed:String? = nil,
+                             seed:String?,
                              preferredDistribution:[Int]? = nil) async throws -> (proofs: [Proof], validDLEQ: Bool) {
         
         // TODO: completely remove issue function without dleq check
@@ -103,7 +103,7 @@ extension CashuSwift {
             dleqValid = try Crypto.validDLEQ(for: proofs, with: mint)
         } catch CashuSwift.Crypto.Error.DLEQVerificationNoData(let message) {
             logger.warning("""
-                           DLEQ check could not be performed due to missing data but will still \
+                           While restoring from mint \(mint.url) DLEQ check could not be performed due to missing data but will still \
                            evaluate as passing because not all wallets and mint support NUT-10. \
                            future versions will consider the check failed.
                            """)
