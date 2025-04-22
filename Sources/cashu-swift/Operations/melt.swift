@@ -99,6 +99,7 @@ extension CashuSwift {
     ///Checks whether the invoice was successfully paid by the mint.
     ///If the check returns `true` and the user has provided NUT-07 blank outputs for fee return
     ///it will also unblind the mint's promises and return valid change proofs.
+    @available(*, deprecated, message: "function does not check DLEQ")
     public static func meltState(mint: MintRepresenting,
                                  quoteID: String,
                                  blankOutputs: (outputs: [Output],
