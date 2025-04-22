@@ -137,7 +137,7 @@ extension CashuSwift {
         let inputsValidDLEQ: Bool
         do {
             inputsValidDLEQ = try Crypto.validDLEQ(for: inputs, with: mint)
-        } catch CashuSwift.Crypto.Error.DLEQVerificationNoData(let message) {
+        } catch CashuSwift.Crypto.Error.DLEQVerificationNoData(_) {
             logger.warning("""
                            Before swap: DLEQ check could not be performed due to missing data but will still \
                            evaluate as passing because not all wallets and mint support NUT-10. \
@@ -148,13 +148,8 @@ extension CashuSwift {
             throw error
         }
         
-        // scrub dleq data before swap
-        let scrubbed = inputs.map { p in
-            Proof(keysetID: p.keysetID, amount: p.amount, secret: p.secret, C: p.C, dleq: nil)
-        }
-        
         let swapResult = try await swap(mint: mint,
-                                        proofs: scrubbed,
+                                        proofs: stripDLEQ(inputs), // Making sure no DLEQ data is submitted to the mint
                                         amount: amount,
                                         seed: seed,
                                         preferredReturnDistribution: preferredReturnDistribution)
@@ -163,7 +158,7 @@ extension CashuSwift {
         let outputsValidDLEQ: Bool
         do {
             outputsValidDLEQ = try Crypto.validDLEQ(for: swapResult.new + swapResult.change, with: mint)
-        } catch CashuSwift.Crypto.Error.DLEQVerificationNoData(let message) {
+        } catch CashuSwift.Crypto.Error.DLEQVerificationNoData(_) {
             logger.warning("""
                            After swap: DLEQ check could not be performed due to missing data but will still \
                            evaluate as passing because not all wallets and mint support NUT-10. \

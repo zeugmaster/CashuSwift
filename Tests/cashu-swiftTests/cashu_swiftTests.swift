@@ -287,26 +287,26 @@ final class cashu_swiftTests: XCTestCase {
     }
     
     func testMeltReal() async throws {
-//        let mint1 = try await Mint(with: URL(string: "https://mint.macadamia.cash")!)
-//        let mint2 = try await Mint(with: URL(string: "https://8333.space:3338")!)
-//        
-//        let mintQuote1 = try await mint1.getQuote(quoteRequest: Bolt11.RequestMintQuote(unit: "sat", amount: 128)) as! Bolt11.MintQuote
-//        print(mintQuote1.request)
-//        
-//        sleep(20)
-//        
-//        let proofs = try await mint1.issue(for: mintQuote1)
-//        
-//        let mintQuote2 = try await mint2.getQuote(quoteRequest: CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 64)) as! Bolt11.MintQuote
-//        
-//        let meltQuote = try await mint1.getQuote(quoteRequest: CashuSwift.Bolt11.RequestMeltQuote(unit: "sat", request: mintQuote2.request, options: nil)) as! Bolt11.MeltQuote
-//        
-//        let mnemmonic = Mnemonic()
-//        let seed = String(bytes: mnemmonic.seed)
-//        
-//        let meltResult = try await mint1.melt(quote: meltQuote, proofs: proofs)
-//        print(meltResult)
-//        print(meltResult.change.sum)
+        
+        let mint1 = try await CashuSwift.loadMint(url: URL(string: "https://mint.macadamia.cash")!)
+        let mint2 = try await CashuSwift.loadMint(url: URL(string: "https://8333.space:3338")!)
+        
+        let mintQuote1 = try await CashuSwift.getQuote(mint: mint1, quoteRequest: CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 128)) as! CashuSwift.Bolt11.MintQuote
+        print(mintQuote1.request)
+        
+        sleep(20)
+        
+        let mintResult = try await CashuSwift.issue(for: mintQuote1, with: mint1, seed: nil)
+        
+        let mintQuote2 = try await CashuSwift.getQuote(mint: mint2, quoteRequest: CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 64)) as! CashuSwift.Bolt11.MintQuote
+        
+        let meltQuote = try await CashuSwift.getQuote(mint: mint1, quoteRequest: CashuSwift.Bolt11.RequestMeltQuote(unit: "sat", request: mintQuote2.request, options: nil)) as! CashuSwift.Bolt11.MeltQuote
+        let blankOutputs = try CashuSwift.generateBlankOutputs(quote: meltQuote, proofs: mintResult.proofs, mint: mint1, unit: "sat")
+        
+        let meltResult = try await CashuSwift.melt(with: meltQuote, mint: mint1, proofs: mintResult.proofs, blankOutputs: blankOutputs)
+        
+        print(meltResult)
+        print(meltResult.change?.sum ?? "no change")
     }
     
     func testBlankOutputCalculation() {
@@ -576,21 +576,6 @@ final class cashu_swiftTests: XCTestCase {
     func testCreateRandomPubkey() {
         let priv = try! secp256k1.Signing.PrivateKey()
         print(String(bytes: priv.publicKey.dataRepresentation))
-    }
-    
-    func testMultiReceive() async throws {
-//        let mint1 = try await CashuSwift.loadMint(url: URL(string: "https://testmint.macadamia.cash")!)
-//        let mint2 = try await CashuSwift.loadMint(url: URL(string: "https://testnut.cashu.space")!)
-//        
-//        let mints = [mint1, mint2]
-//        
-//        let mmt = "cashuAeyJtZW1vIjoiV2FsbGV0IERyYWluIiwidG9rZW4iOlt7Im1pbnQiOiJodHRwczpcL1wvdGVzdG51dC5jYXNodS5zcGFjZSIsInByb29mcyI6W3sic2VjcmV0IjoiMDAyYmU3NGIwNzQ5NDBlN2Y5N2VkMWZmMzRlMTVlMTkyM2I1ODMzZmY0NjhjMDU0YzFiMjA3ODZmYzZmOTEwYSIsImFtb3VudCI6MSwiaWQiOiIwMDlhMWYyOTMyNTNlNDFlIiwiQyI6IjAyOTg5NWQ0N2MyMWZjM2M3ZDQwOGQ4MGQ5ZmVlYjMzNDJjYWQ1MjY5ZjQ5MTRkZjBiMTE1N2Q1ZjMxNTgwZDIwNCJ9LHsiYW1vdW50Ijo0LCJpZCI6IjAwOWExZjI5MzI1M2U0MWUiLCJzZWNyZXQiOiIyMmZmMTM2MzJlMjM1ODRiY2Y4MWE4ZTAxNGQ5ZmQ4MmY2OGNhZTFhZGQzZmRkOGM4ZDk4NGY1ZWI4NjQ2ZTNjIiwiQyI6IjAzNWRkYjBlODhjNWFlZmNjYTAyNDZkODQzNmY2YTAxYWU0OTE2Yjk3ZTNkZTNmOGY3YzQ0MDIyODcyYzhhZjg0MCJ9LHsiaWQiOiIwMDlhMWYyOTMyNTNlNDFlIiwiYW1vdW50IjoxNiwiQyI6IjAzYjBiZmIzNWU0OGI1YmUxNmM4MGM3NGY3NTgyZDgzMjNlNmJkM2E3N2M1ZWY1ZmE4NjY3MDIwNThiNWViOGViYyIsInNlY3JldCI6Ijg3NzEzYjRhN2I0ZDcxMmY3Njc0M2IyODQ5NTQ3NjkxNDQ0M2U1YmExOGExZDIxMWM0NzU3Y2I3NmE1M2YwNWIifV19LHsibWludCI6Imh0dHBzOlwvXC90ZXN0bWludC5tYWNhZGFtaWEuY2FzaCIsInByb29mcyI6W3siQyI6IjAzMzVmYWFhZmE0ODgxNjI4M2IyM2U2YjNjNDRmODU2NDcwZmE1ZjgwMzdkNDg2OGNmNDkwNDY2MmRhYWE5NDRjMCIsImFtb3VudCI6Miwic2VjcmV0IjoiYWNlYWU0MzNiNTJhNGFjZWNiNWYyMTFiMzkwNTc4OTljZTlkMTBkY2I0MDM3YzUyZjIxNzNjMTljNTdiZGZiYiIsImlkIjoiMDBlYTBkNDE2NjQ0MTI4YyJ9LHsiYW1vdW50Ijo4LCJzZWNyZXQiOiI4N2Y4MWRiNGVkMmFiNWIzYjMwMjQxNTJmZjg2MzIzZThiMWMyYTM5MzI5MzI4MTBlMTVjODI5YWJkMmUwYTZjIiwiaWQiOiIwMGVhMGQ0MTY2NDQxMjhjIiwiQyI6IjAzZmU0YjRhZDIzNGY5MzI1YjA4MDIxMjcwMjBlY2IzNDg1MGJhZWIzNmZlZmEzZmE0MjFlZjc4M2M0MzA4YWE3NiJ9LHsic2VjcmV0IjoiYjEwYmFiZmZhZDhkZmNkYWQzZTkwYmE4MmI4ZWRiMGMxZTNjNGE5MDlmMjNmOWY2MGRmOTczMjRiMzg4YzJlMiIsImFtb3VudCI6MzIsImlkIjoiMDBlYTBkNDE2NjQ0MTI4YyIsIkMiOiIwMjJjNGI5MGIxNTc5M2RmNDJjMTIxMTUyNjM4NTBiNmE2MzRmNzBkMzZmNzljODc4MDlmYzgwNjRmNTM4OTlmNWMifV19XX0="
-//        
-//        let token = try mmt.deserializeToken()
-//        
-//        let receivedProofs = try await mints.receive(token: token)
-//        
-//        print(receivedProofs)
     }
     
     func testMeltQuoteState() async throws {

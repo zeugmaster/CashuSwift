@@ -13,6 +13,8 @@ import OSLog
 fileprivate let logger = Logger.init(subsystem: "CashuSwift", category: "wallet")
 
 extension CashuSwift {
+    
+    @available(*, deprecated, message: "function does not check DLEQ")
     public static func melt(mint:MintRepresenting,
                             quote:Quote,
                             proofs:[ProofRepresenting],
@@ -47,14 +49,12 @@ extension CashuSwift {
         }
         
         if let blankOutputs {
-            meltRequest = Bolt11.MeltRequest(quote: quote.quote, inputs: normalize(proofs), outputs: blankOutputs.outputs)
+            meltRequest = Bolt11.MeltRequest(quote: quote.quote, inputs: stripDLEQ(proofs), outputs: blankOutputs.outputs)
         } else {
-            meltRequest = Bolt11.MeltRequest(quote: quote.quote, inputs: normalize(proofs), outputs: nil)
+            meltRequest = Bolt11.MeltRequest(quote: quote.quote, inputs: stripDLEQ(proofs), outputs: nil)
         }
         
         let meltResponse:Bolt11.MeltQuote
-        
-        #warning("ensure we do not send blindingfactor to mint in the dleq field")
         
         meltResponse = try await Network.post(url: mint.url.appending(path: "/v1/melt/bolt11"),
                                               body: meltRequest,
@@ -150,21 +150,23 @@ extension CashuSwift {
         }
     }
     
+    @available(*, deprecated, message: "function does not check DLEQ")
     public static func melt(mint: Mint,
-                           quote: Quote,
-                           proofs: [Proof],
-                           timeout: Double = 600,
-                           blankOutputs: (outputs: [Output],
+                            quote: Quote,
+                            proofs: [Proof],
+                            timeout: Double = 600,
+                            blankOutputs: (outputs: [Output],
                                         blindingFactors: [String],
                                         secrets: [String])? = nil) async throws -> (paid: Bool, change: [Proof]?) {
         let result = try await melt(mint: mint as MintRepresenting,
-                                   quote: quote,
-                                   proofs: proofs as [ProofRepresenting],
-                                   timeout: timeout,
-                                   blankOutputs: blankOutputs)
+                                    quote: quote,
+                                    proofs: proofs as [ProofRepresenting],
+                                    timeout: timeout,
+                                    blankOutputs: blankOutputs)
         return (result.paid, result.change as! [Proof]?)
     }
     
+    @available(*, deprecated, message: "function does not check DLEQ")
     public static func meltState(mint: Mint,
                                  quoteID: String,
                                  blankOutputs: (outputs: [Output],
@@ -174,5 +176,73 @@ extension CashuSwift {
         return try await meltState(mint: mint as MintRepresenting,
                                    quoteID: quoteID,
                                    blankOutputs: blankOutputs) as! (Bool, [Proof])
+    }
+    
+    public static func meltState(for quoteID: String,
+                                 mint: Mint,
+                                 blankOutputs: (outputs: [Output],
+                                                blindingFactors: [String],
+                                                secrets: [String])? = nil) async throws -> (paid: Bool,
+                                                                                            change: [Proof]?,
+                                                                                            validDLEQ: Bool) {
+        let result = try await meltState(mint: mint as MintRepresenting,
+                                         quoteID: quoteID,
+                                         blankOutputs: blankOutputs)
+        
+        let change = result.change as! [CashuSwift.Proof]
+        
+        let dleqValid: Bool
+        
+        do {
+            dleqValid = try Crypto.validDLEQ(for: change, with: mint)
+        } catch CashuSwift.Crypto.Error.DLEQVerificationNoData(_) {
+            logger.warning("""
+                           While melting with \(mint.url.absoluteString) DLEQ check could not be performed due to missing data but will still \
+                           evaluate as passing because not all wallets and mint support NUT-10. \
+                           future versions will consider the check failed.
+                           """)
+            dleqValid = true
+        } catch {
+            throw error
+        }
+        
+        return (result.paid, change, dleqValid)
+    }
+    
+    public static func melt(with quote: Quote,
+                            mint: Mint,
+                            proofs: [Proof],
+                            timeout: Double = 600,
+                            blankOutputs: (outputs: [Output],
+                                           blindingFactors: [String],
+                                           secrets: [String])? = nil) async throws -> (paid: Bool,
+                                                                                       change: [Proof]?,
+                                                                                       dleqValid: Bool) {
+        
+        let result = try await melt(mint: mint as MintRepresenting,
+                                    quote: quote,
+                                    proofs: proofs,
+                                    timeout: timeout,
+                                    blankOutputs: blankOutputs) as! (paid: Bool, change: [Proof]?)
+        
+        let dleqValid: Bool
+        if let change = result.change {
+            do {
+                dleqValid = try Crypto.validDLEQ(for: change, with: mint)
+            } catch CashuSwift.Crypto.Error.DLEQVerificationNoData(_) {
+                logger.warning("""
+                               While melting with \(mint.url.absoluteString) DLEQ check could not be performed due to missing data but will still \
+                               evaluate as passing because not all wallets and mint support NUT-10. \
+                               future versions will consider the check failed.
+                               """)
+                dleqValid = true
+            } catch {
+                throw error
+            }
+        } else {
+            dleqValid = true
+        }
+        
+        return (result.paid, result.change, dleqValid)
     }
 }
