@@ -16,7 +16,7 @@ extension CashuSwift {
         var quote:String { get }
         var paid:Bool? { get }          // paid and state are both optional for compatibility
         var state:QuoteState? { get }   // TODO: use custom decoding to unify
-        var expiry:Int { get }
+        var expiry:Int? { get }
     }
 
     public enum QuoteState: String, Codable, Sendable {
@@ -70,7 +70,7 @@ extension CashuSwift {
             public let request: String
             public let paid:Bool?
             public let state:QuoteState?
-            public let expiry:Int
+            public let expiry:Int?
             public var requestDetail: RequestMintQuote?
         }
 
@@ -84,7 +84,7 @@ extension CashuSwift {
             public let quote: String
             public let amount: Int
             public var feeReserve: Int
-            public let expiry: Int
+            public let expiry: Int?
             public let paymentPreimage: String?
             
             public let change:[Promise]?
