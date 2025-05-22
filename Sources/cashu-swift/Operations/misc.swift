@@ -91,7 +91,8 @@ public enum CashuSwift {
                              amount: p.amount,
                              secret: p.secret,
                              C: p.C,
-                             dleq: nil)
+                             dleq: nil,
+                             witness: p.witness)
         }
     }
     

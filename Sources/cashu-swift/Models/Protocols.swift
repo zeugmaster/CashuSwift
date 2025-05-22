@@ -22,5 +22,7 @@ public protocol ProofRepresenting/*: Codable, Equatable*/ {
     var amount:Int { get }
     
     var dleq: CashuSwift.DLEQ? { get }
+    
+    var witness: String? { get }
 }
 

@@ -41,6 +41,7 @@ public enum CashuError: Swift.Error {
     case invoiceAlreadyPaid // 20006
     case quoteIsExpired // 20007
     case unknownError(String)
+    case spendingConditionError(String)
 }
 
 extension CashuError: Equatable {
@@ -61,7 +62,8 @@ extension CashuError: Equatable {
              (.partiallySpentToken, .partiallySpentToken),
              (.quoteIsPending, .quoteIsPending),
              (.invoiceAlreadyPaid, .invoiceAlreadyPaid),
-             (.quoteIsExpired, .quoteIsExpired):
+             (.quoteIsExpired, .quoteIsExpired),
+             (.spendingConditionError, .spendingConditionError):
             return true
             
         case (.inputError, .inputError),

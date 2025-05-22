@@ -86,7 +86,8 @@ extension CashuSwift {
                                                                  keysetID: activeKeyset.keysetID,
                                                                  deterministicFactors: deterministicFactors)
         
-        let internalProofs = normalize(proofs)
+//        let internalProofs = normalize(proofs)
+        let internalProofs = stripDLEQ(proofs)
                 
         let swapRequest = SwapRequest(inputs: internalProofs, outputs: outputs)
         let swapResponse = try await Network.post(url: mint.url.appending(path: "/v1/swap"),

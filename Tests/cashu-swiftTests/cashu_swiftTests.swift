@@ -1,9 +1,10 @@
 import XCTest
 @testable import CashuSwift
 import SwiftData
-import secp256k1
 import BIP39
 import SwiftCBOR
+import secp256k1
+import CryptoKit
 
 let dnsTestMint = "https://testmint.macadamia.cash"
 
@@ -651,6 +652,7 @@ final class cashu_swiftTests: XCTestCase {
         let swap1 = try await CashuSwift.swap(with: mint, inputs: [mintResult.proofs[0]], seed: nil)
         XCTAssertTrue(swap1.validDLEQ)
         
+        print("Deliberately omitting DLEQ data to ensure check is still passing but prints warning...")
         let p2 = mintResult.proofs[1]
         let inputWithoutDLEQfields = Proof(keysetID: p2.keysetID, amount: p2.amount, secret: p2.secret, C: p2.C, dleq: nil)
         let swap2 = try await CashuSwift.swap(with: mint, inputs: [inputWithoutDLEQfields], seed: nil)
@@ -690,5 +692,29 @@ final class cashu_swiftTests: XCTestCase {
         
         XCTAssertEqual(q1.state, .paid)
         XCTAssertEqual(q2.state, .unpaid)
+    }
+    
+    func testSchnorrPubkey() throws {
+        let privateKeyHex = "e95f2010be31354aa13e5b93c4694a8c32fbccaa76274592a32e922bbd8253ac"
+        
+        let privateKey = try secp256k1.Schnorr.PrivateKey(dataRepresentation: privateKeyHex.bytes)
+        print(String(bytes: privateKey.publicKey.dataRepresentation))
+    }
+    
+    // 03f9f5b9805b23d62652180f40aadd8a37702afc0ba0f5a64f7bb761577fe3974e
+    
+    func testSchnorrReceive() async throws {
+        let privateKeyHex = "e95f2010be31354aa13e5b93c4694a8c32fbccaa76274592a32e922bbd8253ac"
+        
+//        let privateKey = try secp256k1.Schnorr.PrivateKey(dataRepresentation: privateKeyHex.bytes)
+        
+        let tokenString = "cashuBo2FteB9odHRwczovL3Rlc3RtaW50Lm1hY2FkYW1pYS5jYXNoYXVjc2F0YXSBomFpSADqDUFmRBKMYXCCo2FhBGFzeKFbIlAyUEsiLHsibm9uY2UiOiJiYTViOWY5MmExYTk4ZTgxYmNkMjRkYjBkOGNlNjY3MzcxZDEyMDkxNjAzYjliNTZjZDYzYmQyZTNiZTQ2ZjBkIiwiZGF0YSI6IjAzZjlmNWI5ODA1YjIzZDYyNjUyMTgwZjQwYWFkZDhhMzc3MDJhZmMwYmEwZjVhNjRmN2JiNzYxNTc3ZmUzOTc0ZSJ9XWFjWCED-uv1SYj5r4YDarkctYXLR0T4ceR757dCtP9KOrd4wkKjYWEQYXN4oVsiUDJQSyIseyJub25jZSI6IjljZmY4ODMxZTJkZjZjNzFjZDZlNDRjZTgwYzViNzA5Yzc5OWIyNTdlODk1NGQwYmE3YzZhMTI5ODU5NDY4ZjIiLCJkYXRhIjoiMDNmOWY1Yjk4MDViMjNkNjI2NTIxODBmNDBhYWRkOGEzNzcwMmFmYzBiYTBmNWE2NGY3YmI3NjE1NzdmZTM5NzRlIn1dYWNYIQPEoxV0udrIzvd8_XATCRG3imSzuzYia-TtImVWuGmqpw-GSzqWR_lmtS6z9UcY"
+        let token = try tokenString.deserializeToken()
+        
+        let mint = try await CashuSwift.loadMint(url: URL(string: token.proofsByMint.first!.key)!)
+        
+        let result = try await CashuSwift.receive(token: token, with: mint, seed: nil, privateKey: privateKeyHex)
+        
+        print(result)
     }
 }

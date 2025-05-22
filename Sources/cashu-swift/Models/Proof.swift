@@ -19,7 +19,7 @@ extension CashuSwift {
         }
         
         public enum CodingKeys: String, CodingKey {
-            case keysetID = "id", amount, secret, C, dleq
+            case keysetID = "id", amount, secret, C, dleq, witness
         }
         
         public let keysetID: String
@@ -27,6 +27,8 @@ extension CashuSwift {
         public let secret: String
         public let C: String
         public let dleq: DLEQ?
+        
+        public let witness: String?
         
         public var description: String {
             return "C: ...\(C.suffix(6)), amount: \(amount)"
@@ -38,6 +40,8 @@ extension CashuSwift {
             self.amount = proofRepresentation.amount
             self.secret = proofRepresentation.secret
             self.dleq = proofRepresentation.dleq
+            
+            self.witness = proofRepresentation.witness
         }
                 
 //        public func encode(to encoder: Encoder) throws {
@@ -57,12 +61,13 @@ extension CashuSwift {
 //        }
         
         // TODO: remove default for dleq
-        public init(keysetID:String, amount:Int, secret:String, C:String, dleq: DLEQ? = nil) {
+        public init(keysetID:String, amount:Int, secret:String, C:String, dleq: DLEQ? = nil, witness: String? = nil) {
             self.keysetID = keysetID
             self.amount = amount
             self.secret = secret
             self.C = C
             self.dleq = dleq
+            self.witness = witness
         }
         
         // MARK: - Additional nested types
@@ -84,6 +89,15 @@ extension CashuSwift {
         
         public struct StateCheckResponse: Codable {
             let states: [ProofStateListEntry]
+        }
+        
+        public struct Witness: Codable, Sendable {
+            let signatures: [String]
+            
+            func stringJSON() throws -> String {
+                let data = try JSONEncoder().encode(self)
+                return String(data: data, encoding: .utf8) ?? ""
+            }
         }
     }
 }
