@@ -83,7 +83,7 @@ public enum CashuSwift {
         proofRepresenting.reduce(0) { $0 + $1.amount }
     }
     
-    static func stripDLEQ(_ proofs: [ProofRepresenting]) -> [CashuSwift.Proof] {
+    static func stripDLEQ(_ proofs: [Proof]) -> [CashuSwift.Proof] {
         proofs.map { p in
             CashuSwift.Proof(keysetID: p.keysetID,
                              amount: p.amount,

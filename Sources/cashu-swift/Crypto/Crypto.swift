@@ -13,7 +13,7 @@ import OSLog
 fileprivate let logger = Logger(subsystem: "cashu-swift", category: "cryptography")
 
 extension CashuSwift {
-    enum Crypto {
+    public enum Crypto {
         
         enum Error: Swift.Error, CustomStringConvertible {
             var description: String {
@@ -42,7 +42,7 @@ extension CashuSwift {
         typealias PublicKey = secp256k1.Signing.PublicKey
         
         /// Result of a DLEQ verification: Can be either `valid`,  `fail` or `noData` if the inputs are missing one or more fields required for the check.
-        enum DLEQVerificationResult { case valid, fail, noData }
+        public enum DLEQVerificationResult { case valid, fail, noData }
         
         //MARK: - OUTPUT GENERATION
         
@@ -316,7 +316,7 @@ extension CashuSwift {
             return try verifyDLEQ(A: A, B_: B_, C_: C_, e: e, s: s)
         }
         
-        public static func hashConcat(_ publicKeys: [PublicKey]) -> Data {
+        static func hashConcat(_ publicKeys: [PublicKey]) -> Data {
             
             var concat = ""
             for k in publicKeys {

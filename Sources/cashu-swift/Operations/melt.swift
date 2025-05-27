@@ -48,10 +48,12 @@ extension CashuSwift {
             throw CashuError.noActiveKeysetForUnit("No active keyset for unit \(units)")
         }
         
+        let noDLEQ = proofs.map({ Proof(keysetID: $0.keysetID, amount: $0.amount, secret: $0.secret, C: $0.C, dleq: nil, witness: nil) })
+        
         if let blankOutputs {
-            meltRequest = Bolt11.MeltRequest(quote: quote.quote, inputs: stripDLEQ(proofs), outputs: blankOutputs.outputs)
+            meltRequest = Bolt11.MeltRequest(quote: quote.quote, inputs: noDLEQ, outputs: blankOutputs.outputs)
         } else {
-            meltRequest = Bolt11.MeltRequest(quote: quote.quote, inputs: stripDLEQ(proofs), outputs: nil)
+            meltRequest = Bolt11.MeltRequest(quote: quote.quote, inputs: noDLEQ, outputs: nil)
         }
         
         let meltResponse:Bolt11.MeltQuote

@@ -41,7 +41,7 @@ extension CashuSwift {
             self.secret = proofRepresentation.secret
             self.dleq = proofRepresentation.dleq
             
-            self.witness = proofRepresentation.witness
+            self.witness = nil
         }
                 
 //        public func encode(to encoder: Encoder) throws {

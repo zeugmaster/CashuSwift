@@ -48,7 +48,8 @@ extension CashuSwift {
                                with mint: Mint,
                                seed: String?,
                                privateKey: String?) async throws -> (proofs: [Proof],
-                                                                     validDLEQ: Bool) {
+                                                                     inputDLEQ: Crypto.DLEQVerificationResult,
+                                                                     outputDLEQ: Crypto.DLEQVerificationResult) {
         
         // this should check whether proofs are from this mint and not multi unit FIXME: potentially wonky and not very descriptive
         guard token.proofsByMint.count == 1 else {
@@ -103,7 +104,7 @@ extension CashuSwift {
             break
         }
         
-        let swapResult = try await swap(with: mint, inputs: inputProofs, seed: seed)
-        return (swapResult.new, swapResult.validDLEQ)
+        let swapResult = try await swap(inputs: inputProofs, with: mint, seed: seed)
+        return (swapResult.new, swapResult.inputDLEQ, swapResult.outputDLEQ)
     }
 }
