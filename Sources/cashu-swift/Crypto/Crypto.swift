@@ -41,6 +41,9 @@ extension CashuSwift {
         typealias PrivateKey = secp256k1.Signing.PrivateKey
         typealias PublicKey = secp256k1.Signing.PublicKey
         
+        /// Result of a DLEQ verification: Can be either `valid`,  `fail` or `noData` if the inputs are missing one or more fields required for the check.
+        enum DLEQVerificationResult { case valid, fail, noData }
+        
         //MARK: - OUTPUT GENERATION
         
         /// Generate a list of blinded `Output`s and corresponding blindingFactors and secrets for later unblinding Promises from the Mint.
@@ -208,6 +211,7 @@ extension CashuSwift {
             throw Error.hashToCurve("No point on the secp256k1 curve could be found.")
         }
         
+        @available(*, deprecated, message: "")
         public static func validDLEQ(for proofs: [Proof], with mint: MintRepresenting) throws -> Bool {
             var checks = [Bool]()
             
@@ -240,6 +244,38 @@ extension CashuSwift {
             return checks.allSatisfy({ $0 == true })
         }
         
+        public static func checkDLEQ(for proofs: [Proof], with mint: MintRepresenting) throws -> DLEQVerificationResult {
+            var checks = [Bool]()
+            
+            for p in proofs {
+                guard let keyset = mint.keysets.first(where: { $0.keysetID == p.keysetID }),
+                      let AString = keyset.keys[String(p.amount)] else {
+                    throw Crypto.Error.DLEQVerificationUnknownKeyset("""
+                                                                     Could not associate mint keyset \
+                                                                     or public key from keyset \(p.keysetID) \
+                                                                     for DLEQ verification.
+                                                                     """)
+                }
+                
+                guard let e = try p.dleq?.e.bytes,
+                      let s = try p.dleq?.s.bytes,
+                      let r = try p.dleq?.r?.bytes else {
+                    logger.warning("""
+                                   At least one necessary parameter for DLEQ \
+                                   verification is not contained in proof.
+                                   proof.dleq: \(p.dleq.debugDescription)
+                                   """)
+                    return .noData
+                }
+                
+                let A = try PublicKey(dataRepresentation: AString.bytes, format: .compressed)
+                let C = try PublicKey(dataRepresentation: p.C.bytes, format: .compressed)
+                
+                checks.append(try verifyDLEQ(A: A, C: C, x: p.secret, e: Data(e), s: Data(s), r: Data(r)))
+            }
+            
+            return checks.allTrue ? .valid : .fail
+        }
         
         static func verifyDLEQ(A: PublicKey, B_: PublicKey, C_: PublicKey, e: Data, s: Data) throws -> Bool {
             // R1 = s*G - e*A

@@ -12,8 +12,6 @@ import OSLog
 fileprivate let logger = Logger.init(subsystem: "CashuSwift", category: "wallet")
 
 public enum CashuSwift {
-
-    
     
     // MARK: - MELT
     ///Allows a wallet to create and persist NUT-08 blank outputs for an overpaid amount `sum(proofs) - quote.amount - inputFee`
@@ -278,7 +276,6 @@ extension Array where Element : MintRepresenting {
         }
         return aggregateProofs
     }
-    
 }
 
 extension Array where Element : ProofRepresenting {
@@ -292,3 +289,36 @@ extension Array where Element : ProofRepresenting {
     }
 }
 
+extension Array where Element == Bool {
+    public var allTrue: Bool {
+        self.allSatisfy({ $0 == true })
+    }
+}
+
+extension CashuSwift.Token {
+    public enum LockVerificationResult { case match, mismatch, partial, notLocked, noKey }
+    
+    public func checkAllInputsLocked(to publicKey: String?) throws -> LockVerificationResult {
+        guard let proofs = self.proofsByMint.first?.value else {
+            throw CashuError.invalidToken
+        }
+        
+        let verifications = Set<LockVerificationResult>( try proofs.map { p in
+            let secret = try CashuSwift.Secret.deserialize(string: p.secret)
+            switch secret {
+            case .P2PK(sc: let sc):
+                if let publicKey {
+                    return sc.data == publicKey ? .match : .mismatch
+                } else {
+                    return .noKey
+                }
+            case .HTLC(sc: let sc):
+                return .mismatch
+            case .deterministic(s: _):
+                return .notLocked
+            }
+        })
+        
+        return verifications.count == 1 ? verifications.first! : .partial
+    }
+}

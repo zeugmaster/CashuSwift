@@ -61,12 +61,12 @@ extension CashuSwift {
         
         let nonce: String
         let data: String
-        let tags: [Tag] //TODO: should check for types String or Int
+        let tags: [Tag]? //TODO: should check for types String or Int
         
         static func == (lhs: SpendingCondition, rhs: SpendingCondition) -> Bool {
             lhs.nonce == rhs.nonce &&
-            lhs.data == rhs.data &&
-            Set(lhs.tags) == Set(rhs.tags)
+            lhs.data == rhs.data 
+//            Set(lhs.tags) == Set(rhs.tags)
         }
         
         enum Tag: Codable, Hashable {
@@ -146,5 +146,4 @@ extension CashuSwift {
             }
         }
     }
-
 }

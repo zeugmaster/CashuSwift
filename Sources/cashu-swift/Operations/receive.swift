@@ -44,7 +44,11 @@ extension CashuSwift {
                                 seed: seed) as! [Proof]
     }
     
-    public static func receive(token: Token, with mint: Mint, seed: String?, privateKey: String?) async throws -> (proofs: [Proof], validDLEQ: Bool) {
+    public static func receive(token: Token,
+                               with mint: Mint,
+                               seed: String?,
+                               privateKey: String?) async throws -> (proofs: [Proof],
+                                                                     validDLEQ: Bool) {
         
         // this should check whether proofs are from this mint and not multi unit FIXME: potentially wonky and not very descriptive
         guard token.proofsByMint.count == 1 else {
@@ -61,26 +65,42 @@ extension CashuSwift {
             throw CashuError.unitError("Proofs to swap are either of mixed unit or foreign to this mint.")
         }
         
-        if inputProofs.contains(where: { $0.secret.contains("P2PK") }) {
-            guard inputProofs.allSatisfy({ $0.secret.contains("P2PK") }) else {
-                logger.error("user is trying to redeem a partially locked token which is not yet supported")
-                throw CashuError.spendingConditionError("Redeeming tokens with different spending conditions is not yet supported by CashuSwift.")
-            }
-            
-            guard let privateKey,
-                  let k = try? secp256k1.Schnorr.PrivateKey(dataRepresentation: privateKey.bytes) else {
+        var publicKey: String? = nil
+        if let privateKey {
+            guard let k = try? secp256k1.Schnorr.PrivateKey(dataRepresentation: privateKey.bytes) else {
                 throw CashuError.spendingConditionError("Token contains locked proofs but private key was not provided or invalid.")
             }
-            
-            // TODO: validate dleq and pubkey match again
+            publicKey = String(bytes: k.publicKey.dataRepresentation)
+        }
+        
+        switch try token.checkAllInputsLocked(to: publicKey) {
+        case .match:
+            // TODO: for now we skip failing DLEQ verification alltogether
             
             let proofsWitness = try inputProofs.map { p in
+                // FIXME: redundant
+                guard let privateKey,
+                      let k = try? secp256k1.Schnorr.PrivateKey(dataRepresentation: privateKey.bytes) else {
+                    throw CashuError.spendingConditionError("Token contains locked proofs but private key was not provided or invalid.")
+                }
                 let sigBytes = try k.signature(for: p.secret.data(using: .utf8)!).bytes
                 let witness = Proof.Witness(signatures: [String(bytes: sigBytes)])
-                return try Proof(keysetID: p.keysetID, amount: p.amount, secret: p.secret, C: p.C, witness: witness.stringJSON())
+                return try Proof(keysetID: p.keysetID,
+                                 amount: p.amount,
+                                 secret: p.secret,
+                                 C: p.C,
+                                 witness: witness.stringJSON())
             }
-            
             inputProofs = proofsWitness
+            
+        case .mismatch:
+            throw CashuError.spendingConditionError("P2PK locking keys did not match")
+        case .noKey:
+            throw CashuError.spendingConditionError("The token is locked but no key was provided")
+        case .partial:
+            throw CashuError.spendingConditionError("Token contains proofs with different spending conditions, which the library can not yet handle.")
+        case .notLocked:
+            break
         }
         
         let swapResult = try await swap(with: mint, inputs: inputProofs, seed: seed)
