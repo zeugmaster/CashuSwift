@@ -37,14 +37,13 @@ extension CashuSwift {
                                 seed: seed) as! [Proof]
     }
     
-    @available(*, deprecated, message: "use function with precise DLEQ check results")
+    @available(*, deprecated, message: "use function with precise DLEQ check results and can not sign locked proofs")
     public static func receive(token: Token,
                                with mint: Mint,
-                               seed: String?,
-                               privateKey: String?) async throws -> (proofs: [Proof],
+                               seed: String?) async throws -> (proofs: [Proof],
                                                                      dleqValid: Bool) {
         
-        let result = try await receive(token: token, of: mint, seed: seed, privateKey: privateKey)
+        let result = try await receive(token: token, of: mint, seed: seed, privateKey: nil)
         
         let valid = result.inputDLEQ == .valid && result.inputDLEQ == result.outputDLEQ // check DLEQ is valid in and out
         
