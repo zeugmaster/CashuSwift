@@ -25,7 +25,11 @@ extension CashuSwift {
         let inputs = proofs.map({ Proof($0) })
         let mint = Mint(mint)
         
-        let result = try await swap(with: mint, inputs: inputs, amount: amount, seed: seed, preferredReturnDistribution: preferredReturnDistribution)
+        let result = try await swap(with: mint,
+                                    inputs: inputs,
+                                    amount: amount,
+                                    seed: seed,
+                                    preferredReturnDistribution: preferredReturnDistribution)
         return (result.new, result.change)
     }
 
@@ -112,7 +116,8 @@ extension CashuSwift {
                 throw CashuError.preferredDistributionMismatch(
                 """
                 preferredReturnDistribution does not add up to expected change amount.
-                proof sum: \(proofSum), return amount: \(returnAmount), change amount: \(changeAmount), fees: \(fee), preferred distr sum: \(preferredReturnDistributionSum)
+                proof sum: \(proofSum), return amount: \(returnAmount), change amount: \
+                \(changeAmount), fees: \(fee), preferred distr sum: \(preferredReturnDistributionSum)
                 """)
             }
             changeDistribution = preferredReturnDistribution
