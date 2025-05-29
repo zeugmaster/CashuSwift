@@ -1,10 +1,3 @@
-//
-//  File.swift
-//  CashuSwift
-//
-//  Created by zm on 07.04.25.
-//
-
 import Foundation
 import secp256k1
 import OSLog
@@ -44,8 +37,22 @@ extension CashuSwift {
                                 seed: seed) as! [Proof]
     }
     
+    @available(*, deprecated, message: "use function with precise DLEQ check results")
     public static func receive(token: Token,
                                with mint: Mint,
+                               seed: String?,
+                               privateKey: String?) async throws -> (proofs: [Proof],
+                                                                     dleqValid: Bool) {
+        
+        let result = try await receive(token: token, of: mint, seed: seed, privateKey: privateKey)
+        
+        let valid = result.inputDLEQ == .valid && result.inputDLEQ == result.outputDLEQ // check DLEQ is valid in and out
+        
+        return (result.proofs, valid)
+    }
+    
+    public static func receive(token: Token,
+                               of mint: Mint,
                                seed: String?,
                                privateKey: String?) async throws -> (proofs: [Proof],
                                                                      inputDLEQ: Crypto.DLEQVerificationResult,
