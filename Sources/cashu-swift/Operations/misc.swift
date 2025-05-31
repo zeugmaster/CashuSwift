@@ -303,7 +303,13 @@ extension CashuSwift.Token {
             throw CashuError.invalidToken
         }
         
-        let verifications = Set<LockVerificationResult>( try proofs.map { p in
+        return try CashuSwift.check(all: proofs, lockedTo: publicKey)
+    }
+}
+
+extension CashuSwift {
+    public static func check(all inputs:[Proof], lockedTo publicKey: String?) throws -> Token.LockVerificationResult {
+        let verifications = Set<Token.LockVerificationResult>( try inputs.map { p in
             let secret = try CashuSwift.Secret.deserialize(string: p.secret)
             switch secret {
             case .P2PK(sc: let sc):
@@ -312,7 +318,7 @@ extension CashuSwift.Token {
                 } else {
                     return .noKey
                 }
-            case .HTLC(sc: let sc):
+            case .HTLC(sc: _):
                 return .mismatch
             case .deterministic(s: _):
                 return .notLocked
