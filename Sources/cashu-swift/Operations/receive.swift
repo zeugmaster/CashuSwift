@@ -37,7 +37,7 @@ extension CashuSwift {
                                 seed: seed) as! [Proof]
     }
     
-    @available(*, deprecated, message: "use function with precise DLEQ check results and can not sign locked proofs")
+    @available(*, deprecated, message: "use function with precise DLEQ check results and P2PK unlocking ability.")
     public static func receive(token: Token,
                                with mint: Mint,
                                seed: String?) async throws -> (proofs: [Proof],

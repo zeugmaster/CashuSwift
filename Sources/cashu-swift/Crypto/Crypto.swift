@@ -260,11 +260,11 @@ extension CashuSwift {
                 guard let e = try p.dleq?.e.bytes,
                       let s = try p.dleq?.s.bytes,
                       let r = try p.dleq?.r?.bytes else {
-                    logger.warning("""
-                                   At least one necessary parameter for DLEQ \
-                                   verification is not contained in proof.
-                                   proof.dleq: \(p.dleq.debugDescription)
-                                   """)
+//                    logger.warning("""
+//                                   At least one necessary parameter for DLEQ \
+//                                   verification is not contained in proof.
+//                                   proof.dleq: \(p.dleq.debugDescription)
+//                                   """)
                     return .noData
                 }
                 
