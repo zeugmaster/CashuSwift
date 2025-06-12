@@ -28,6 +28,8 @@ extension CashuSwift {
                     return "DLEQ Verification Error: \(message)"
                 case .DLEQVerificationUnknownKeyset(let message):
                     return "DLEQ Verification Error: \(message)"
+                default:
+                    return String(describing: self)
                 }
             }
             
@@ -36,6 +38,7 @@ extension CashuSwift {
             case hashToCurve(String?)
             case DLEQVerificationNoData(String)
             case DLEQVerificationUnknownKeyset(String)
+            case invalidSecret(String)
         }
         
         typealias PrivateKey = secp256k1.Signing.PrivateKey
@@ -260,11 +263,6 @@ extension CashuSwift {
                 guard let e = try p.dleq?.e.bytes,
                       let s = try p.dleq?.s.bytes,
                       let r = try p.dleq?.r?.bytes else {
-//                    logger.warning("""
-//                                   At least one necessary parameter for DLEQ \
-//                                   verification is not contained in proof.
-//                                   proof.dleq: \(p.dleq.debugDescription)
-//                                   """)
                     return .noData
                 }
                 
@@ -325,6 +323,17 @@ extension CashuSwift {
             }
             
             return Data(SHA256.hash(data: concat.data(using: .utf8)!))
+        }
+        
+        static func signatures(on secret: String,
+                               with keys: [secp256k1.Schnorr.PrivateKey]) throws -> [String] {
+            guard let secretData = secret.data(using: .utf8) else {
+                throw Crypto.Error.invalidSecret("Could not turn secret string into data for signing.")
+            }
+            return try keys.map { key in
+                let sigBytes = try key.signature(for: secretData).bytes
+                return String(bytes: sigBytes)
+            }
         }
         
         //MARK: - DETERMINISTIC KEY GENERATION

@@ -28,7 +28,7 @@ extension CashuSwift {
         public let C: String
         public let dleq: DLEQ?
         
-        public let witness: String?
+        public var witness: String?
         
         public var description: String {
             return "C: ...\(C.suffix(6)), amount: \(amount)"
@@ -43,22 +43,6 @@ extension CashuSwift {
             
             self.witness = nil
         }
-                
-//        public func encode(to encoder: Encoder) throws {
-//            var container = encoder.container(keyedBy: CodingKeys.self)
-//            try container.encode(keysetID, forKey: .keysetID)
-//            try container.encode(amount, forKey: .amount)
-//            try container.encode(secret, forKey: .secret)
-//            try container.encode(C, forKey: .C)
-//        }
-//        
-//        public init(from decoder: Decoder) throws {
-//            let container = try decoder.container(keyedBy: CodingKeys.self)
-//            keysetID = try container.decode(String.self, forKey: .keysetID)
-//            amount = try container.decode(Int.self, forKey: .amount)
-//            secret = try container.decode(String.self, forKey: .secret)
-//            C = try container.decode(String.self, forKey: .C)
-//        }
         
         // TODO: remove default for dleq
         public init(keysetID:String, amount:Int, secret:String, C:String, dleq: DLEQ? = nil, witness: String? = nil) {

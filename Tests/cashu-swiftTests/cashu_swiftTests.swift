@@ -15,31 +15,12 @@ final class cashu_swiftTests: XCTestCase {
         // test that deserialization from string works properly
         let secretString = "[\"P2PK\",{\"nonce\":\"859d4935c4907062a6297cf4e663e2835d90d97ecdd510745d32f6816323a41f\",\"data\":\"0249098aa8b9d2fbec49ff8598feb17b592b986e62319a4fa488a3dc36387157a7\",\"tags\":[[\"sigflag\",\"SIG_INPUTS\"]]}]"
         
-        let tag = CashuSwift.SpendingCondition.Tag.sigflag(values: ["SIG_INPUTS"])
-        let sc = CashuSwift.SpendingCondition(nonce: "859d4935c4907062a6297cf4e663e2835d90d97ecdd510745d32f6816323a41f",
-                                   data: "0249098aa8b9d2fbec49ff8598feb17b592b986e62319a4fa488a3dc36387157a7",
-                                   tags: [tag])
+        let data = secretString.data(using: .utf8)!
+        let spendingCondition = try JSONDecoder().decode(CashuSwift.SpendingCondition.self, from: data)
         
-        let secret = CashuSwift.Secret.P2PK(sc: sc)
-        XCTAssertEqual(try CashuSwift.Secret.deserialize(string: secretString), secret)
+        print(spendingCondition.debugPretty())
         
-        // test that objects can properly be compared using `Equatable` protocol
-        let secret1:CashuSwift.Secret
-        let secret2:CashuSwift.Secret
-        
-        do {
-            let tag1 = CashuSwift.SpendingCondition.Tag.pubkeys(values: ["1XXXXXXXXX", "2XXXXXXXXX"])
-            let tag2 = CashuSwift.SpendingCondition.Tag.locktime(values: [10, 100, 1000])
-            let sc = CashuSwift.SpendingCondition(nonce: "nonce", data: "data", tags: [tag1, tag2])
-            secret1 = CashuSwift.Secret.P2PK(sc: sc)
-        }
-        do {
-            let tag1 = CashuSwift.SpendingCondition.Tag.pubkeys(values: ["1XXXXXXXXX", "2XXXXXXXXX"])
-            let tag2 = CashuSwift.SpendingCondition.Tag.locktime(values: [10, 100, 1000])
-            let sc = CashuSwift.SpendingCondition(nonce: "nonce", data: "data", tags: [tag2, tag1])
-            secret2 = CashuSwift.Secret.P2PK(sc: sc)
-        }
-        XCTAssertEqual(secret1, secret2)
+        print(try spendingCondition.serialize())
     }
     
     func testNetworkManager() async throws {
@@ -708,13 +689,13 @@ final class cashu_swiftTests: XCTestCase {
         
 //        let privateKey = try secp256k1.Schnorr.PrivateKey(dataRepresentation: privateKeyHex.bytes)
         
-        let tokenString = "cashuBo2FteB1odHRwczovL2Zha2UudGhlc2ltcGxla2lkLmRldmF1Y3NhdGF0gaJhaUgAlNWndMQKMmFwgqNhYQRhc3ihWyJQMlBLIix7Im5vbmNlIjoiZjNmZjA2MGMxYmM0Mjk3NmZhZmUyZTY0ZTczZjEzM2Y4NGI0MDk4ZTdmN2ZiODBiOWZjMWZhZWM2MjY4N2Y5MSIsImRhdGEiOiIwM2Y5ZjViOTgwNWIyM2Q2MjY1MjE4MGY0MGFhZGQ4YTM3NzAyYWZjMGJhMGY1YTY0ZjdiYjc2MTU3N2ZlMzk3NGUifV1hY1ghA5j7tgV5l4Y6GXnB1eaBdB7nV-rUuBHUvMQRmbxyduw1o2FhCGFzeKFbIlAyUEsiLHsibm9uY2UiOiIxNWIzNDY1OGJhMTFmODUxNjI5YmIyZTg1MGVjODJlN2MyNjU5NmY1MDRmNzZhYjc4MWQ4Yjk0NzIxOWMzYzdkIiwiZGF0YSI6IjAzZjlmNWI5ODA1YjIzZDYyNjUyMTgwZjQwYWFkZDhhMzc3MDJhZmMwYmEwZjVhNjRmN2JiNzYxNTc3ZmUzOTc0ZSJ9XWFjWCEDTs14KNoSX32yFnpTKBhgasxjuOCM7QGSShVAM_X8EhI-jYWEQYXN4oVsiUDJQSyIseyJub25jZSI6ImE2ODBlOGEwZTExN2ViZmM4YTcxMmE4NWFjNjMzODI4NWQzNjUwOTJmMmE2ZDA5ZWFlNWY3OGY2NDJkN2Y1YjQiLCJkYXRhIjoiMDNmOWY1Yjk4MDViMjNkNjI2NTIxODBmNDBhYWRkOGEzNzcwMmFmYzBiYTBmNWE2NGY3YmI3NjE1NzdmZTM5NzRlIn1dYWNYIQOaEcJG2XzMwDyAq-_U2Z10cQuJX84yrDOoo6kBbhm_sA-uv1SYj5r4YDarkctYXLR0T4ceR757dCtP9KOrd4wkKjYWEQYXN4oVsiUDJQSyIseyJub25jZSI6IjljZmY4ODMxZTJkZjZjNzFjZDZlNDRjZTgwYzViNzA5Yzc5OWIyNTdlODk1NGQwYmE3YzZhMTI5ODU5NDY4ZjIiLCJkYXRhIjoiMDNmOWY1Yjk4MDViMjNkNjI2NTIxODBmNDBhYWRkOGEzNzcwMmFmYzBiYTBmNWE2NGY3YmI3NjE1NzdmZTM5NzRlIn1dYWNYIQPEoxV0udrIzvd8_XATCRG3imSzuzYia-TtImVWuGmqpw-GSzqWR_lmtS6z9UcY"
+        let tokenString = "cashuBo2FteB9odHRwczovL3Rlc3RtaW50Lm1hY2FkYW1pYS5jYXNoYXVjc2F0YXSBomFpSADqDUFmRBKMYXCCo2FhCGFzeKFbIlAyUEsiLHsibm9uY2UiOiJlYmY5ODM0MmU5ZjM4ZGFlNmYwOTE1NDk5NTZlYWY0NWQ0ZGRmZjVhZjYyZmMzNTI5NjFmNzcyZDAyMDYwMWMxIiwiZGF0YSI6IjAzZjlmNWI5ODA1YjIzZDYyNjUyMTgwZjQwYWFkZDhhMzc3MDJhZmMwYmEwZjVhNjRmN2JiNzYxNTc3ZmUzOTc0ZSJ9XWFjWCEDX88x65qyQxR62BIlNEcYLEex1YG1dsJNRW4-kJ32qySjYWEYIGFzeKFbIlAyUEsiLHsibm9uY2UiOiIxZWJjMTc3MTMzNWJiZTdhMWUwODU2YjUxYTg0MGVjMDhlM2NiNWU1MDk0YWMzMTM4YmYyZWU2ZDllMTUwMDAwIiwiZGF0YSI6IjAzZjlmNWI5ODA1YjIzZDYyNjUyMTgwZjQwYWFkZDhhMzc3MDJhZmMwYmEwZjVhNjRmN2JiNzYxNTc3ZmUzOTc0ZSJ9XWFjWCED3GmCVY3PlzVAhCpGSVsW16QyaLZKUlu60EnUJkl6Y9U"
         let token = try tokenString.deserializeToken()
         
         let mint = try await CashuSwift.loadMint(url: URL(string: token.proofsByMint.first!.key)!)
         
-        let result = try await CashuSwift.receive(token: token, with: mint, seed: nil, privateKey: privateKeyHex)
-        
+        let result = try await CashuSwift.receive(token: token, of: mint, seed: nil, privateKey: privateKeyHex)
+
         print(result)
     }
 }

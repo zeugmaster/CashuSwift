@@ -309,22 +309,49 @@ extension CashuSwift.Token {
 
 extension CashuSwift {
     public static func check(all inputs:[Proof], lockedTo publicKey: String?) throws -> Token.LockVerificationResult {
-        let verifications = Set<Token.LockVerificationResult>( try inputs.map { p in
-            let secret = try CashuSwift.Secret.deserialize(string: p.secret)
-            switch secret {
-            case .P2PK(sc: let sc):
-                if let publicKey {
-                    return sc.data == publicKey ? .match : .mismatch
-                } else {
-                    return .noKey
+        let verifications = Set<Token.LockVerificationResult>( inputs.map { p in
+            if let spendingCondition = CashuSwift.SpendingCondition.deserialize(from: p.secret) {
+                switch spendingCondition.kind {
+                case .P2PK:
+                    if let publicKey {
+                        return spendingCondition.payload.data == publicKey ? .match : .mismatch
+                    } else {
+                        return .noKey
+                    }
+                case .HTLC:
+                    return .mismatch
                 }
-            case .HTLC(sc: _):
-                return .mismatch
-            case .deterministic(s: _):
+            } else {
                 return .notLocked
             }
         })
         
         return verifications.count == 1 ? verifications.first! : .partial
+    }
+    
+    public static func sign(all inputs: [Proof], using keyHex: String) throws {
+        let key = try secp256k1.Schnorr.PrivateKey(dataRepresentation: keyHex.bytes)
+        let publicKeyHex = String(bytes: key.publicKey.dataRepresentation)
+        
+        for var p in inputs {
+            guard let sc = SpendingCondition.deserialize(from: p.secret) else {
+                throw CashuError.spendingConditionError("Secret is not 'Well-known secret' kind, probably deterministic. Secret: \(p.secret)")
+            }
+            if sc.kind == .HTLC {
+                throw CashuError.spendingConditionError("Fucntion expects P2PK spending condition but received HTLC kind. Secret: \(p.secret)")
+            }
+            guard sc.payload.data == publicKeyHex else {
+                throw CashuError.invalidKey("The provided public key does not match the one the input is locked to.")
+            }
+            try p.sign(using: [key])
+        }
+    }
+}
+
+extension CashuSwift.Proof {
+    mutating func sign(using keys: [secp256k1.Schnorr.PrivateKey]) throws {
+        let signatures = try CashuSwift.Crypto.signatures(on: self.secret, with: keys)
+        let witness = Witness(signatures: signatures)
+        self.witness = try witness.stringJSON()
     }
 }

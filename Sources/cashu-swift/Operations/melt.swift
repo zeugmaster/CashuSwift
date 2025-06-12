@@ -38,8 +38,6 @@ extension CashuSwift {
         
         logger.debug("Attempting melt with quote amount: \(quote.amount), lightning fee reserve: \(lightningFee), input fee: \(inputFee).")
         
-        let meltRequest:Bolt11.MeltRequest
-        
         guard let units = try? units(for: proofs, of: mint), units.count == 1 else {
             throw CashuError.unitError("Could not determine singular unit for input proofs.")
         }
@@ -49,19 +47,13 @@ extension CashuSwift {
         }
         
         let noDLEQ = proofs.map({ Proof(keysetID: $0.keysetID, amount: $0.amount, secret: $0.secret, C: $0.C, dleq: nil, witness: nil) })
+                
+        let meltRequest = Bolt11.MeltRequest(quote: quote.quote, inputs: noDLEQ, outputs: blankOutputs.map({ $0.outputs }))
         
-        if let blankOutputs {
-            meltRequest = Bolt11.MeltRequest(quote: quote.quote, inputs: noDLEQ, outputs: blankOutputs.outputs)
-        } else {
-            meltRequest = Bolt11.MeltRequest(quote: quote.quote, inputs: noDLEQ, outputs: nil)
-        }
-        
-        let meltResponse:Bolt11.MeltQuote
-        
-        meltResponse = try await Network.post(url: mint.url.appending(path: "/v1/melt/bolt11"),
-                                              body: meltRequest,
-                                              expected: Bolt11.MeltQuote.self,
-                                              timeout: timeout)
+        let meltResponse = try await Network.post(url: mint.url.appending(path: "/v1/melt/bolt11"),
+                                                  body: meltRequest,
+                                                  expected: Bolt11.MeltQuote.self,
+                                                  timeout: timeout)
         
         let change: [Proof]?
         if let promises = meltResponse.change, let blankOutputs {

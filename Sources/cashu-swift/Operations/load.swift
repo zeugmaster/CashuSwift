@@ -104,7 +104,6 @@ extension CashuSwift {
             return mint.keysets
         }
     }
-
     
     public static func loadMint(url: URL) async throws -> Mint {
         return try await loadMint(url: url, type: Mint.self)

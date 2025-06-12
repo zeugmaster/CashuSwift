@@ -104,36 +104,23 @@ extension CashuSwift {
             throw CashuError.noActiveKeysetForUnit("no active keyset could be found for unit \(String(describing: units.first))")
         }
         
-        // TODO: implement true output selection
-        
         let swapDistribution = CashuSwift.splitIntoBase2Numbers(returnAmount)
-        let changeDistribution:[Int]
         
-        if let preferredReturnDistribution {
-            // TODO: CHECK THAT AMOUNTS ARE ONLY VALID INTEGERS
-            let preferredReturnDistributionSum = preferredReturnDistribution.reduce(0, +)
-            guard preferredReturnDistribution.reduce(0, +) == changeAmount else {
-                throw CashuError.preferredDistributionMismatch(
-                """
-                preferredReturnDistribution does not add up to expected change amount.
-                proof sum: \(proofSum), return amount: \(returnAmount), change amount: \
-                \(changeAmount), fees: \(fee), preferred distr sum: \(preferredReturnDistributionSum)
-                """)
-            }
-            changeDistribution = preferredReturnDistribution
-        } else {
-            changeDistribution = CashuSwift.splitIntoBase2Numbers(changeAmount)
+        let changeDistribution = preferredReturnDistribution.map({ $0 }) ?? splitIntoBase2Numbers(changeAmount)
+        
+        guard changeDistribution.reduce(0, +) == changeAmount else {
+            throw CashuError.preferredDistributionMismatch(
+            """
+            preferredReturnDistribution does not add up to expected change amount.
+            proof sum: \(proofSum), return amount: \(returnAmount), change amount: \
+            \(changeAmount), fees: \(fee), preferred distr sum: \(changeDistribution.reduce(0, +))
+            """)
         }
         
         let combinedDistribution = (swapDistribution + changeDistribution).sorted()
         
-        let deterministicFactors:(String, Int)?
-        if let seed {
-            deterministicFactors = (seed, activeKeyset.derivationCounter)
-        } else {
-            deterministicFactors = nil
-        }
-        
+        let deterministicFactors = seed.map({ ($0, activeKeyset.derivationCounter) })
+
         let (outputs, bfs, secrets) = try Crypto.generateOutputs(amounts: combinedDistribution,
                                                                  keysetID: activeKeyset.keysetID,
                                                                  deterministicFactors: deterministicFactors)
