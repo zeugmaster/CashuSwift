@@ -250,20 +250,13 @@ extension String {
     public func deserializeToken() throws -> CashuSwift.Token {
         
         if self.hasPrefix("cashuA") {
-            return try CashuSwift.Token(token: CashuSwift.TokenV3(tokenString: self.ensureBase64Padding()))
+            return try CashuSwift.Token(token: CashuSwift.TokenV3(tokenString: self))
             
         } else if self.hasPrefix("cashuB") {
-            return try CashuSwift.Token(token: CashuSwift.TokenV4(tokenString: self.ensureBase64Padding()))
+            return try CashuSwift.Token(token: CashuSwift.TokenV4(tokenString: self))
             
         } else {
             throw CashuError.tokenDecoding("Token string does not start with 'cashuA' or 'cashuB'")
         }
-    }
-    
-    func ensureBase64Padding() -> String {
-        let stripped = self.trimmingCharacters(in: CharacterSet(charactersIn: "="))
-        let remainder = stripped.count % 4
-        let paddingLength = remainder == 0 ? 0 : 4 - remainder
-        return stripped + String(repeating: "=", count: paddingLength)
     }
 }
