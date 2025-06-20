@@ -13,6 +13,63 @@ fileprivate let logger = Logger.init(subsystem: "CashuSwift", category: "wallet"
 
 public enum CashuSwift {
     
+    public static func generateOutputs(distribution: [Int],
+                                                mint: Mint,
+                                                seed: String?,
+                                                unit: String = "sat") throws -> ((outputs: [Output],
+                                                                                  blindingFactors: [String],
+                                                                                  secrets: [String])) {
+        guard let keyset = activeKeysetForUnit(unit, mint: mint) else {
+            throw CashuError.noActiveKeysetForUnit("No active keyset for unit '\(unit)'")
+        }
+        
+        return try Crypto.generateOutputs(amounts: distribution,
+                                          keysetID: keyset.keysetID,
+                                          deterministicFactors: seed.map({ ($0, keyset.derivationCounter) }))
+    }
+    
+    public static func generateP2PKOutputs(for amount: Int,
+                                           mint: Mint,
+                                           publicKey: String,
+                                           unit: String = "sat") throws -> ((outputs: [Output],
+                                                                             blindingFactors: [String],
+                                                                             secrets: [String])) {
+        try generateP2PKOutputs(distribution: splitIntoBase2Numbers(amount),
+                                mint: mint,
+                                publicKey: publicKey,
+                                unit: unit)
+    }
+    
+    public static func generateP2PKOutputs(distribution: [Int],
+                                           mint: Mint,
+                                           publicKey: String,
+                                           unit: String = "sat") throws -> ((outputs: [Output],
+                                                                             blindingFactors: [String],
+                                                                             secrets: [String])) {
+        guard let keyset = activeKeysetForUnit(unit, mint: mint) else {
+            throw CashuError.noActiveKeysetForUnit("No active keyset for unit '\(unit)'")
+        }
+        
+        var outputs = [Output]()
+        var blindingFactors = [String]()
+        var secrets = [String]()
+        for amount in distribution {
+            let nonce = try String(bytes: secp256k1.Signing.PrivateKey().dataRepresentation)
+            let payload = SpendingCondition.Payload(nonce: nonce, data: publicKey, tags: nil)
+            let sc = SpendingCondition(kind: .P2PK, payload: payload)
+            let secret = try sc.serialize() // ONLY EVER SERIALIZE THIS ONCE to not have order of fields change
+            let blindingFactor = try secp256k1.Signing.PrivateKey()
+            let outputRaw = try Crypto.output(secret: secret, blindingFactor: blindingFactor)
+            let output = Output(amount: amount,
+                                B_: String(bytes: outputRaw.dataRepresentation),
+                                id: keyset.keysetID)
+            outputs.append(output)
+            blindingFactors.append(String(bytes: blindingFactor.dataRepresentation))
+            secrets.append(secret)
+        }
+        return (outputs, blindingFactors, secrets)
+    }
+    
     // MARK: - MELT
     ///Allows a wallet to create and persist NUT-08 blank outputs for an overpaid amount `sum(proofs) - quote.amount - inputFee`
     public static func generateBlankOutputs(quote: CashuSwift.Bolt11.MeltQuote,
@@ -81,6 +138,12 @@ public enum CashuSwift {
     
     static func sum(_ proofRepresenting:[ProofRepresenting]) -> Int {
         proofRepresenting.reduce(0) { $0 + $1.amount }
+    }
+    
+    static func sum(_ outputs: [Output]) -> Int {
+        outputs.reduce(0) { partialResult, o in
+            partialResult + o.amount
+        }
     }
     
     static func stripDLEQ(_ proofs: [Proof]) -> [CashuSwift.Proof] {

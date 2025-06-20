@@ -677,6 +677,7 @@ final class cashu_swiftTests: XCTestCase {
     
     func testSchnorrPubkey() throws {
         let privateKeyHex = "e95f2010be31354aa13e5b93c4694a8c32fbccaa76274592a32e922bbd8253ac"
+        let pubkeyHex = "03f9f5b9805b23d62652180f40aadd8a37702afc0ba0f5a64f7bb761577fe3974e"
         
         let privateKey = try secp256k1.Schnorr.PrivateKey(dataRepresentation: privateKeyHex.bytes)
         print(String(bytes: privateKey.publicKey.dataRepresentation))
@@ -697,5 +698,28 @@ final class cashu_swiftTests: XCTestCase {
         let result = try await CashuSwift.receive(token: token, of: mint, seed: nil, privateKey: privateKeyHex)
 
         print(result)
+    }
+    
+    func testCreateLockedToken() async throws {
+        
+        let privateKeyHex = "e95f2010be31354aa13e5b93c4694a8c32fbccaa76274592a32e922bbd8253ac"
+        let pubkeyHex = "03f9f5b9805b23d62652180f40aadd8a37702afc0ba0f5a64f7bb761577fe3974e"
+        
+        let mint = try await CashuSwift.loadMint(url: URL(string: dnsTestMint)!)
+        let qr = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 2)
+        let quote = try await CashuSwift.getQuote(mint: mint, quoteRequest: qr)
+        let proofs = try await CashuSwift.issue(for: quote, with: mint, seed: nil)
+        print(proofs.proofs)
+        
+        let sendResult = try await CashuSwift.send(inputs: proofs.proofs,
+                                                   mint: mint,
+                                                   amount: 1,
+                                                   seed: nil,
+                                                   lockToPublicKey: pubkeyHex)
+        print(sendResult.token.debugPretty())
+        print(try sendResult.token.serialize(to: .V4))
+        
+//        let received = try await CashuSwift.receive(token: sendResult.token, of: mint, seed: nil, privateKey: privateKeyHex)
+//        print(received.proofs)
     }
 }

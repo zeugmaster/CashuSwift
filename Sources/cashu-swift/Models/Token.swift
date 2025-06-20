@@ -212,17 +212,58 @@ extension CashuSwift.Token {
 
 extension String {
     
+    var urlSafe: String {
+        get {
+            self.replacingOccurrences(of: "+", with: "-")
+                .replacingOccurrences(of: "/", with: "_")
+        }
+    }
+
+    func encodeBase64UrlSafe(removePadding: Bool = false) throws -> String {
+        guard let base64Encoded = self.data(using: .ascii)?.base64EncodedString() else {
+            throw CashuError.tokenEncoding(".encodeBase64UrlSafe failed for string: \(self)")
+        }
+        
+        var urlSafeBase64 = base64Encoded.urlSafe
+
+        if removePadding {
+            urlSafeBase64 = urlSafeBase64.trimmingCharacters(in: CharacterSet(charactersIn: "="))
+        }
+
+        return urlSafeBase64
+    }
+    
+    func decodeBase64UrlSafe() -> Data? {
+        var base64 = self
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+
+        // Check if padding is needed
+        let mod4 = base64.count % 4
+        if mod4 != 0 {
+            base64 += String(repeating: "=", count: 4 - mod4)
+        }
+        
+        return Data(base64Encoded: base64, options: .ignoreUnknownCharacters)
+    }
+    
     public func deserializeToken() throws -> CashuSwift.Token {
         
         if self.hasPrefix("cashuA") {
-            return try CashuSwift.Token(token: CashuSwift.TokenV3(tokenString: self))
+            return try CashuSwift.Token(token: CashuSwift.TokenV3(tokenString: self.ensureBase64Padding()))
             
         } else if self.hasPrefix("cashuB") {
-            return try CashuSwift.Token(token: CashuSwift.TokenV4(tokenString: self))
+            return try CashuSwift.Token(token: CashuSwift.TokenV4(tokenString: self.ensureBase64Padding()))
             
         } else {
             throw CashuError.tokenDecoding("Token string does not start with 'cashuA' or 'cashuB'")
         }
     }
     
+    func ensureBase64Padding() -> String {
+        let stripped = self.trimmingCharacters(in: CharacterSet(charactersIn: "="))
+        let remainder = stripped.count % 4
+        let paddingLength = remainder == 0 ? 0 : 4 - remainder
+        return stripped + String(repeating: "=", count: paddingLength)
+    }
 }

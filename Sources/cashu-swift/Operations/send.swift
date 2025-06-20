@@ -17,7 +17,7 @@ extension CashuSwift {
                             amount:Int? = nil,
                             seed:String? = nil,
                             memo:String? = nil) async throws -> (token:Token,
-                                                        change:[ProofRepresenting]) {
+                                                                 change:[ProofRepresenting]) {
         
         let proofSum = sum(proofs)
         let amount = amount ?? proofSum
@@ -62,5 +62,66 @@ extension CashuSwift {
                                    seed: seed,
                                    memo: memo)
         return (result.token, result.change as! [Proof])
+    }
+    
+    public static func send(inputs: [Proof],
+                            mint: Mint,
+                            amount: Int? = nil,
+                            seed: String?,
+                            memo: String? = nil,
+                            lockToPublicKey: String? = nil) async throws -> (token: Token,
+                                                                             change: [Proof],
+                                                                             outputDLEQ: Crypto.DLEQVerificationResult) {
+        let proofSum = sum(inputs)
+        let amount = amount ?? proofSum
+        
+        guard amount >= 0 else {
+            throw CashuError.invalidAmount
+        }
+        
+        guard amount <= proofSum else {
+            throw CashuError.insufficientInputs("amount must not be larger than input proofs")
+        }
+        
+        let units = try units(for: inputs, of: mint)
+        guard units.count == 1 else {
+            throw CashuError.unitError("")
+        }
+        let unit = units.first ?? "sat"
+        
+        let keepOutputSets:(outputs: [Output], blindingFactors: [String], secrets: [String])
+        let sendOutputSets:(outputs: [Output], blindingFactors: [String], secrets: [String])
+        if let lockToPublicKey {
+            sendOutputSets = try generateP2PKOutputs(for: amount,
+                                                     mint: mint,
+                                                     publicKey: lockToPublicKey)
+        } else {
+            if amount == proofSum {
+                return (Token(proofs: [mint.url.absoluteString: inputs],
+                              unit: unit,
+                              memo: memo), [], .valid)
+            } else {
+                sendOutputSets = try generateOutputs(distribution: splitIntoBase2Numbers(amount),
+                                                     mint: mint,
+                                                     seed: seed,
+                                                     unit: unit)
+            }
+        }
+        
+        keepOutputSets = try generateOutputs(distribution: splitIntoBase2Numbers(proofSum - amount),
+                                             mint: mint,
+                                             seed: seed,
+                                             unit: unit)
+        
+        let swapResult = try await swap(inputs: inputs,
+                                        with: mint,
+                                        sendOutputs: sendOutputSets,
+                                        keepOutputs: keepOutputSets)
+        
+        let token = Token(proofs: [mint.url.absoluteString: swapResult.send],
+                          unit: unit,
+                          memo: memo)
+        
+        return (token, swapResult.keep, swapResult.outputDLEQ)
     }
 }

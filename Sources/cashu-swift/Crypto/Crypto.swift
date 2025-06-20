@@ -52,11 +52,11 @@ extension CashuSwift {
         /// Generate a list of blinded `Output`s and corresponding blindingFactors and secrets for later unblinding Promises from the Mint.
         /// Not specifying `deterministicFactors` will give you random outputs that can not be recreated via seed phrase backup
         static func generateOutputs(amounts:[Int],
-                                           keysetID:String,
-                                           deterministicFactors:(seed:String,
-                                                                 counter:Int)? = nil)  throws -> (outputs: [Output],
-                                                                                                  blindingFactors: [String],
-                                                                                                  secrets:[String]) {
+                                    keysetID:String,
+                                    deterministicFactors:(seed:String,
+                                                          counter:Int)? = nil)  throws -> (outputs: [Output],
+                                                                                           blindingFactors: [String],
+                                                                                           secrets:[String]) {
 
             var outputs = [Output]()
             var blindingFactors = [String]()
@@ -74,7 +74,7 @@ extension CashuSwift {
                     blindingFactors.append(deterministic.blindingFactor.stringRepresentation)
                     secrets.append(deterministic.secret)
                 } else {
-                    let random = try generateRandomOutput(keysetID: keysetID)
+                    let random = try generateRandomOutput()
                     outputs.append(Output(amount: amounts[i],
                                           B_: random.output.stringRepresentation,
                                           id: keysetID))
@@ -86,9 +86,9 @@ extension CashuSwift {
             return (outputs, blindingFactors, secrets)
         }
         
-        private static func generateRandomOutput(keysetID:String) throws -> (output:PublicKey,
-                                                                       blindingFactor: PrivateKey,
-                                                                       secret:String) {
+        private static func generateRandomOutput() throws -> (output:PublicKey,
+                                                                             blindingFactor: PrivateKey,
+                                                                             secret:String) {
             let x = try PrivateKey()
             
             let xString = String(bytes: x.dataRepresentation)
@@ -109,12 +109,7 @@ extension CashuSwift {
                                                                        blindingFactor: PrivateKey,
                                                                        secret:String) {
             
-            let keysetInt:Int
-            if keysetID.count == 16 {
-                keysetInt = convertHexKeysetID(keysetID: keysetID)!
-            } else {
-                keysetInt = convertKeysetID(keysetID: keysetID)!
-            }
+            let keysetInt = keysetID.count == 16 ? convertHexKeysetID(keysetID: keysetID)! : convertKeysetID(keysetID: keysetID)!
             
             let secretPath = "m/129372'/0'/\(keysetInt)'/\(index)'/0"
             let blindingFactorPath = "m/129372'/0'/\(keysetInt)'/\(index)'/1"
@@ -137,6 +132,13 @@ extension CashuSwift {
             )
             
             return (B_, r, xString)
+        }
+        
+        //MARK: - BLINDING
+        
+        static func output(secret: String, blindingFactor: PrivateKey) throws -> PublicKey {
+            let Y = try secureHashToCurve(message: secret)
+            return try Y.combine([blindingFactor.publicKey])
         }
         
         //MARK: - UNBLINDING

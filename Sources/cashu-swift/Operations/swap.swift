@@ -124,18 +124,18 @@ extension CashuSwift {
         let (outputs, bfs, secrets) = try Crypto.generateOutputs(amounts: combinedDistribution,
                                                                  keysetID: activeKeyset.keysetID,
                                                                  deterministicFactors: deterministicFactors)
-        
-        let internalProofs = stripDLEQ(inputs)
                 
-        let swapRequest = SwapRequest(inputs: internalProofs, outputs: outputs)
+        let swapRequest = SwapRequest(inputs: stripDLEQ(inputs),
+                                      outputs: outputs)
+        
         let swapResponse = try await Network.post(url: mint.url.appending(path: "/v1/swap"),
                                                   body: swapRequest,
                                                   expected: SwapResponse.self)
         
         var changeProofs = try Crypto.unblindPromises(swapResponse.signatures,
-                                                   blindingFactors: bfs,
-                                                   secrets: secrets,
-                                                   keyset: activeKeyset)
+                                                      blindingFactors: bfs,
+                                                      secrets: secrets,
+                                                      keyset: activeKeyset)
         
         var sendProofs = [Proof]()
         for n in swapDistribution {
@@ -148,5 +148,77 @@ extension CashuSwift {
         let outputDLEQ = try Crypto.checkDLEQ(for: sendProofs + changeProofs, with: mint)
         
         return (sendProofs, changeProofs, inputDLEQ, outputDLEQ)
+    }
+    
+    public static func swap(inputs: [Proof],
+                            with mint: Mint,
+                            sendOutputs: (outputs:[Output], blindingFactors: [String], secrets: [String]),
+                            keepOutputs: (outputs:[Output], blindingFactors: [String], secrets: [String])) async throws -> (send: [Proof],
+                                                                                                  keep: [Proof],
+                                                                                                  inputDLEQ: Crypto.DLEQVerificationResult,
+                                                                                                  outputDLEQ: Crypto.DLEQVerificationResult) {
+        
+        let inputDLEQ = try Crypto.checkDLEQ(for: inputs, with: mint)
+        
+        let fee = try calculateFee(for: inputs, of: mint)
+        let proofSum = sum(inputs)
+        
+        let outputSum = sum(sendOutputs.0 + keepOutputs.0)
+        
+        guard (proofSum - fee) == outputSum else {
+            throw CashuError.insufficientInputs("SWAP: sum of proofs (\(proofSum)) is less than keep and send outputs (\(outputSum)) + fees (\(fee))")
+        }
+        
+        let units = try units(for: inputs, of: mint)
+        
+        guard units.count == 1 else {
+            throw CashuError.unitError("Proofs to swap are either of mixed unit or foreign to this mint.")
+        }
+        
+        let keysetIDs = Set((sendOutputs.0 + keepOutputs.0).map({ $0.id }))
+        guard keysetIDs.count == 1 else { // FIXME: use appropriate error or remove
+            throw CashuError.unknownError("outputs to send and keep seem to use different keysets, which is not supported \(keysetIDs)")
+        }
+        
+        guard let keyset = mint.keysets.first(where: { $0.keysetID == keysetIDs.first }), keyset.active else {
+            throw CashuError.unknownError("keyset \(keysetIDs.first ?? "nil") could not be found or is inactive")
+        }
+        
+        var combined:[(o: Output, i:Int, toSend:Bool)] =
+        sendOutputs.0.enumerated().map({ (i, v) in (o: v, i:i, toSend: true) }) +
+        keepOutputs.0.enumerated().map({ (i, v) in (o: v, i:i + sendOutputs.0.count, toSend: false) })
+        
+        combined.sort(by: { $0.o.amount < $1.o.amount })
+        
+        let swapRequest = SwapRequest(inputs: stripDLEQ(inputs),
+                                      outputs: combined.map({ $0.o }))
+        
+        let swapResponse = try await Network.post(url: mint.url.appending(path: "/v1/swap"),
+                                                  body: swapRequest,
+                                                  expected: SwapResponse.self)
+        
+        // restore original order for unblinding to work
+        let outputsAndPromises = zip(combined, swapResponse.signatures).sorted { first, second in
+            first.0.i < second.0.i
+        }
+        
+        // TODO: repetitive, remove boolean for send/keep, unblind combined
+        let sendPromises = outputsAndPromises.filter({ $0.0.toSend })
+                                             .map({ $0.1 })
+        let keepPromises = outputsAndPromises.filter({ !$0.0.toSend })
+                                             .map({ $0.1 })
+        
+        let sendProofs = try Crypto.unblindPromises(sendPromises,
+                                                    blindingFactors: sendOutputs.blindingFactors,
+                                                    secrets: sendOutputs.secrets,
+                                                    keyset: keyset)
+        let keepProofs = try Crypto.unblindPromises(keepPromises,
+                                                    blindingFactors: keepOutputs.blindingFactors,
+                                                    secrets: keepOutputs.secrets,
+                                                    keyset: keyset)
+        
+        let outputDLEQ = try Crypto.checkDLEQ(for: sendProofs + keepProofs, with: mint)
+        
+        return (sendProofs, keepProofs, inputDLEQ, outputDLEQ)
     }
 }
