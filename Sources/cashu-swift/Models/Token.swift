@@ -238,11 +238,12 @@ extension String {
             .replacingOccurrences(of: "-", with: "+")
             .replacingOccurrences(of: "_", with: "/")
 
-        // Check if padding is needed
-        let mod4 = base64.count % 4
-        if mod4 != 0 {
-            base64 += String(repeating: "=", count: 4 - mod4)
-        }
+        let stripped = base64.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+                             .trimmingCharacters(in: CharacterSet(charactersIn: "="))
+        let remainder = stripped.count % 4
+        let paddingLength = remainder == 0 ? 0 : 4 - remainder
+        base64 = stripped + String(repeating: "=", count: paddingLength)
+        
         
         return Data(base64Encoded: base64, options: .ignoreUnknownCharacters)
     }
