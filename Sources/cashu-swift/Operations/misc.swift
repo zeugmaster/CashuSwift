@@ -244,7 +244,7 @@ public enum CashuSwift {
     /// Returns a set of units represented in the proofs
     static func units(for proofs:[ProofRepresenting], of mint:MintRepresenting) throws -> Set<String> {
         guard !mint.keysets.isEmpty, !proofs.isEmpty else {
-            throw CashuError.unitError("empty inputs to function .check() proofs: \(proofs.count), keysete\(mint.keysets.count)")
+            throw CashuError.unitError("empty inputs to function .units(for:) proofs: \(proofs.count), keyset \(mint.keysets.count)")
         }
         
         var units:Set<String> = []

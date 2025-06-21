@@ -719,7 +719,112 @@ final class cashu_swiftTests: XCTestCase {
         print(sendResult.token.debugPretty())
         print(try sendResult.token.serialize(to: .V4))
         
-//        let received = try await CashuSwift.receive(token: sendResult.token, of: mint, seed: nil, privateKey: privateKeyHex)
-//        print(received.proofs)
+        let received = try await CashuSwift.receive(token: sendResult.token, of: mint, seed: nil, privateKey: privateKeyHex)
+        print(received.proofs)
+    }
+    
+    func testSendReceiveLocked() async throws {
+        let privateKeyHex = "e95f2010be31354aa13e5b93c4694a8c32fbccaa76274592a32e922bbd8253ac"
+        let pubkeyHex = "03f9f5b9805b23d62652180f40aadd8a37702afc0ba0f5a64f7bb761577fe3974e"
+        
+        let mnemmonic = Mnemonic()
+        let seed = String(bytes: mnemmonic.seed)
+
+        
+        var mint = try await CashuSwift.loadMint(url: URL(string: dnsTestMint)!)
+        
+        // test with simple 2 - 1 proof send, nondet
+        do {
+            let qr = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 31)
+            let quote = try await CashuSwift.getQuote(mint: mint, quoteRequest: qr)
+            let proofs = try await CashuSwift.issue(for: quote, with: mint, seed: nil)
+            
+            let sendResult = try await CashuSwift.send(inputs: proofs.proofs,
+                                                       mint: mint,
+                                                       amount: 15,
+                                                       seed: nil,
+                                                       lockToPublicKey: pubkeyHex)
+            print("change sum: \(sendResult.change.sum)")
+            print("token sum: \(String(describing: sendResult.token.proofsByMint.first?.value.sum))")
+            _ = try await CashuSwift.receive(token: sendResult.token, of: mint, seed: nil, privateKey: privateKeyHex)
+        }
+        
+        // many inputs, send all, nondet
+        do {
+            let qr = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 63)
+            let quote = try await CashuSwift.getQuote(mint: mint, quoteRequest: qr)
+            let proofs = try await CashuSwift.issue(for: quote, with: mint, seed: nil)
+            
+            let sendResult = try await CashuSwift.send(inputs: proofs.proofs,
+                                                       mint: mint,
+                                                       seed: nil,
+                                                       lockToPublicKey: pubkeyHex)
+            print("change sum: \(sendResult.change.sum)")
+            print("token sum: \(String(describing: sendResult.token.proofsByMint.first?.value.sum))")
+            _ = try await CashuSwift.receive(token: sendResult.token, of: mint, seed: nil, privateKey: privateKeyHex)
+        }
+        
+        
+        do {
+            let qr = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 63)
+            let quote = try await CashuSwift.getQuote(mint: mint, quoteRequest: qr)
+            let proofs = try await CashuSwift.issue(for: quote, with: mint, seed: nil)
+            
+            _ = try await CashuSwift.send(inputs: proofs.proofs,
+                                                       mint: mint,
+                                                       amount: 0,
+                                                       seed: nil,
+                                                       lockToPublicKey: pubkeyHex)
+            
+        } catch let error as CashuError {
+            XCTAssert(error == CashuError.invalidAmount)
+        }
+        
+        do {
+            let qr = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 63)
+            let quote = try await CashuSwift.getQuote(mint: mint, quoteRequest: qr)
+            let proofs = try await CashuSwift.issue(for: quote, with: mint, seed: nil)
+            
+            let sendResult = try await CashuSwift.send(inputs: proofs.proofs,
+                                                       mint: mint,
+                                                       amount: 21,
+                                                       seed: nil,
+                                                       lockToPublicKey: pubkeyHex)
+            
+            let sendLocked = try await CashuSwift.send(inputs: sendResult.token.proofsByMint.first!.value,
+                                                       mint: mint,
+                                                       seed: nil)
+            
+        } catch let error as CashuError {
+            XCTAssert(error == CashuError.spendingConditionError(""))
+        }
+        
+        do {
+            let qr = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 335)
+            let quote = try await CashuSwift.getQuote(mint: mint, quoteRequest: qr)
+            let issued = try await CashuSwift.issue(for: quote, with: mint, seed: seed)
+            
+            
+            if let idx = mint.keysets.firstIndex(where: { $0.keysetID == CashuSwift.activeKeysetForUnit("sat", mint: mint)?.keysetID }) {
+                // 2. Mutate directly
+                mint.keysets[idx].derivationCounter += issued.proofs.count
+            }
+            
+            print(mint.debugPretty())
+            let sendResult = try await CashuSwift.send(inputs: issued.proofs,
+                                                       mint: mint,
+                                                       amount: 15,
+                                                       seed: seed,
+                                                       lockToPublicKey: pubkeyHex)
+            
+            if let idx = mint.keysets.firstIndex(where: { $0.keysetID == CashuSwift.activeKeysetForUnit("sat", mint: mint)?.keysetID }) {
+                // 2. Mutate directly
+                mint.keysets[idx].derivationCounter += (sendResult.token.proofsByMint.first?.value.count ?? 0 + sendResult.change.count)
+            }
+            
+            print("change sum: \(sendResult.change.sum)")
+            print("token sum: \(String(describing: sendResult.token.proofsByMint.first?.value.sum))")
+            _ = try await CashuSwift.receive(token: sendResult.token, of: mint, seed: seed, privateKey: privateKeyHex)
+        }
     }
 }

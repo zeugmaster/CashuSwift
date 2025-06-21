@@ -9,7 +9,7 @@ import Foundation
 
 extension CashuSwift {
     
-    @available(*, deprecated)
+    @available(*, deprecated, message: "Use Mint.Info struct instead")
     public class MintInfo: Codable {
         public let name: String
         public let pubkey: String

@@ -12,6 +12,7 @@ import OSLog
 fileprivate let logger = Logger.init(subsystem: "CashuSwift", category: "wallet")
 
 extension CashuSwift {
+    @available(*, deprecated)
     public static func send(mint:MintRepresenting,
                             proofs:[ProofRepresenting],
                             amount:Int? = nil,
@@ -50,7 +51,7 @@ extension CashuSwift {
         
         return (token, changeProofs)
     }
-
+    @available(*, deprecated)
     public static func send(mint: Mint,
                            proofs: [Proof],
                            amount: Int? = nil,
@@ -64,6 +65,7 @@ extension CashuSwift {
         return (result.token, result.change as! [Proof])
     }
     
+    /// # send
     public static func send(inputs: [Proof],
                             mint: Mint,
                             amount: Int? = nil,
@@ -75,7 +77,7 @@ extension CashuSwift {
         let proofSum = sum(inputs)
         let amount = amount ?? proofSum
         
-        guard amount >= 0 else {
+        guard amount > 0 else {
             throw CashuError.invalidAmount
         }
         
@@ -85,12 +87,20 @@ extension CashuSwift {
         
         let units = try units(for: inputs, of: mint)
         guard units.count == 1 else {
-            throw CashuError.unitError("")
+            throw CashuError.unitError("Input proofs have mixed units, which is not allowed.")
         }
         let unit = units.first ?? "sat"
         
+        // make sure inputs do not have spending condition
+        for p in inputs {
+            guard SpendingCondition.deserialize(from: p.secret) == nil else {
+                throw CashuError.spendingConditionError(".send() function does not yet support locked inputs.")
+            }
+        }
+        
         let keepOutputSets:(outputs: [Output], blindingFactors: [String], secrets: [String])
         let sendOutputSets:(outputs: [Output], blindingFactors: [String], secrets: [String])
+        
         if let lockToPublicKey {
             sendOutputSets = try generateP2PKOutputs(for: amount,
                                                      mint: mint,
