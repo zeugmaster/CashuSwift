@@ -14,39 +14,6 @@ fileprivate let logger = Logger.init(subsystem: "CashuSwift", category: "wallet"
 
 extension CashuSwift {
     
-    @available(*, deprecated, message: "function does not check DLEQ, or support proofs with witness for NUT-10 spending conditions.")
-    public static func swap(mint:MintRepresenting,
-                            proofs:[ProofRepresenting],
-                            amount:Int? = nil,
-                            seed:String? = nil,
-                            preferredReturnDistribution:[Int]? = nil) async throws -> (new:[ProofRepresenting],
-                                                                                       change:[ProofRepresenting]) {
-        
-        let inputs = proofs.map({ Proof($0) })
-        let mint = Mint(mint)
-        
-        let result = try await swap(with: mint,
-                                    inputs: inputs,
-                                    amount: amount,
-                                    seed: seed,
-                                    preferredReturnDistribution: preferredReturnDistribution)
-        return (result.new, result.change)
-    }
-
-    @available(*, deprecated, message: "function does not check DLEQ")
-    public static func swap(mint: Mint,
-                           proofs: [Proof],
-                           amount: Int? = nil,
-                           seed: String? = nil,
-                           preferredReturnDistribution: [Int]? = nil) async throws -> (new: [Proof], change: [Proof]) {
-        let result = try await swap(mint: mint as MintRepresenting,
-                                   proofs: proofs as [ProofRepresenting],
-                                   amount: amount,
-                                   seed: seed,
-                                   preferredReturnDistribution: preferredReturnDistribution)
-        return (result.new as! [Proof], result.change as! [Proof])
-    }
-    
     public static func swap(with mint: Mint,
                             inputs: [Proof],
                             amount: Int? = nil,
@@ -220,5 +187,38 @@ extension CashuSwift {
         let outputDLEQ = try Crypto.checkDLEQ(for: sendProofs + keepProofs, with: mint)
         
         return (sendProofs, keepProofs, inputDLEQ, outputDLEQ)
+    }
+    
+    @available(*, deprecated, message: "function does not check DLEQ, or support proofs with witness for NUT-10 spending conditions.")
+    public static func swap(mint:MintRepresenting,
+                            proofs:[ProofRepresenting],
+                            amount:Int? = nil,
+                            seed:String? = nil,
+                            preferredReturnDistribution:[Int]? = nil) async throws -> (new:[ProofRepresenting],
+                                                                                       change:[ProofRepresenting]) {
+        
+        let inputs = proofs.map({ Proof($0) })
+        let mint = Mint(mint)
+        
+        let result = try await swap(with: mint,
+                                    inputs: inputs,
+                                    amount: amount,
+                                    seed: seed,
+                                    preferredReturnDistribution: preferredReturnDistribution)
+        return (result.new, result.change)
+    }
+
+    @available(*, deprecated, message: "function does not check DLEQ")
+    public static func swap(mint: Mint,
+                           proofs: [Proof],
+                           amount: Int? = nil,
+                           seed: String? = nil,
+                           preferredReturnDistribution: [Int]? = nil) async throws -> (new: [Proof], change: [Proof]) {
+        let result = try await swap(mint: mint as MintRepresenting,
+                                   proofs: proofs as [ProofRepresenting],
+                                   amount: amount,
+                                   seed: seed,
+                                   preferredReturnDistribution: preferredReturnDistribution)
+        return (result.new as! [Proof], result.change as! [Proof])
     }
 }
