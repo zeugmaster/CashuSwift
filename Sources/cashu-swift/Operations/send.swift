@@ -34,15 +34,7 @@ extension CashuSwift {
                                                                              change: [Proof],
                                                                              outputDLEQ: Crypto.DLEQVerificationResult) {
         let proofSum = sum(inputs)
-        let amount = amount ?? proofSum
-        
-        guard amount > 0 else {
-            throw CashuError.invalidAmount
-        }
-        
-        guard amount <= proofSum else {
-            throw CashuError.insufficientInputs("amount must not be larger than input proofs")
-        }
+        let inputFee = try calculateFee(for: inputs, of: mint)
         
         let units = try units(for: inputs, of: mint)
         guard units.count == 1 else {
@@ -57,30 +49,31 @@ extension CashuSwift {
             }
         }
         
-        let keepOutputSets:(outputs: [Output], blindingFactors: [String], secrets: [String])
-        let sendOutputSets:(outputs: [Output], blindingFactors: [String], secrets: [String])
-        
-        if let lockToPublicKey {
-            sendOutputSets = try generateP2PKOutputs(for: amount,
-                                                     mint: mint,
-                                                     publicKey: lockToPublicKey)
-        } else {
-            if amount == proofSum {
-                return (Token(proofs: [mint.url.absoluteString: inputs],
-                              unit: unit,
-                              memo: memo), [], .valid)
-            } else {
-                sendOutputSets = try generateOutputs(distribution: splitIntoBase2Numbers(amount),
-                                                     mint: mint,
-                                                     seed: seed,
-                                                     unit: unit)
-            }
+        if (proofSum == amount ?? proofSum) && lockToPublicKey == nil {
+            return (Token(proofs: [mint.url.absoluteString: inputs],
+                          unit: unit,
+                          memo: memo), [], .valid)
         }
         
-        keepOutputSets = try generateOutputs(distribution: splitIntoBase2Numbers(proofSum - amount),
-                                             mint: mint,
-                                             seed: seed,
-                                             unit: unit)
+        let split = try split(for: proofSum, target: amount, fee: inputFee)
+        
+        let keepOutputSets = try generateOutputs(distribution: splitIntoBase2Numbers(split.keepAmount),
+                                                 mint: mint,
+                                                 seed: seed,
+                                                 unit: unit)
+                
+        let sendOutputSets = try lockToPublicKey.map { pubkey in
+            try generateP2PKOutputs(for: split.sendAmount,
+                                    mint: mint,
+                                    publicKey: pubkey,
+                                    unit: unit)
+        } ?? generateOutputs(distribution: splitIntoBase2Numbers(split.sendAmount),
+                             mint: mint,
+                             seed: seed,
+                             unit: unit,
+                             offset: keepOutputSets.outputs.count) // MARK: need to increase detsec counter in function
+        
+        
         
         let swapResult = try await swap(inputs: inputs,
                                         with: mint,

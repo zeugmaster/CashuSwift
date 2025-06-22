@@ -16,16 +16,17 @@ public enum CashuSwift {
     public static func generateOutputs(distribution: [Int],
                                                 mint: Mint,
                                                 seed: String?,
-                                                unit: String = "sat") throws -> ((outputs: [Output],
-                                                                                  blindingFactors: [String],
-                                                                                  secrets: [String])) {
+                                                unit: String = "sat",
+                                                offset: Int = 0) throws -> ((outputs: [Output],
+                                                                             blindingFactors: [String],
+                                                                             secrets: [String])) {
         guard let keyset = activeKeysetForUnit(unit, mint: mint) else {
             throw CashuError.noActiveKeysetForUnit("No active keyset for unit '\(unit)'")
         }
         
         return try Crypto.generateOutputs(amounts: distribution,
                                           keysetID: keyset.keysetID,
-                                          deterministicFactors: seed.map({ ($0, keyset.derivationCounter) }))
+                                          deterministicFactors: seed.map({ ($0, keyset.derivationCounter + offset) }))
     }
     
     public static func generateP2PKOutputs(for amount: Int,
@@ -144,6 +145,31 @@ public enum CashuSwift {
         outputs.reduce(0) { partialResult, o in
             partialResult + o.amount
         }
+    }
+    
+    static func split(for total: Int, target: Int?, fee: Int) throws -> (sendAmount: Int, keepAmount: Int) {
+        guard total >= 0 && fee >= 0 else {
+            throw CashuError.invalidSplit("split function does not accept negative integers")
+        }
+        
+        if let target {
+            guard target >= 0 else {
+                throw CashuError.invalidSplit("target value for split can not be negative.")
+            }
+            if total - fee == target {
+                return (target, 0)
+            } else if total - fee > target {
+                return (target, total - target - fee)
+            }
+        } else {
+            let target = total - fee
+            if total - fee == target {
+                return (target, 0)
+            } else if total - fee > target {
+                return (target + fee, total - target)
+            }
+        }
+        throw CashuError.invalidSplit("target value (\(String(describing: target))) for split can not be greater than total(\(total))-fee(\(fee)).")
     }
     
     static func stripDLEQ(_ proofs: [Proof]) -> [CashuSwift.Proof] {

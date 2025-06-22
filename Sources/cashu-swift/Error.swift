@@ -46,6 +46,8 @@ public enum CashuError: Swift.Error {
     
     case invalidKey(String)
     case p2pkSigningError(String)
+    
+    case invalidSplit(String)
 }
 
 extension CashuError: Equatable {

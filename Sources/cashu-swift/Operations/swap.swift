@@ -117,10 +117,10 @@ extension CashuSwift {
         return (sendProofs, changeProofs, inputDLEQ, outputDLEQ)
     }
     
-    public static func swap(inputs: [Proof],
-                            with mint: Mint,
-                            sendOutputs: (outputs:[Output], blindingFactors: [String], secrets: [String]),
-                            keepOutputs: (outputs:[Output], blindingFactors: [String], secrets: [String])) async throws -> (send: [Proof],
+    static func swap(inputs: [Proof],
+                     with mint: Mint,
+                     sendOutputs: (outputs:[Output], blindingFactors: [String], secrets: [String]),
+                     keepOutputs: (outputs:[Output], blindingFactors: [String], secrets: [String])) async throws -> (send: [Proof],
                                                                                                   keep: [Proof],
                                                                                                   inputDLEQ: Crypto.DLEQVerificationResult,
                                                                                                   outputDLEQ: Crypto.DLEQVerificationResult) {

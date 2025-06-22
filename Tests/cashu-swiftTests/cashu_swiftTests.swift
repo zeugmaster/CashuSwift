@@ -731,9 +731,9 @@ final class cashu_swiftTests: XCTestCase {
         let seed = String(bytes: mnemmonic.seed)
 
         
-        var mint = try await CashuSwift.loadMint(url: URL(string: dnsTestMint)!)
+        var mint = try await CashuSwift.loadMint(url: URL(string: "https://testnut.cashu.space")!)
         
-        // test with simple 2 - 1 proof send, nondet
+//         test with simple 2 - 1 proof send, nondet
         do {
             let qr = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 31)
             let quote = try await CashuSwift.getQuote(mint: mint, quoteRequest: qr)
@@ -806,11 +806,9 @@ final class cashu_swiftTests: XCTestCase {
             
             
             if let idx = mint.keysets.firstIndex(where: { $0.keysetID == CashuSwift.activeKeysetForUnit("sat", mint: mint)?.keysetID }) {
-                // 2. Mutate directly
                 mint.keysets[idx].derivationCounter += issued.proofs.count
             }
             
-            print(mint.debugPretty())
             let sendResult = try await CashuSwift.send(inputs: issued.proofs,
                                                        mint: mint,
                                                        amount: 15,
@@ -818,13 +816,57 @@ final class cashu_swiftTests: XCTestCase {
                                                        lockToPublicKey: pubkeyHex)
             
             if let idx = mint.keysets.firstIndex(where: { $0.keysetID == CashuSwift.activeKeysetForUnit("sat", mint: mint)?.keysetID }) {
-                // 2. Mutate directly
-                mint.keysets[idx].derivationCounter += (sendResult.token.proofsByMint.first?.value.count ?? 0 + sendResult.change.count)
+                let increase = /*(sendResult.token.proofsByMint.first?.value.count ?? 0) +*/ sendResult.change.count // with P2PK only change is deterministic
+                mint.keysets[idx].derivationCounter += increase
+            }
+            
+            print("change sum: \(sendResult.change.sum)")
+            print("token sum: \(String(describing: sendResult.token.proofsByMint.first?.value.sum))")
+            let receive = try await CashuSwift.receive(token: sendResult.token, of: mint, seed: seed, privateKey: privateKeyHex)
+            
+            if let idx = mint.keysets.firstIndex(where: { $0.keysetID == CashuSwift.activeKeysetForUnit("sat", mint: mint)?.keysetID }) {
+                let increase = receive.proofs.count // with P2PK only change is deterministic
+                mint.keysets[idx].derivationCounter += increase
+            }
+        }
+        
+        do {
+            let qr = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 335)
+            let quote = try await CashuSwift.getQuote(mint: mint, quoteRequest: qr)
+            let issued = try await CashuSwift.issue(for: quote, with: mint, seed: seed)
+            
+            
+            if let idx = mint.keysets.firstIndex(where: { $0.keysetID == CashuSwift.activeKeysetForUnit("sat", mint: mint)?.keysetID }) {
+                mint.keysets[idx].derivationCounter += issued.proofs.count
+            }
+            
+            let sendResult = try await CashuSwift.send(inputs: issued.proofs,
+                                                       mint: mint,
+                                                       amount: 15,
+                                                       seed: seed,
+                                                       lockToPublicKey: nil)
+            
+            if let idx = mint.keysets.firstIndex(where: { $0.keysetID == CashuSwift.activeKeysetForUnit("sat", mint: mint)?.keysetID }) {
+                let increase = (sendResult.token.proofsByMint.first?.value.count ?? 0) + sendResult.change.count // with P2PK only change is deterministic
+                mint.keysets[idx].derivationCounter += increase
             }
             
             print("change sum: \(sendResult.change.sum)")
             print("token sum: \(String(describing: sendResult.token.proofsByMint.first?.value.sum))")
             _ = try await CashuSwift.receive(token: sendResult.token, of: mint, seed: seed, privateKey: privateKeyHex)
         }
+    }
+    
+    func testSplit() throws {
+        print(try CashuSwift.split(for: 100, target: 50, fee: 2))
+        print(try CashuSwift.split(for: 100, target: nil, fee: 2))
+//        print(try CashuSwift.split(for: 50, target: 50, fee: 2))
+        print(try CashuSwift.split(for: 100, target: 70, fee: 3))
+        print(try CashuSwift.split(for: 10, target: 0, fee: 2))
+        
+        print(try CashuSwift.split(for: 100, target: 70, fee: 0))
+        print(try CashuSwift.split(for: 10, target: 0, fee: 0))
+        print(try CashuSwift.split(for: 100, target: nil, fee: 0))
+        
     }
 }
