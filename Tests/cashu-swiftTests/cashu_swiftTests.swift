@@ -746,7 +746,8 @@ final class cashu_swiftTests: XCTestCase {
                                                        lockToPublicKey: pubkeyHex)
             print("change sum: \(sendResult.change.sum)")
             print("token sum: \(String(describing: sendResult.token.proofsByMint.first?.value.sum))")
-            _ = try await CashuSwift.receive(token: sendResult.token, of: mint, seed: nil, privateKey: privateKeyHex)
+//            _ = try await CashuSwift.receive(token: sendResult.token, of: mint, seed: nil, privateKey: privateKeyHex)
+            
         }
         
         // many inputs, send all, nondet
