@@ -268,12 +268,11 @@ do {
 
 ### Best Practices
 
-1. **Always verify DLEQ proofs** when minting or melting to ensure the mint is not cheating
+1. **Always verify DLEQ proofs** when minting or melting to ensure the mint is not trying to fingerprint the user or when saving a locked token for later
 2. **Use deterministic secrets** (with a seed) for backup and recovery capability
 3. **Store derivation counters** returned from operations to maintain proper state
 4. **Handle fees appropriately** by checking `inputFeePPK` on keysets
-5. **Check proof states** before attempting to spend them
-6. **Use P2PK locking** for secure peer-to-peer transfers
+5. **Use P2PK locking** for partial offline payments or similar spending scenarios
 
 ### Additional Advanced Examples
 
