@@ -170,7 +170,7 @@ extension CashuSwift {
                                                                                             change: [Proof]?) {
         return try await meltState(mint: mint as MintRepresenting,
                                    quoteID: quoteID,
-                                   blankOutputs: blankOutputs) as! (Bool, [Proof])
+                                   blankOutputs: blankOutputs) as! (Bool, [Proof]?)
     }
     
     public static func meltState(for quoteID: String,
@@ -184,21 +184,25 @@ extension CashuSwift {
                                          quoteID: quoteID,
                                          blankOutputs: blankOutputs)
         
-        let change = result.change as! [CashuSwift.Proof]
+        let change = result.change as? [CashuSwift.Proof]
         
         let dleqValid: Bool
         
-        do {
-            dleqValid = try Crypto.validDLEQ(for: change, with: mint)
-        } catch CashuSwift.Crypto.Error.DLEQVerificationNoData(_) {
-            logger.warning("""
-                           While melting with \(mint.url.absoluteString) DLEQ check could not be performed due to missing data but will still \
-                           evaluate as passing because not all wallets and mint support NUT-10. \
-                           future versions will consider the check failed.
-                           """)
+        if let change = change {
+            do {
+                dleqValid = try Crypto.validDLEQ(for: change, with: mint)
+            } catch CashuSwift.Crypto.Error.DLEQVerificationNoData(_) {
+                logger.warning("""
+                               While melting with \(mint.url.absoluteString) DLEQ check could not be performed due to missing data but will still \
+                               evaluate as passing because not all wallets and mint support NUT-10. \
+                               future versions will consider the check failed.
+                               """)
+                dleqValid = true
+            } catch {
+                throw error
+            }
+        } else {
             dleqValid = true
-        } catch {
-            throw error
         }
         
         return (result.paid, change, dleqValid)
