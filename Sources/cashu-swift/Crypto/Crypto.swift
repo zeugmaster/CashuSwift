@@ -13,8 +13,10 @@ import OSLog
 fileprivate let logger = Logger(subsystem: "cashu-swift", category: "cryptography")
 
 extension CashuSwift {
+    /// Cryptographic operations for the Cashu protocol.
     public enum Crypto {
         
+        /// Errors that can occur during cryptographic operations.
         enum Error: Swift.Error, CustomStringConvertible {
             var description: String {
                 switch self {
@@ -44,8 +46,15 @@ extension CashuSwift {
         typealias PrivateKey = secp256k1.Signing.PrivateKey
         typealias PublicKey = secp256k1.Signing.PublicKey
         
-        /// Result of a DLEQ verification: Can be either `valid`,  `fail` or `noData` if the inputs are missing one or more fields required for the check.
-        public enum DLEQVerificationResult { case valid, fail, noData }
+        /// Result of a DLEQ verification.
+        public enum DLEQVerificationResult {
+            /// The DLEQ proof is valid.
+            case valid
+            /// The DLEQ proof verification failed.
+            case fail
+            /// No DLEQ data was available for verification.
+            case noData
+        }
         
         //MARK: - OUTPUT GENERATION
         
@@ -320,7 +329,7 @@ extension CashuSwift {
             
             var concat = ""
             for k in publicKeys {
-                let kData = k.uncompressedRepresentation
+                let kData = k.dataRepresentation
                 concat.append(String(bytes: kData))
             }
             

@@ -12,7 +12,12 @@ import OSLog
 fileprivate let logger = Logger.init(subsystem: "CashuSwift", category: "wallet")
 
 extension CashuSwift {
-    /// Get a quote for minting or melting tokens from the mint
+    /// Requests a quote from a mint for minting or melting tokens.
+    /// - Parameters:
+    ///   - mint: The mint to request the quote from
+    ///   - quoteRequest: The quote request details (either `RequestMintQuote` or `RequestMeltQuote`)
+    /// - Returns: A quote response from the mint
+    /// - Throws: `CashuError.unitIsNotSupported` if the mint doesn't support the requested unit
     public static func getQuote(mint:MintRepresenting, quoteRequest:QuoteRequest) async throws -> Quote {
         var url = mint.url
         

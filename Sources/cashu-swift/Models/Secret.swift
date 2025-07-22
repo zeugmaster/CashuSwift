@@ -9,18 +9,30 @@ import Foundation
 
 
 extension CashuSwift {
+    /// Represents spending conditions for locked ecash.
     public struct SpendingCondition: Codable {
         
+        /// Types of spending conditions.
         public enum Kind: String, Codable {
-            case P2PK, HTLC
+            /// Pay-to-public-key condition.
+            case P2PK
+            /// Hash time-locked contract condition.
+            case HTLC
         }
         
+        /// The type of spending condition.
         let kind: Kind
+        
+        /// The payload data for the spending condition.
         let payload: Payload
         
+        /// Payload data for spending conditions.
         public struct Payload: Codable {
+            /// Random nonce.
             let nonce: String
+            /// Condition-specific data.
             let data: String
+            /// Optional tags for additional constraints.
             let tags: [Tag]?
         }
         
@@ -41,6 +53,9 @@ extension CashuSwift {
             try container.encode(self.payload)
         }
         
+        /// Deserializes a spending condition from a string.
+        /// - Parameter string: The string to deserialize
+        /// - Returns: The spending condition if successful, nil otherwise
         public static func deserialize(from string: String) -> SpendingCondition? {
             guard let data = string.data(using: .utf8) else {
                 return nil
@@ -48,16 +63,25 @@ extension CashuSwift {
             return try? JSONDecoder().decode(SpendingCondition.self, from: data)
         }
         
+        /// Serializes the spending condition to a string.
+        /// - Returns: The serialized string
+        /// - Throws: An error if serialization fails
         public func serialize() throws -> String {
             let data = try JSONEncoder().encode(self)
             return String(data: data, encoding: .utf8) ?? ""
         }
         
+        /// Tags that can be used in spending conditions.
         public enum Tag: Codable, Hashable {
+            /// Signature flags.
             case sigflag(values: [String])
+            /// Number of required signatures.
             case n_sigs(values: [Int])
+            /// Public keys allowed to spend.
             case pubkeys(values: [String])
+            /// Time lock constraint.
             case locktime(values: [Int])
+            /// Refund keys.
             case refund(values: [String])
             
             // Custom decoding

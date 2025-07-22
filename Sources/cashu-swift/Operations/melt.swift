@@ -173,6 +173,16 @@ extension CashuSwift {
                                    blankOutputs: blankOutputs) as! (Bool, [Proof]?)
     }
     
+    /// Checks the payment state of a melt quote.
+    /// - Parameters:
+    ///   - quoteID: The quote ID to check
+    ///   - mint: The mint that issued the quote
+    ///   - blankOutputs: Optional blank outputs for fee return
+    /// - Returns: A tuple containing:
+    ///   - paid: Whether the invoice was paid
+    ///   - change: Optional change proofs if fee was overpaid
+    ///   - validDLEQ: Whether DLEQ verification passed
+    /// - Throws: An error if the state cannot be retrieved
     public static func meltState(for quoteID: String,
                                  mint: Mint,
                                  blankOutputs: (outputs: [Output],
@@ -208,6 +218,18 @@ extension CashuSwift {
         return (result.paid, change, dleqValid)
     }
     
+    /// Melts ecash proofs to pay a Lightning invoice.
+    /// - Parameters:
+    ///   - quote: The melt quote to pay
+    ///   - mint: The mint to melt with
+    ///   - proofs: The proofs to melt
+    ///   - timeout: Request timeout in seconds (default: 600)
+    ///   - blankOutputs: Optional blank outputs for fee return
+    /// - Returns: A tuple containing:
+    ///   - paid: Whether the invoice was paid
+    ///   - change: Optional change proofs if fee was overpaid
+    ///   - dleqValid: Whether DLEQ verification passed
+    /// - Throws: An error if the melt operation fails
     public static func melt(with quote: Quote,
                             mint: Mint,
                             proofs: [Proof],

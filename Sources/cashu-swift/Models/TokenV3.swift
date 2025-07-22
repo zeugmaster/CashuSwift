@@ -12,20 +12,34 @@ fileprivate var logger = Logger(subsystem: "cashu-swift", category: "Token")
 
 extension CashuSwift {
     
+    /// Represents the version of a Cashu token.
     public enum TokenVersion:Codable {
+        /// Version 3 token format.
         case V3
+        /// Version 4 token format.
         case V4
     }
 
+    /// Represents a Version 3 Cashu token.
     public struct TokenV3: Codable, Equatable {
         public static func == (lhs: TokenV3, rhs: TokenV3) -> Bool {
             lhs.token == rhs.token && lhs.memo == rhs.memo && lhs.unit == rhs.unit
         }
         
+        /// Array of proof containers.
         public let token:[ProofContainer]
+        
+        /// Optional memo for the token.
         public let memo:String?
+        
+        /// Optional unit string.
         public let unit:String?
         
+        /// Creates a new TokenV3 instance.
+        /// - Parameters:
+        ///   - token: Array of proof containers
+        ///   - memo: Optional memo
+        ///   - unit: Optional unit string
         public init(token: [ProofContainer],
                     memo: String? = nil,
                     unit:String? = nil) {
@@ -48,6 +62,9 @@ extension CashuSwift {
             self = try JSONDecoder().decode(TokenV3.self, from: jsonData)
         }
         
+        /// Serializes the token to a string.
+        /// - Returns: The serialized token string
+        /// - Throws: An error if serialization fails
         public func serialize() throws -> String {
             return try encodeV3()
         }
@@ -71,10 +88,18 @@ extension CashuSwift {
         }
     }
 
+    /// Container for proofs associated with a specific mint.
     public struct ProofContainer: Codable, Equatable {
+        /// The mint URL string.
         public let mint:String
+        
+        /// Array of proofs from this mint.
         public let proofs:[Proof]
         
+        /// Creates a new proof container.
+        /// - Parameters:
+        ///   - mint: The mint URL string
+        ///   - proofs: Array of proofs from this mint
         public init(mint: String, proofs: [Proof]) {
             self.mint = mint
             self.proofs = proofs

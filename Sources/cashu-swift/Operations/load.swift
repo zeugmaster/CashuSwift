@@ -12,6 +12,12 @@ import OSLog
 fileprivate let logger = Logger.init(subsystem: "CashuSwift", category: "wallet")
 
 extension CashuSwift {
+    /// Loads a mint from the given URL.
+    /// - Parameters:
+    ///   - url: The URL of the mint to load
+    ///   - type: The type conforming to `MintRepresenting` to return (defaults to `Mint`)
+    /// - Returns: An instance of the specified mint type with loaded keysets
+    /// - Throws: An error if the mint cannot be loaded
     public static func loadMint<T: MintRepresenting>(url:URL, type:T.Type = Mint.self) async throws -> T {
         let keysetList = try await Network.get(url: url.appending(path: "/v1/keysets"),
                                                expected: KeysetList.self)
@@ -26,6 +32,10 @@ extension CashuSwift {
         return T(url: url, keysets: keysetsWithKeys)
     }
     
+    /// Loads mint information from a mint instance.
+    /// - Parameter mint: The mint to load information from
+    /// - Returns: The mint information if available, or `nil` if it cannot be parsed
+    /// - Throws: An error if the network request fails
     public static func loadInfoFromMint(_ mint:MintRepresenting) async throws -> MintInfo? {
         let mintInfoData = try await Network.get(url: mint.url.appending(path: "v1/info"))!
         
@@ -41,6 +51,9 @@ extension CashuSwift {
         }
     }
     
+    /// Updates a mint's keysets from the remote mint.
+    /// - Parameter mint: The mint instance to update (passed as inout)
+    /// - Throws: An error if the update fails
     public static func update(_ mint: inout MintRepresenting) async throws {
         let mintURL = mint.url  // Create a local copy of the URL
         let remoteKeysetList = try await Network.get(url: mintURL.appending(path: "/v1/keysets"),

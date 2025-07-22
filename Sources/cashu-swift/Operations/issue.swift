@@ -87,6 +87,14 @@ extension CashuSwift {
     }
 
     
+    /// Issues ecash proofs after paying a mint quote.
+    /// - Parameters:
+    ///   - quote: The paid mint quote to issue proofs for
+    ///   - mint: The mint to issue proofs from
+    ///   - seed: Optional seed for deterministic proof generation
+    ///   - preferredDistribution: Optional preferred denomination distribution
+    /// - Returns: A tuple containing the issued proofs and DLEQ validation result
+    /// - Throws: An error if proof issuance fails
     public static func issue(for quote:Quote,
                              with mint: Mint,
                              seed:String?,
@@ -115,6 +123,12 @@ extension CashuSwift {
         return (proofs, dleqValid)
     }
     
+    /// Gets the current state of a mint quote.
+    /// - Parameters:
+    ///   - quoteID: The quote ID to check
+    ///   - mint: The mint that issued the quote
+    /// - Returns: The current mint quote state
+    /// - Throws: An error if the quote cannot be retrieved
     public static func mintQuoteState(for quoteID: String,
                                       mint: Mint) async throws -> Bolt11.MintQuote {
         let url = mint.url.appending(path: "/v1/mint/quote/bolt11/\(quoteID)")

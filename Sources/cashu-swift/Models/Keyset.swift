@@ -13,12 +13,24 @@ extension CashuSwift {
         let keysets:[Keyset]
     }
 
+    /// Represents a mint's keyset.
     public struct Keyset: Codable, Sendable {
+        /// The keyset identifier.
         public let keysetID: String
+        
+        /// Mapping of amounts to public keys.
         public var keys: Dictionary<String, String> //FIXME: this should have an integer as key
+        
+        /// Counter for deterministic derivation.
         public var derivationCounter:Int
+        
+        /// Whether this keyset is active.
         public var active:Bool
+        
+        /// The unit this keyset supports.
         public let unit:String
+        
+        /// Input fee in parts per thousand.
         public let inputFeePPK:Int
         
         enum CodingKeys: String, CodingKey {

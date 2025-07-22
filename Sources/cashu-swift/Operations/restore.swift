@@ -121,6 +121,15 @@ extension CashuSwift {
                                  batchSize: batchSize)
     }
     
+    /// Restores proofs from a seed phrase.
+    /// - Parameters:
+    ///   - mint: The mint to restore from
+    ///   - seed: The seed phrase for deterministic proof generation
+    ///   - batchSize: Number of outputs to check per batch (default: 50)
+    /// - Returns: A tuple containing:
+    ///   - result: Array of restoration results for each keyset
+    ///   - validDLEQ: Whether DLEQ verification passed
+    /// - Throws: An error if the restore operation fails
     public static func restore(from mint: Mint,
                                with seed: String,
                                batchSize: Int = 50) async throws -> (result: [KeysetRestoreResult],

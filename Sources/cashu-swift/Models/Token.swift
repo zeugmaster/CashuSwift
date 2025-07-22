@@ -10,19 +10,24 @@ import Foundation
 
 extension CashuSwift {
     
-    ///General purpose struct for storing version agnostic token information
-    ///that can be transformed into `TokenV3` or `TokenV4` for serialization.
+    /// General purpose struct for storing version agnostic token information.
+    ///
+    /// This struct can be transformed into `TokenV3` or `TokenV4` for serialization.
     public struct Token: Codable, Equatable, Sendable {
         
-        ///Unit string like "sat". "eur" or "usd"
+        /// Unit string like "sat", "eur" or "usd".
         public let unit: String
         
-        ///Optional memo for the recipient
+        /// Optional memo for the recipient.
         public let memo: String?
         
-        ///Dictionary containing the mint URL absolute string as key and a list of `ProofRepresenting` as the proofs for this token.
+        /// Dictionary containing the mint URL absolute string as key and a list of `Proof` as the proofs for this token.
         public let proofsByMint: Dictionary<String, [Proof]>
         
+        /// Serializes the token to a string representation.
+        /// - Parameter version: The token version to use for serialization
+        /// - Returns: The serialized token string
+        /// - Throws: An error if serialization fails
         public func serialize(to version: CashuSwift.TokenVersion = .V3) throws -> String {
             switch version {
             case .V3:
@@ -32,6 +37,11 @@ extension CashuSwift {
             }
         }
         
+        /// Creates a new token instance.
+        /// - Parameters:
+        ///   - proofs: Dictionary mapping mint URLs to proof arrays
+        ///   - unit: The unit of the token (e.g., "sat", "eur", "usd")
+        ///   - memo: Optional memo for the recipient
         public init(proofs: [String: [any ProofRepresenting]],
                     unit: String,
                     memo: String? = nil) {

@@ -14,6 +14,18 @@ fileprivate let logger = Logger.init(subsystem: "CashuSwift", category: "wallet"
 
 extension CashuSwift {
     
+    /// Swaps proofs with a mint for new proofs.
+    /// - Parameters:
+    ///   - mint: The mint to swap with
+    ///   - inputs: The input proofs to swap
+    ///   - amount: Optional amount to swap (if nil, swaps all minus fees)
+    ///   - seed: Optional seed for deterministic secret generation
+    ///   - preferredReturnDistribution: Optional preferred denomination distribution for change
+    /// - Returns: A tuple containing:
+    ///   - new: The new proofs
+    ///   - change: The change proofs
+    ///   - validDLEQ: Whether DLEQ verification passed
+    /// - Throws: An error if the swap operation fails
     public static func swap(with mint: Mint,
                             inputs: [Proof],
                             amount: Int? = nil,
@@ -32,6 +44,19 @@ extension CashuSwift {
         return (result.0, result.1, valid)
     }
     
+    /// Swaps proofs with a mint for new proofs with detailed DLEQ verification results.
+    /// - Parameters:
+    ///   - inputs: The input proofs to swap
+    ///   - mint: The mint to swap with
+    ///   - amount: Optional amount to swap (if nil, swaps all minus fees)
+    ///   - seed: Optional seed for deterministic secret generation
+    ///   - preferredReturnDistribution: Optional preferred denomination distribution for change
+    /// - Returns: A tuple containing:
+    ///   - new: The new proofs
+    ///   - change: The change proofs
+    ///   - inputDLEQ: DLEQ verification result for input proofs
+    ///   - outputDLEQ: DLEQ verification result for output proofs
+    /// - Throws: An error if the swap operation fails
     public static func swap(inputs: [Proof],
                             with mint: Mint,
                             amount: Int? = nil,

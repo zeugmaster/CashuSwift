@@ -7,6 +7,7 @@
 
 import Foundation
 
+/// Errors that can occur when using the CashuSwift library.
 public enum CashuError: Swift.Error {
     
     case networkError

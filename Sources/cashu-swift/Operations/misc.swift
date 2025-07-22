@@ -11,8 +11,18 @@ import OSLog
 
 fileprivate let logger = Logger.init(subsystem: "CashuSwift", category: "wallet")
 
+/// The main namespace for CashuSwift operations.
 public enum CashuSwift {
     
+    /// Generates blinded outputs for minting.
+    /// - Parameters:
+    ///   - distribution: Array of amounts for each output
+    ///   - mint: The mint to generate outputs for
+    ///   - seed: Optional seed for deterministic generation
+    ///   - unit: The unit to use (default: "sat")
+    ///   - offset: Offset for deterministic counter (default: 0)
+    /// - Returns: A tuple containing outputs, blinding factors, and secrets
+    /// - Throws: An error if no active keyset is found for the unit
     public static func generateOutputs(distribution: [Int],
                                                 mint: Mint,
                                                 seed: String?,
@@ -29,6 +39,14 @@ public enum CashuSwift {
                                           deterministicFactors: seed.map({ ($0, keyset.derivationCounter + offset) }))
     }
     
+    /// Generates P2PK-locked outputs for a specific amount.
+    /// - Parameters:
+    ///   - amount: The total amount to lock
+    ///   - mint: The mint to generate outputs for
+    ///   - publicKey: The Schnorr public key to lock to
+    ///   - unit: The unit to use (default: "sat")
+    /// - Returns: A tuple containing outputs, blinding factors, and secrets
+    /// - Throws: An error if the operation fails
     public static func generateP2PKOutputs(for amount: Int,
                                            mint: Mint,
                                            publicKey: String,
@@ -41,6 +59,14 @@ public enum CashuSwift {
                                 unit: unit)
     }
     
+    /// Generates P2PK-locked outputs with a specific distribution.
+    /// - Parameters:
+    ///   - distribution: Array of amounts for each output
+    ///   - mint: The mint to generate outputs for
+    ///   - publicKey: The Schnorr public key to lock to
+    ///   - unit: The unit to use (default: "sat")
+    /// - Returns: A tuple containing outputs, blinding factors, and secrets
+    /// - Throws: An error if the operation fails
     public static func generateP2PKOutputs(distribution: [Int],
                                            mint: Mint,
                                            publicKey: String,
@@ -72,7 +98,9 @@ public enum CashuSwift {
     }
     
     // MARK: - MELT
-    ///Allows a wallet to create and persist NUT-08 blank outputs for an overpaid amount `sum(proofs) - quote.amount - inputFee`
+    /// Creates blank outputs for overpaid Lightning fees.
+    ///
+    /// Allows a wallet to create and persist blank outputs for an overpaid amount `sum(proofs) - quote.amount - inputFee`
     public static func generateBlankOutputs(quote: CashuSwift.Bolt11.MeltQuote,
                                             proofs: [some ProofRepresenting],
                                             mint: MintRepresenting,
@@ -103,6 +131,12 @@ public enum CashuSwift {
                                           deterministicFactors: deterministicFactors)
     }
     
+    /// Checks the state of proofs with a mint.
+    /// - Parameters:
+    ///   - proofs: The proofs to check
+    ///   - mint: The mint to check with
+    /// - Returns: Array of proof states
+    /// - Throws: An error if the check fails
     public static func check(_ proofs:[ProofRepresenting], mint:MintRepresenting) async throws -> [Proof.ProofState] {
         let ys = try proofs.map { proof in
             try Crypto.secureHashToCurve(message: proof.secret).stringRepresentation
@@ -248,6 +282,12 @@ public enum CashuSwift {
         return nil
     }
     
+    /// Calculates the total fee for spending the provided proofs.
+    /// - Parameters:
+    ///   - proofs: The proofs to calculate fees for
+    ///   - mint: The mint the proofs belong to
+    /// - Returns: The total fee in the smallest unit
+    /// - Throws: An error if fee calculation fails
     public static func calculateFee(for proofs: [ProofRepresenting], of mint:MintRepresenting) throws -> Int {
         var sumFees = 0
         for proof in proofs {
@@ -285,6 +325,9 @@ public enum CashuSwift {
         return units
     }
     
+    /// Splits an integer into its base-2 components.
+    /// - Parameter n: The number to split
+    /// - Returns: Array of powers of 2 that sum to n
     static func splitIntoBase2Numbers(_ n:Int) -> [Int] {
         (0 ..< Int.bitWidth - n.leadingZeroBitCount)
             .map { 1 << $0 }
@@ -384,8 +427,21 @@ extension Array where Element == Bool {
     }
 }
 
+/// Extensions for Token-related operations.
 extension CashuSwift.Token {
-    public enum LockVerificationResult { case match, mismatch, partial, notLocked, noKey }
+    /// Result of checking locked proofs.
+    public enum LockVerificationResult {
+        /// All proofs match the provided public key.
+        case match
+        /// All proofs are locked but to a different key.
+        case mismatch
+        /// Some proofs match, some don't.
+        case partial
+        /// No proofs have spending conditions.
+        case notLocked
+        /// Proofs are locked but no key was provided to check.
+        case noKey
+    }
     
     public func checkAllInputsLocked(to publicKey: String?) throws -> LockVerificationResult {
         guard let proofs = self.proofsByMint.first?.value else {
@@ -397,6 +453,12 @@ extension CashuSwift.Token {
 }
 
 extension CashuSwift {
+    /// Checks if proofs are locked to a specific public key.
+    /// - Parameters:
+    ///   - inputs: The proofs to check
+    ///   - publicKey: Optional public key to check against
+    /// - Returns: The lock verification result
+    /// - Throws: An error if verification fails
     public static func check(all inputs:[Proof], lockedTo publicKey: String?) throws -> Token.LockVerificationResult {
         let verifications = Set<Token.LockVerificationResult>( inputs.map { p in
             if let spendingCondition = CashuSwift.SpendingCondition.deserialize(from: p.secret) {
@@ -418,6 +480,11 @@ extension CashuSwift {
         return verifications.count == 1 ? verifications.first! : .partial
     }
     
+    /// Signs P2PK-locked proofs with a private key.
+    /// - Parameters:
+    ///   - inputs: The proofs to sign
+    ///   - keyHex: Hex string of the private key
+    /// - Throws: An error if signing fails
     public static func sign(all inputs: [Proof], using keyHex: String) throws {
         let key = try secp256k1.Schnorr.PrivateKey(dataRepresentation: keyHex.bytes)
         let publicKeyHex = String(bytes: key.publicKey.dataRepresentation)

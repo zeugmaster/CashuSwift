@@ -6,14 +6,21 @@ fileprivate let logger = Logger.init(subsystem: "CashuSwift", category: "wallet"
 
 extension CashuSwift {
     
-    ///Receive a Cashu Token
+    /// Receives a Cashu token by swapping its proofs with the mint.
     ///
-    ///This function allows a wallet to receive a `Token` by swapping its inputs with the provided mint, thus finalizing the ecash transfer.
+    /// This function allows a wallet to receive a token by swapping its inputs with the provided mint, thus finalizing the ecash transfer.
     ///
-    /// - parameter token: A Cashu Token
-    /// - parameter mint: The mint to receive with via swap operation (needs to be same as in token)
-    /// - parameter seed: Optional NUT-13 seed. If present, swapped ecash will use deterministic secrets
-    /// - parameter privateKey: Optional hex string of 32-byte Schnorr private key to be used for adding witness data to locked inputs from token
+    /// - Parameters:
+    ///   - token: A Cashu token to receive
+    ///   - mint: The mint to receive with via swap operation (must be same as in token)
+    ///   - seed: Optional seed for deterministic secret generation
+    ///   - privateKey: Optional hex string of 32-byte Schnorr private key for unlocking P2PK-locked tokens
+    ///
+    /// - Returns: A tuple containing:
+    ///   - proofs: The received proof objects
+    ///   - inputDLEQ: DLEQ verification result for input proofs
+    ///   - outputDLEQ: DLEQ verification result for output proofs
+    /// - Throws: An error if the receive operation fails
     public static func receive(token: Token,
                                of mint: Mint,
                                seed: String?,

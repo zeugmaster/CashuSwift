@@ -13,18 +13,23 @@ fileprivate let logger = Logger.init(subsystem: "CashuSwift", category: "wallet"
 
 extension CashuSwift {
     
-    /// Send ecash
+    /// Creates a token from the provided proofs.
     ///
-    /// Allows a wallet to send inputs of type `Proof`, determining correct split for optional target amounts
+    /// This function allows a wallet to send proofs of type `Proof`, determining correct split for optional target amounts.
     ///
-    ///  - Parameter inputs: List of input `Proofs`
-    ///  - Parameter mint: The mint for this operation, needs to be where inputs originated
-    ///  - Parameter amount: Optional amount to send/keep as change. If omitted all inputs will be go into the Token
-    ///  - Parameter seed: Optional seed for NUT-13. If `lockToPublicKey` is present, only change will be deterministic (handle derivation counters accordingly)
-    ///  - Parameter memo: Optional memo for the Token
-    ///  - Parameter lockToPublicKey: Optional string representing a Schnorr public key in compressed 33-byte format
+    /// - Parameters:
+    ///   - inputs: List of input proofs to send
+    ///   - mint: The mint for this operation (must be where inputs originated)
+    ///   - amount: Optional amount to send. If omitted, all inputs will be sent
+    ///   - seed: Optional seed for deterministic secret generation. If `lockToPublicKey` is present, only change will be deterministic
+    ///   - memo: Optional memo to include in the token
+    ///   - lockToPublicKey: Optional Schnorr public key in compressed 33-byte format to lock the token to
     ///
-    /// - Returns: A Cashu Token, the change as an array of `Proof`s and the DLEQ verification result of newly created ecash
+    /// - Returns: A tuple containing:
+    ///   - token: The created Cashu token
+    ///   - change: Array of proof objects representing the change
+    ///   - outputDLEQ: DLEQ verification result for newly created ecash
+    /// - Throws: An error if the operation fails
     public static func send(inputs: [Proof],
                             mint: Mint,
                             amount: Int? = nil,
