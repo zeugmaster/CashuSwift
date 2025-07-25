@@ -430,7 +430,7 @@ final class cashu_swiftTests: XCTestCase {
     }
     
     func testInfoLoad() async throws {
-        let url = URL(string: dnsTestMint)!
+        let url = URL(string: "https://mint.103100.xyz")!
         let mint = try await CashuSwift.loadMint(url: url)
         
         let info = try await CashuSwift.loadMintInfo(from: mint)
