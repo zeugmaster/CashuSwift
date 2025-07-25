@@ -257,6 +257,7 @@ extension CashuSwift.Mint {
             public let nut11: NutInfo?
             public let nut12: NutInfo?
             public let nut14: NutInfo?
+            public let nut15: NutInfo?
             public let nut17: NutInfo?
             public let nut20: NutInfo?
             
@@ -270,6 +271,7 @@ extension CashuSwift.Mint {
                 case nut11 = "11"
                 case nut12 = "12"
                 case nut14 = "14"
+                case nut15 = "15"
                 case nut17 = "17"
                 case nut20 = "20"
             }
@@ -287,6 +289,7 @@ extension CashuSwift.Mint {
                 nut11 = try container.decodeIfPresent(NutInfo.self, forKey: .nut11)
                 nut12 = try container.decodeIfPresent(NutInfo.self, forKey: .nut12)
                 nut14 = try container.decodeIfPresent(NutInfo.self, forKey: .nut14)
+                nut15 = try container.decodeIfPresent(NutInfo.self, forKey: .nut15)
                 nut17 = try container.decodeIfPresent(NutInfo.self, forKey: .nut17)
                 nut20 = try container.decodeIfPresent(NutInfo.self, forKey: .nut20)
             }
