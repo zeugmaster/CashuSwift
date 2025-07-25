@@ -197,22 +197,22 @@ extension CashuSwift {
 
 extension CashuSwift.Mint {
     public struct Info: Codable {
-        let name: String?
-        let pubkey: String?
-        let version: String?
-        let description: String?
-        let descriptionLong: String?
-        let contact: [Contact]?
-        let motd: String?
-        let iconUrl: String?
-        let urls: [String]?
-        let time: Int?
-        let tosUrl: String?
-        let nuts: Nuts?
+        public let name: String?
+        public let pubkey: String?
+        public let version: String?
+        public let description: String?
+        public let descriptionLong: String?
+        public let contact: [Contact]?
+        public let motd: String?
+        public let iconUrl: String?
+        public let urls: [String]?
+        public let time: Int?
+        public let tosUrl: String?
+        public let nuts: Nuts?
         
         public struct Contact: Codable {
-            let method: String
-            let info: String
+            public let method: String
+            public let info: String
         }
         
         enum CodingKeys: String, CodingKey {
@@ -248,13 +248,13 @@ extension CashuSwift.Mint {
         }
         
         public struct Nuts: Codable {
-            let nut04: PaymentMethodList?
-            let nut05: PaymentMethodList?
-            let nut07: NutSupportFlag?
-            let nut08: NutSupportFlag?
-            let nut09: NutSupportFlag?
-            let nut10: NutSupportFlag?
-            let nut12: NutSupportFlag?
+            public let nut04: PaymentMethodList?
+            public let nut05: PaymentMethodList?
+            public let nut07: NutSupportFlag?
+            public let nut08: NutSupportFlag?
+            public let nut09: NutSupportFlag?
+            public let nut10: NutSupportFlag?
+            public let nut12: NutSupportFlag?
             
             enum CodingKeys: String, CodingKey {
                 case nut04 = "4"
@@ -322,8 +322,8 @@ extension CashuSwift.Mint {
         }
         
         public struct PaymentMethodList: Codable {
-            let methods: [PaymentMethod]?
-            let disabled: Bool?
+            public let methods: [PaymentMethod]?
+            public let disabled: Bool?
             
             enum CodingKeys: String, CodingKey {
                 case methods, disabled
@@ -351,10 +351,10 @@ extension CashuSwift.Mint {
         }
         
         public struct PaymentMethod: Codable {
-            let method: String
-            let unit: String
-            let minAmount: Int
-            let maxAmount: Int
+            public let method: String
+            public let unit: String
+            public let minAmount: Int
+            public let maxAmount: Int
             
             enum CodingKeys: String, CodingKey {
                 case method, unit
@@ -364,7 +364,7 @@ extension CashuSwift.Mint {
         }
         
         public struct NutSupportFlag: Codable {
-            let supported: Bool
+            public let supported: Bool
         }
     }
 }

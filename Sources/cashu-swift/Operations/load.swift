@@ -36,6 +36,7 @@ extension CashuSwift {
     /// - Parameter mint: The mint to load information from
     /// - Returns: The mint information if available, or `nil` if it cannot be parsed
     /// - Throws: An error if the network request fails
+    @available(*, deprecated, message: "Use loadMintInfo(_:) instead")
     public static func loadInfoFromMint(_ mint:MintRepresenting) async throws -> MintInfo? {
         let mintInfoData = try await Network.get(url: mint.url.appending(path: "v1/info"))!
         
@@ -49,6 +50,11 @@ extension CashuSwift {
             logger.warning("Could not parse mint info of \(mint.url.absoluteString) to any known version.")
             return nil
         }
+    }
+    
+    public static func loadMintInfo(from mint:Mint) async throws -> Mint.Info {
+        return try await Network.get(url: mint.url.appending(path: "v1/info"),
+                                     expected: Mint.Info.self)
     }
     
     /// Updates a mint's keysets from the remote mint.
