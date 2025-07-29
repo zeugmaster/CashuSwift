@@ -402,29 +402,6 @@ func convertHexKeysetID(keysetID: String) -> Int? {
     return Int(result)
 }
 
-public func numericalRepresentation(of keysetID: String) throws -> Int {
-    let bytes: [UInt8]
-    if keysetID.count == 14 {
-        guard let data = Data(base64Encoded: keysetID) else {
-            throw CashuSwift.Crypto.Error.secretDerivation(
-                "Unable to calculate numerical representation of keyset id \(keysetID); unable to decode base64 to data")
-        }
-        bytes = [UInt8](data)
-    } else if keysetID.count >= 16 {
-        guard let b = try? keysetID.bytes else {
-            throw CashuSwift.Crypto.Error.secretDerivation(
-                "Unable to calculate numerical representation of keyset id \(keysetID); unable to decode hex to bytes")
-        }
-        bytes = b
-    } else {
-        throw CashuSwift.Crypto.Error.secretDerivation(
-            "Unable to calculate numerical representation of keyset id \(keysetID); invalid lenght (\(keysetID.count) chars, expected: 14, >= 16)")
-    }
-    let big = BInt(bytes: bytes)
-    let result = big % (Int(pow(2.0, 31.0)) - 1)
-    return Int(result)
-}
-
 extension secp256k1.Signing.PublicKey {
     var stringRepresentation:String {
         return String(bytes: self.dataRepresentation)
