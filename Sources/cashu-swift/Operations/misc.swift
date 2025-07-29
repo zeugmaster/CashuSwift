@@ -253,7 +253,7 @@ public enum CashuSwift {
 
     public static func numericalRepresentation(of keysetID: String) throws -> Int {
         let bytes: [UInt8]
-        if keysetID.count == 14 {
+        if keysetID.count == 12 {
             guard let data = Data(base64Encoded: keysetID) else {
                 throw CashuSwift.Crypto.Error.secretDerivation(
                     "Unable to calculate numerical representation of keyset id \(keysetID); unable to decode base64 to data")

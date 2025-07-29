@@ -63,6 +63,16 @@ extension CashuSwift {
                 try container.encode(inputFeePPK, forKey: .inputFeePPK)
             }
         
+        public var validID: Bool {
+            if self.keysetID.count == 12 {
+                return self.keysetID == Keyset.calculateKeysetID(keyset: self.keys)
+            } else if keysetID.count == 16 {
+                return self.keysetID == Keyset.calculateHexKeysetID(keyset: self.keys)
+            } else {
+                fatalError()
+            }
+        }
+        
         static func calculateKeysetID(keyset:Dictionary<String,String>) -> String {
             let sortedValues = keyset.sorted { (firstElement, secondElement) -> Bool in
                 guard let firstKey = UInt(firstElement.key),

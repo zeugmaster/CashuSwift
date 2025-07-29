@@ -430,12 +430,14 @@ final class cashu_swiftTests: XCTestCase {
     }
     
     func testInfoLoad() async throws {
-        let url = URL(string: "https://mint.103100.xyz")!
+        let url = URL(string: "https://mint.macadamia.cash")!
         let mint = try await CashuSwift.loadMint(url: url)
         
         let info = try await CashuSwift.loadMintInfo(from: mint)
         
         print(info.debugPretty())
+        
+        print(mint.keysets.allSatisfy({ $0.validID }))
     }
     
     func testErrorHandling() async throws {
@@ -869,5 +871,69 @@ final class cashu_swiftTests: XCTestCase {
         print(try CashuSwift.split(for: 10, target: 0, fee: 0))
         print(try CashuSwift.split(for: 100, target: nil, fee: 0))
         
+    }
+    
+    func testKeysetValidation() async throws {
+        // Load mint from testmint.macadamia.cash
+        let mintURL = URL(string: "https://testmint.macadamia.cash")!
+        var mint = try await CashuSwift.loadMint(url: mintURL)
+        
+        // First validation: all keysets should have valid IDs
+        let initialValidation = mint.keysets.allSatisfy({ $0.validID })
+        XCTAssertTrue(initialValidation, "All keysets should have valid IDs when freshly loaded from mint")
+        
+        print("Initial validation passed: all \(mint.keysets.count) keysets have valid IDs")
+        
+        // Modify one keyset slightly by changing one of its keys
+        guard var firstKeyset = mint.keysets.first else {
+            XCTFail("Mint should have at least one keyset")
+            return
+        }
+        
+        let originalKeyset = firstKeyset
+        print("Original keyset ID: \(firstKeyset.keysetID)")
+        print("Original keyset has \(firstKeyset.keys.count) keys")
+        
+        // Find the first key and modify it slightly
+        guard let firstKeyPair = firstKeyset.keys.first else {
+            XCTFail("Keyset should have at least one key")
+            return
+        }
+        
+        let originalKey = firstKeyPair.value
+        
+        // Modify the last character of the key to make it invalid
+        var modifiedKey = originalKey
+        if let lastChar = modifiedKey.last {
+            // Change the last character to make the key invalid
+            modifiedKey = String(modifiedKey.dropLast()) + (lastChar == "a" ? "b" : "a")
+        }
+        
+        print("Modified key from: \(originalKey)")
+        print("Modified key to:   \(modifiedKey)")
+        
+        // Update the keyset with the modified key
+        firstKeyset.keys[firstKeyPair.key] = modifiedKey
+        
+        // Replace the first keyset in the mint
+        mint.keysets[0] = firstKeyset
+        
+        // Second validation: the modified keyset should now have an invalid ID
+        let modifiedKeysetValidation = mint.keysets[0].validID
+        XCTAssertFalse(modifiedKeysetValidation, "Modified keyset should have invalid ID")
+        
+        // Verify that the rest of the keysets are still valid
+        let otherKeysetsValidation = mint.keysets.dropFirst().allSatisfy({ $0.validID })
+        XCTAssertTrue(otherKeysetsValidation, "Other keysets should still have valid IDs")
+        
+        print("Validation test passed: modified keyset now has invalid ID")
+        print("Modified keyset validID: \(modifiedKeysetValidation)")
+        
+        // Restore the original keyset to verify the check works both ways
+        mint.keysets[0] = originalKeyset
+        let restoredValidation = mint.keysets[0].validID
+        XCTAssertTrue(restoredValidation, "Restored keyset should have valid ID again")
+        
+        print("Restoration test passed: original keyset has valid ID again")
     }
 }
