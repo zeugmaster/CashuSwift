@@ -251,7 +251,7 @@ public enum CashuSwift {
         return nil
     }
 
-    public func numericalRepresentation(of keysetID: String) throws -> Int {
+    public static func numericalRepresentation(of keysetID: String) throws -> Int {
         let bytes: [UInt8]
         if keysetID.count == 14 {
             guard let data = Data(base64Encoded: keysetID) else {
