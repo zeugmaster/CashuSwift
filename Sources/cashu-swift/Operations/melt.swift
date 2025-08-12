@@ -266,4 +266,73 @@ extension CashuSwift {
         
         return (result.paid, result.change, dleqValid)
     }
+    
+    /// Melts ecash proofs to pay a Lightning invoice and returns the full quote response.
+    /// - Parameters:
+    ///   - quote: The Bolt11 melt quote to pay
+    ///   - mint: The mint to melt with
+    ///   - proofs: The proofs to melt
+    ///   - timeout: Request timeout in seconds (default: 600)
+    ///   - blankOutputs: Optional blank outputs for fee return
+    /// - Returns: A tuple containing:
+    ///   - quote: The MeltQuote response from the mint
+    ///   - change: Optional change proofs if fee was overpaid
+    /// - Throws: An error if the melt operation fails
+    public static func melt(quote: Bolt11.MeltQuote,
+                            mint: Mint,
+                            proofs: [Proof],
+                            timeout: Double = 600,
+                            blankOutputs: (outputs: [Output],
+                                           blindingFactors: [String],
+                                           secrets: [String])? = nil) async throws -> (quote: Bolt11.MeltQuote,
+                                                                                       change: [Proof]?) {
+        
+        let lightningFee: Int = quote.feeReserve
+        let inputFee: Int = try calculateFee(for: proofs, of: mint)
+        let targetAmount = quote.amount + lightningFee + inputFee
+        
+        guard sum(proofs) >= targetAmount else {
+            throw CashuError.insufficientInputs("Input sum does cover total amount needed: \(targetAmount)")
+        }
+        
+        logger.debug("Attempting melt with quote amount: \(quote.amount), lightning fee reserve: \(lightningFee), input fee: \(inputFee).")
+        
+        guard let units = try? units(for: proofs, of: mint), units.count == 1 else {
+            throw CashuError.unitError("Could not determine singular unit for input proofs.")
+        }
+        
+        guard let keyset = activeKeysetForUnit(units.first!, mint: mint) else {
+            throw CashuError.noActiveKeysetForUnit("No active keyset for unit \(units)")
+        }
+        
+        let noDLEQ = proofs.map({ Proof(keysetID: $0.keysetID, amount: $0.amount, secret: $0.secret, C: $0.C, dleq: nil, witness: nil) })
+        
+        let meltRequest = Bolt11.MeltRequest(quote: quote.quote, inputs: noDLEQ, outputs: blankOutputs.map({ $0.outputs }))
+        
+        let meltResponse = try await Network.post(url: mint.url.appending(path: "/v1/melt/bolt11"),
+                                                  body: meltRequest,
+                                                  expected: Bolt11.MeltQuote.self,
+                                                  timeout: timeout)
+        
+        let change: [Proof]?
+        if let promises = meltResponse.change, let blankOutputs {
+            guard promises.count <= blankOutputs.outputs.count else {
+                throw Crypto.Error.unblinding("could not unblind blank outputs for fee return")
+            }
+            
+            do {
+                change = try Crypto.unblindPromises(promises,
+                                                    blindingFactors: Array(blankOutputs.blindingFactors.prefix(promises.count)),
+                                                    secrets: Array(blankOutputs.secrets.prefix(promises.count)),
+                                                    keyset: keyset)
+            } catch {
+                logger.error("Unable to unblind change form melt operation due to error: \(error). operation will still return successful.")
+                change = nil
+            }
+        } else {
+            change = nil
+        }
+        
+        return (meltResponse, change)
+    }
 }
