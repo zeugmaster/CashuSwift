@@ -277,6 +277,7 @@ extension CashuSwift {
     /// - Returns: A tuple containing:
     ///   - quote: The MeltQuote response from the mint
     ///   - change: Optional change proofs if fee was overpaid
+    ///   - dleqResult: The DLEQ verification result
     /// - Throws: An error if the melt operation fails
     public static func melt(quote: Bolt11.MeltQuote,
                             mint: Mint,
@@ -285,7 +286,8 @@ extension CashuSwift {
                             blankOutputs: (outputs: [Output],
                                            blindingFactors: [String],
                                            secrets: [String])? = nil) async throws -> (quote: Bolt11.MeltQuote,
-                                                                                       change: [Proof]?) {
+                                                                                       change: [Proof]?,
+                                                                                       dleqResult: Crypto.DLEQVerificationResult) {
         
         let lightningFee: Int = quote.feeReserve
         let inputFee: Int = try calculateFee(for: proofs, of: mint)
@@ -333,6 +335,23 @@ extension CashuSwift {
             change = nil
         }
         
-        return (meltResponse, change)
+        let dleqResult: Crypto.DLEQVerificationResult
+        if let change = change {
+            do {
+                dleqResult = try Crypto.checkDLEQ(for: change, with: mint)
+                if case .noData = dleqResult {
+                    logger.warning("""
+                                   While melting with \(mint.url.absoluteString) DLEQ check could not be performed due to missing data. \
+                                   Not all wallets and mints support NUT-10 yet.
+                                   """)
+                }
+            } catch {
+                throw error
+            }
+        } else {
+            dleqResult = .valid
+        }
+        
+        return (meltResponse, change, dleqResult)
     }
 }
