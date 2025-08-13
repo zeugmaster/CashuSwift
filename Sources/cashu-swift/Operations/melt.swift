@@ -354,4 +354,85 @@ extension CashuSwift {
         
         return (meltResponse, change, dleqResult)
     }
+    
+    /// Checks the payment state of a melt quote and returns the full quote response.
+    /// - Parameters:
+    ///   - quoteID: The quote ID to check
+    ///   - mint: The mint that issued the quote
+    ///   - blankOutputs: Optional blank outputs for fee return
+    /// - Returns: A tuple containing:
+    ///   - quote: The MeltQuote response from the mint
+    ///   - change: Optional change proofs if fee was overpaid
+    ///   - dleqResult: The DLEQ verification result
+    /// - Throws: An error if the state cannot be retrieved
+    public static func meltState(for quoteID: String,
+                                 mint: Mint,
+                                 blankOutputs: (outputs: [Output],
+                                                blindingFactors: [String],
+                                                secrets: [String])? = nil) async throws -> (quote: Bolt11.MeltQuote,
+                                                                                            change: [Proof]?,
+                                                                                            dleqResult: Crypto.DLEQVerificationResult) {
+        let url = mint.url.appending(path: "/v1/melt/quote/bolt11/\(quoteID)")
+        let quote = try await Network.get(url: url, expected: Bolt11.MeltQuote.self)
+        
+        var change: [Proof]?
+        
+        switch quote.state {
+        case .paid:
+            let ids = Set(mint.keysets.map({ $0.keysetID }))
+            
+            guard let promises = quote.change else {
+                logger.info("quote did not contain promises for overpaid LN fees")
+                return (quote, [], .valid)
+            }
+            
+            guard let blankOutputs else {
+                logger.warning("checked melt quote that returns change for overpaid LN fees, but no blankOutputs were provided.")
+                return (quote, [], .valid)
+            }
+            
+            guard let id = ids.first, ids.count == 1 else {
+                throw CashuError.unknownError("could not determine singular keyset id from blankOutput list. result: \(ids)")
+            }
+            
+            guard let keyset = mint.keysets.first(where: { $0.keysetID == id }) else {
+                throw CashuError.unknownError("Could not find keyset for ID \(id)")
+            }
+            
+            do {
+                change = try Crypto.unblindPromises(promises,
+                                                    blindingFactors: Array(blankOutputs.blindingFactors.prefix(promises.count)),
+                                                    secrets: Array(blankOutputs.secrets.prefix(promises.count)),
+                                                    keyset: keyset)
+            } catch {
+                logger.error("Unable to unblind change form melt operation due to error: \(error). operation will still return successful.")
+                change = []
+            }
+            
+        case .pending, .unpaid:
+            change = nil
+            
+        case .none:
+            throw CashuError.unknownError("Melt quote unexpected state. \(String(describing: quote.state)) - quote id: \(quoteID)")
+        }
+        
+        let dleqResult: Crypto.DLEQVerificationResult
+        if let change = change, !change.isEmpty {
+            do {
+                dleqResult = try Crypto.checkDLEQ(for: change, with: mint)
+                if case .noData = dleqResult {
+                    logger.warning("""
+                                   While checking melt state for \(mint.url.absoluteString) DLEQ check could not be performed due to missing data. \
+                                   Not all wallets and mints support NUT-10 yet.
+                                   """)
+                }
+            } catch {
+                throw error
+            }
+        } else {
+            dleqResult = .valid
+        }
+        
+        return (quote, change, dleqResult)
+    }
 }
