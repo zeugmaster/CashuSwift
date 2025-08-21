@@ -366,7 +366,7 @@ extension CashuSwift {
     ///   - dleqResult: The DLEQ verification result
     /// - Throws: An error if the state cannot be retrieved
     public static func meltState(for quoteID: String,
-                                 mint: Mint,
+                                 with mint: Mint,
                                  blankOutputs: (outputs: [Output],
                                                 blindingFactors: [String],
                                                 secrets: [String])? = nil) async throws -> (quote: Bolt11.MeltQuote,
