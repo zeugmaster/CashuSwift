@@ -105,7 +105,7 @@ extension CashuSwift {
         
         switch quote.state {
         case .paid:
-            let ids = Set(mint.keysets.map({ $0.keysetID }))
+            
             
             guard let promises = quote.change else {
                 logger.info("quote did not contain promises for overpaid LN fees")
@@ -116,6 +116,8 @@ extension CashuSwift {
                 logger.warning("checked melt quote that returns change for overpaid LN fees, but no blankOutputs were provided.")
                 return (true, [])
             }
+            
+            let ids = Set(blankOutputs.outputs.map({ $0.id }))
             
             guard let id = ids.first, ids.count == 1 else {
                 throw CashuError.unknownError("could not determine singular keyset id from blankOutput list. result: \(ids)")
@@ -379,8 +381,6 @@ extension CashuSwift {
         
         switch quote.state {
         case .paid:
-            let ids = Set(mint.keysets.map({ $0.keysetID }))
-            
             guard let promises = quote.change else {
                 logger.info("quote did not contain promises for overpaid LN fees")
                 return (quote, [], .valid)
@@ -390,6 +390,8 @@ extension CashuSwift {
                 logger.warning("checked melt quote that returns change for overpaid LN fees, but no blankOutputs were provided.")
                 return (quote, [], .valid)
             }
+            
+            let ids = Set(blankOutputs.outputs.map({ $0.id }))
             
             guard let id = ids.first, ids.count == 1 else {
                 throw CashuError.unknownError("could not determine singular keyset id from blankOutput list. result: \(ids)")
