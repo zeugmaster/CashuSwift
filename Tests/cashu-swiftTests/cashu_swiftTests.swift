@@ -10,6 +10,12 @@ let dnsTestMint = "https://testmint.macadamia.cash"
 
 final class cashu_swiftTests: XCTestCase {
     
+    func testInvoiceAmount() throws {
+        let invoice = "lnbc1u1p5tzakfpp5rmx3hpalue6tuwgsnkke8qf56eqv0v80p9d8n07r7xnt5pzyr8wqdqggdshx6r4cqzpuxqrwzqsp5u9nx53qsrd4kldd7j0j0flffz0fgsm62ujs8akdyf3clsyc2sg7q9qxpqysgqwkze9vkrxa3c8y0gfryvr4s2eapludn3tnn80slwtcgsjw8q878qcqpwnh2ftww8ypgj093kkehrqwlkmnma7c5e7n92e7qns2vlpxgp3aacr8"
+        XCTAssertEqual(try CashuSwift.Bolt11.satAmountFromInvoice(pr: invoice), 100)
+        XCTAssertEqual(try CashuSwift.Bolt11.satAmountFromInvoice(pr: invoice.uppercased()), 100)
+    }
+    
     func testSecretSerialization() throws {
         
         // test that deserialization from string works properly

@@ -169,11 +169,12 @@ extension CashuSwift {
         }
         
         public static func satAmountFromInvoice(pr:String) throws -> Int {
-            guard let range = pr.range(of: "1", options: .backwards) else {
+            let lower = pr.lowercased()
+            guard let range = lower.range(of: "1", options: .backwards) else {
                 throw CashuError.bolt11InvalidInvoiceError("")
             }
             let endIndex = range.lowerBound
-            let hrp = String(pr[..<endIndex])
+            let hrp = String(lower[..<endIndex])
             if hrp.prefix(4) == "lnbc" {
                 var num = hrp.dropFirst(4)
                 let multiplier = num.popLast()
