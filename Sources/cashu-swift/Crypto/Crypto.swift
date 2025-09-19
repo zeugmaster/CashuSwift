@@ -329,7 +329,7 @@ extension CashuSwift {
             
             var concat = ""
             for k in publicKeys {
-                let kData = k.dataRepresentation
+                let kData = k.uncompressedRepresentation
                 concat.append(String(bytes: kData))
             }
             

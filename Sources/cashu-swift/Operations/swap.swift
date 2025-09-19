@@ -26,6 +26,7 @@ extension CashuSwift {
     ///   - change: The change proofs
     ///   - validDLEQ: Whether DLEQ verification passed
     /// - Throws: An error if the swap operation fails
+    @available(*, deprecated, message: "function returns DLEQ check as boolean instead of descriptive enum.")
     public static func swap(with mint: Mint,
                             inputs: [Proof],
                             amount: Int? = nil,
@@ -146,9 +147,9 @@ extension CashuSwift {
                      with mint: Mint,
                      sendOutputs: (outputs:[Output], blindingFactors: [String], secrets: [String]),
                      keepOutputs: (outputs:[Output], blindingFactors: [String], secrets: [String])) async throws -> (send: [Proof],
-                                                                                                  keep: [Proof],
-                                                                                                  inputDLEQ: Crypto.DLEQVerificationResult,
-                                                                                                  outputDLEQ: Crypto.DLEQVerificationResult) {
+                                                                                                                     keep: [Proof],
+                                                                                                                     inputDLEQ: Crypto.DLEQVerificationResult,
+                                                                                                                     outputDLEQ: Crypto.DLEQVerificationResult) {
         
         let inputDLEQ = try Crypto.checkDLEQ(for: inputs, with: mint)
         

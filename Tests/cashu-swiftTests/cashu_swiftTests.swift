@@ -274,28 +274,29 @@ final class cashu_swiftTests: XCTestCase {
 //        XCTAssert(result.paid)
     }
     
-    func testMeltReal() async throws {
-        
-        let mint1 = try await CashuSwift.loadMint(url: URL(string: "https://mint.macadamia.cash")!)
-        let mint2 = try await CashuSwift.loadMint(url: URL(string: "https://8333.space:3338")!)
-        
-        let mintQuote1 = try await CashuSwift.getQuote(mint: mint1, quoteRequest: CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 128)) as! CashuSwift.Bolt11.MintQuote
-        print(mintQuote1.request)
-        
-        sleep(20)
-        
-        let mintResult = try await CashuSwift.issue(for: mintQuote1, with: mint1, seed: nil)
-        
-        let mintQuote2 = try await CashuSwift.getQuote(mint: mint2, quoteRequest: CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 64)) as! CashuSwift.Bolt11.MintQuote
-        
-        let meltQuote = try await CashuSwift.getQuote(mint: mint1, quoteRequest: CashuSwift.Bolt11.RequestMeltQuote(unit: "sat", request: mintQuote2.request, options: nil)) as! CashuSwift.Bolt11.MeltQuote
-        let blankOutputs = try CashuSwift.generateBlankOutputs(quote: meltQuote, proofs: mintResult.proofs, mint: mint1, unit: "sat")
-        
-        let meltResult = try await CashuSwift.melt(with: meltQuote, mint: mint1, proofs: mintResult.proofs, blankOutputs: blankOutputs)
-        
-        print(meltResult)
-        print(meltResult.change?.sum ?? "no change")
-    }
+    // TODO: REPLACE WITH MOCK MINTS
+//    func testMeltReal() async throws {
+//        
+//        let mint1 = try await CashuSwift.loadMint(url: URL(string: "https://mint.macadamia.cash")!)
+//        let mint2 = try await CashuSwift.loadMint(url: URL(string: "https://8333.space:3338")!)
+//        
+//        let mintQuote1 = try await CashuSwift.getQuote(mint: mint1, quoteRequest: CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 128)) as! CashuSwift.Bolt11.MintQuote
+//        print(mintQuote1.request)
+//        
+//        sleep(20)
+//        
+//        let mintResult = try await CashuSwift.issue(for: mintQuote1, with: mint1, seed: nil)
+//        
+//        let mintQuote2 = try await CashuSwift.getQuote(mint: mint2, quoteRequest: CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 64)) as! CashuSwift.Bolt11.MintQuote
+//        
+//        let meltQuote = try await CashuSwift.getQuote(mint: mint1, quoteRequest: CashuSwift.Bolt11.RequestMeltQuote(unit: "sat", request: mintQuote2.request, options: nil)) as! CashuSwift.Bolt11.MeltQuote
+//        let blankOutputs = try CashuSwift.generateBlankOutputs(quote: meltQuote, proofs: mintResult.proofs, mint: mint1, unit: "sat")
+//        
+//        let meltResult = try await CashuSwift.melt(with: meltQuote, mint: mint1, proofs: mintResult.proofs, blankOutputs: blankOutputs)
+//        
+//        print(meltResult)
+//        print(meltResult.change?.sum ?? "no change")
+//    }
     
     func testBlankOutputCalculation() {
         let overpayed = 1000
@@ -638,14 +639,17 @@ final class cashu_swiftTests: XCTestCase {
         
         let mintResult = try await CashuSwift.issue(for: mintQuote, with: mint, seed: nil, preferredDistribution: [1, 1, 1])
         
-        let swap1 = try await CashuSwift.swap(with: mint, inputs: [mintResult.proofs[0]], seed: nil)
-        XCTAssertTrue(swap1.validDLEQ)
+//        let swap1 = try await CashuSwift.swap(with: mint, inputs: [mintResult.proofs[0]], seed: nil)
+        let swap1 = try await CashuSwift.swap(inputs: [mintResult.proofs[0]], with: mint, seed: nil)
+        XCTAssertEqual(swap1.inputDLEQ, .valid)
+        XCTAssertEqual(swap1.outputDLEQ, .valid)
         
-        print("Deliberately omitting DLEQ data to ensure check is still passing but prints warning...")
+        // Deliberately omitting DLEQ data to ensure check is still passing but prints warning...
         let p2 = mintResult.proofs[1]
         let inputWithoutDLEQfields = Proof(keysetID: p2.keysetID, amount: p2.amount, secret: p2.secret, C: p2.C, dleq: nil)
-        let swap2 = try await CashuSwift.swap(with: mint, inputs: [inputWithoutDLEQfields], seed: nil)
-        XCTAssertTrue(swap2.validDLEQ)
+        let swap2 = try await CashuSwift.swap(inputs: [inputWithoutDLEQfields], with: mint, seed: nil)
+        XCTAssertEqual(swap2.inputDLEQ, .noData)
+        XCTAssertEqual(swap2.outputDLEQ, .valid)
         
         let r = "a6d13fcd7a18442e6076f5e1e7c887ad5de40a019824bdfa9fe740d302e8d861"
         let e = "b31e58ac6527f34975ffab13e70a48b6d2b0d35abc4b03f0151f09ee1a9763d4"
@@ -654,10 +658,9 @@ final class cashu_swiftTests: XCTestCase {
         
         let p3 = mintResult.proofs[2]
         let inputRandomDLEQdata = Proof(keysetID: p3.keysetID, amount: p3.amount, secret: p3.secret, C: p3.C, dleq: wrongDLEQ)
-        let swap3 = try await CashuSwift.swap(with: mint, inputs: [inputRandomDLEQdata], seed: nil)
-        XCTAssertFalse(swap3.validDLEQ)
-        
-        
+        let swap3 = try await CashuSwift.swap(inputs: [inputRandomDLEQdata], with: mint, seed: nil)
+        XCTAssertEqual(swap3.inputDLEQ, .fail)
+        XCTAssertEqual(swap3.outputDLEQ, .valid)
     }
     
     func testTokenDeserializationWithDLEQ() throws {
@@ -689,23 +692,6 @@ final class cashu_swiftTests: XCTestCase {
         
         let privateKey = try secp256k1.Schnorr.PrivateKey(dataRepresentation: privateKeyHex.bytes)
         print(String(bytes: privateKey.publicKey.dataRepresentation))
-    }
-    
-    // 03f9f5b9805b23d62652180f40aadd8a37702afc0ba0f5a64f7bb761577fe3974e
-    
-    func testSchnorrReceive() async throws {
-        let privateKeyHex = "e95f2010be31354aa13e5b93c4694a8c32fbccaa76274592a32e922bbd8253ac"
-        
-//        let privateKey = try secp256k1.Schnorr.PrivateKey(dataRepresentation: privateKeyHex.bytes)
-        
-        let tokenString = "cashuBo2FteB9odHRwczovL3Rlc3RtaW50Lm1hY2FkYW1pYS5jYXNoYXVjc2F0YXSBomFpSADqDUFmRBKMYXCCo2FhCGFzeKFbIlAyUEsiLHsibm9uY2UiOiJlYmY5ODM0MmU5ZjM4ZGFlNmYwOTE1NDk5NTZlYWY0NWQ0ZGRmZjVhZjYyZmMzNTI5NjFmNzcyZDAyMDYwMWMxIiwiZGF0YSI6IjAzZjlmNWI5ODA1YjIzZDYyNjUyMTgwZjQwYWFkZDhhMzc3MDJhZmMwYmEwZjVhNjRmN2JiNzYxNTc3ZmUzOTc0ZSJ9XWFjWCEDX88x65qyQxR62BIlNEcYLEex1YG1dsJNRW4-kJ32qySjYWEYIGFzeKFbIlAyUEsiLHsibm9uY2UiOiIxZWJjMTc3MTMzNWJiZTdhMWUwODU2YjUxYTg0MGVjMDhlM2NiNWU1MDk0YWMzMTM4YmYyZWU2ZDllMTUwMDAwIiwiZGF0YSI6IjAzZjlmNWI5ODA1YjIzZDYyNjUyMTgwZjQwYWFkZDhhMzc3MDJhZmMwYmEwZjVhNjRmN2JiNzYxNTc3ZmUzOTc0ZSJ9XWFjWCED3GmCVY3PlzVAhCpGSVsW16QyaLZKUlu60EnUJkl6Y9U"
-        let token = try tokenString.deserializeToken()
-        
-        let mint = try await CashuSwift.loadMint(url: URL(string: token.proofsByMint.first!.key)!)
-        
-        let result = try await CashuSwift.receive(token: token, of: mint, seed: nil, privateKey: privateKeyHex)
-
-        print(result)
     }
     
     func testCreateLockedToken() async throws {
@@ -803,6 +789,7 @@ final class cashu_swiftTests: XCTestCase {
             let sendLocked = try await CashuSwift.send(inputs: sendResult.token.proofsByMint.first!.value,
                                                        mint: mint,
                                                        seed: nil)
+            XCTAssertEqual(sendLocked.outputDLEQ, .valid)
             
         } catch let error as CashuError {
             XCTAssert(error == CashuError.spendingConditionError(""))
@@ -862,7 +849,9 @@ final class cashu_swiftTests: XCTestCase {
             
             print("change sum: \(sendResult.change.sum)")
             print("token sum: \(String(describing: sendResult.token.proofsByMint.first?.value.sum))")
-            _ = try await CashuSwift.receive(token: sendResult.token, of: mint, seed: seed, privateKey: privateKeyHex)
+            let received = try await CashuSwift.receive(token: sendResult.token, of: mint, seed: seed, privateKey: privateKeyHex)
+            XCTAssertEqual(received.outputDLEQ, .valid)
+            XCTAssertEqual(received.inputDLEQ, .valid)
         }
     }
     
