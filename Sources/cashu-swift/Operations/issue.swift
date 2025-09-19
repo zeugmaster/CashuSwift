@@ -111,7 +111,7 @@ extension CashuSwift {
             dleqValid = try Crypto.validDLEQ(for: proofs, with: mint)
         } catch CashuSwift.Crypto.Error.DLEQVerificationNoData(let message) {
             logger.warning("""
-                           While restoring from mint \(mint.url) DLEQ check could not be performed due to missing data but will still \
+                           While issuing proofs from mint \(mint.url) DLEQ check could not be performed due to missing data but will still \
                            evaluate as passing because not all wallets and mint support NUT-10. \
                            future versions will consider the check failed.
                            """)
@@ -121,6 +121,62 @@ extension CashuSwift {
         }
         
         return (proofs, dleqValid)
+    }
+    
+    public static func issue(for quote: Bolt11.MintQuote,
+                             mint: Mint,
+                             seed: String?,
+                             preferredDistribution: [Int]? = nil) async throws -> (proofs: [Proof],
+                                                                                   dleqResult: Crypto.DLEQVerificationResult) {
+        guard let requestDetail = quote.requestDetail else {
+            throw CashuError.missingRequestDetail("You need to set requestDetail associated with the quote.")
+        }
+        
+        var distribution:[Int]
+        
+        if let preferredDistribution = preferredDistribution {
+            guard preferredDistribution.reduce(0, +) == requestDetail.amount else {
+                throw CashuError.preferredDistributionMismatch("Specified preferred distribution does not add up to the same amount as the quote.")
+            }
+            distribution = preferredDistribution
+        } else {
+            distribution = CashuSwift.splitIntoBase2Numbers(requestDetail.amount)
+        }
+        
+        guard let activeKeyset = mint.keysets.first(where: { $0.active == true &&
+                                                       $0.unit == requestDetail.unit }) else {
+            throw CashuError.noActiveKeysetForUnit("Could not determine an ACTIVE keyset for this unit \(requestDetail.unit.uppercased())")
+        }
+        
+        // tuple for outputs, blindingfactors, secrets
+        // swift does not allow uninitialized tuple declaration
+        var outputs = (outputs:[Output](), blindingFactors:[""], secrets:[""])
+        if let seed = seed {
+            outputs = try Crypto.generateOutputs(amounts: distribution,
+                                                 keysetID: activeKeyset.keysetID,
+                                                 deterministicFactors: (seed: seed,
+                                                                        counter: activeKeyset.derivationCounter))
+            
+        } else {
+            outputs = try Crypto.generateOutputs(amounts: distribution,
+                                                 keysetID: activeKeyset.keysetID)
+        }
+        
+        let mintRequest = Bolt11.MintRequest(quote: quote.quote, outputs: outputs.outputs)
+        
+        // TODO: PARSE COMMON ERRORS
+        let promises = try await Network.post(url: mint.url.appending(path: "/v1/mint/bolt11"),
+                                              body: mintRequest,
+                                              expected: Bolt11.MintResponse.self)
+                            
+        let proofs = try Crypto.unblindPromises(promises.signatures,
+                                                blindingFactors: outputs.blindingFactors,
+                                                secrets: outputs.secrets,
+                                                keyset: activeKeyset)
+        
+        let dleqResult = try Crypto.checkDLEQ(for: proofs, with: mint)
+        
+        return (proofs, dleqResult)
     }
     
     /// Gets the current state of a mint quote.

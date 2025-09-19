@@ -942,4 +942,19 @@ final class cashu_swiftTests: XCTestCase {
         
         print("Restoration test passed: original keyset has valid ID again")
     }
+    
+    func testMintingDLEQ() async throws {
+        let url = URL(string: "http://localhost:3338")!
+        let mint = try await CashuSwift.loadMint(url: url)
+        
+        let req = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 21)
+        guard let q = try await CashuSwift.getQuote(mint: mint, quoteRequest: req) as? CashuSwift.Bolt11.MintQuote else {
+            XCTFail()
+            return
+        }
+        
+        let result = try await CashuSwift.issue(for: q, mint: mint, seed: nil)
+        
+        XCTAssertEqual(result.dleqResult, .valid)
+    }
 }
