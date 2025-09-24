@@ -349,7 +349,7 @@ extension CashuSwift {
         
         //MARK: - DETERMINISTIC KEY GENERATION
         
-        fileprivate static func childPrivateKeyForDerivationPath(seed:String, derivationPath:String) throws -> PrivateKey {
+        static func childPrivateKeyForDerivationPath(seed:String, derivationPath:String) throws -> PrivateKey {
             var parts = derivationPath.split(separator: "/")
             
             if parts.count > 7 || parts.count < 1 {

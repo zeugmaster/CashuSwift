@@ -946,4 +946,35 @@ final class cashu_swiftTests: XCTestCase {
         
         XCTAssertEqual(result.dleqResult, .valid)
     }
+    
+    func testKDFerrorBIP32() throws {
+        let path = "m/129372'/0'/1536791888'/36'/0"
+        let seed = "5f911180b9d710a730a277a651d1bc347eef5546953fe99470ebdde467c54ae0d264ca3ee2d75f19a248c391ce7495c313cc0302c6b8bfff6d921c6dab282bda"
+        
+        let key = try CashuSwift.Crypto.childPrivateKeyForDerivationPath(seed: seed,
+                                                                         derivationPath: path)
+        
+        print(String(bytes: key.dataRepresentation))
+        print(key.dataRepresentation.count)
+    }
+    
+    func testRestoreLargeBatch() async throws {
+        let seed = String(bytes: Mnemonic().seed)
+        let mint = try await CashuSwift.loadMint(url: URL(string: "http://localhost:3338")!)
+        
+        let distribution = Array(repeating: 1, count: 200)
+        
+        let req = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: distribution.reduce(0, +))
+        guard let q = try await CashuSwift.getQuote(mint: mint, quoteRequest: req) as? CashuSwift.Bolt11.MintQuote else {
+            XCTFail()
+            return
+        }
+        
+        let result = try await CashuSwift.issue(for: q, mint: mint, seed: seed, preferredDistribution: distribution)
+        
+        print("minted \(result.proofs.count) proofs")
+        
+        let restore = try await CashuSwift.restore(from: mint, with: seed, batchSize: 300)
+        XCTAssertEqual(restore.result.first?.proofs.count, result.proofs.count)
+    }
 }
