@@ -196,7 +196,7 @@ extension CashuSwift {
 
 
 extension CashuSwift.Mint {
-    public struct Info: Codable {
+    public struct Info: Codable, Sendable {
         public let name: String?
         public let pubkey: String?
         public let version: String?
@@ -210,7 +210,7 @@ extension CashuSwift.Mint {
         public let tosUrl: String?
         public let nuts: Nuts?
         
-        public struct Contact: Codable {
+        public struct Contact: Codable, Sendable {
             public let method: String
             public let info: String
         }
@@ -247,7 +247,7 @@ extension CashuSwift.Mint {
             }
         }
         
-        public struct Nuts: Codable {
+        public struct Nuts: Codable, Sendable {
             public let nut04: NutInfo?
             public let nut05: NutInfo?
             public let nut07: NutInfo?
@@ -295,7 +295,7 @@ extension CashuSwift.Mint {
             }
         }
         
-        public struct NutInfo: Codable {
+        public struct NutInfo: Codable, Sendable {
             public let methods: [PaymentMethod]?
             public let disabled: Bool?
             public let supported: SupportedValue?
@@ -339,7 +339,7 @@ extension CashuSwift.Mint {
             }
         }
         
-        public enum SupportedValue: Codable {
+        public enum SupportedValue: Codable, Sendable {
             case bool(Bool)
             case methods([PaymentMethod])
             
@@ -366,7 +366,7 @@ extension CashuSwift.Mint {
             }
         }
         
-        public struct PaymentMethod: Codable {
+        public struct PaymentMethod: Codable, Sendable {
             public let method: String
             public let unit: String
             public let minAmount: Int?
