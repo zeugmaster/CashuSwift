@@ -188,7 +188,6 @@ extension CashuSwift {
     public static func mintQuoteState(for quoteID: String,
                                       mint: Mint) async throws -> Bolt11.MintQuote {
         let url = mint.url.appending(path: "/v1/mint/quote/bolt11/\(quoteID)")
-        print(url.absoluteString)
         return try await Network.get(url: url, expected: Bolt11.MintQuote.self)
     }
 }
