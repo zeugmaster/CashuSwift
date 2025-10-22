@@ -175,23 +175,58 @@ extension CashuSwift {
             }
             let endIndex = range.lowerBound
             let hrp = String(lower[..<endIndex])
-            if hrp.prefix(4) == "lnbc" {
-                var num = hrp.dropFirst(4)
-                let multiplier = num.popLast()
-                guard var n = Double(num) else {
-                    throw CashuError.bolt11InvalidInvoiceError("")
-                }
-                switch multiplier {
-                case "m": n *= 100000
-                case "u": n *= 100
-                case "n": n *= 0.1
-                case "p": n *= 0.0001
-                default: throw CashuError.bolt11InvalidInvoiceError("")
-                }
-                return n >= 1 ? Int(n) : 0
+            
+            // Check for all Lightning Network prefixes (longest first to avoid conflicts)
+            var prefixLength: Int = 0
+            if hrp.hasPrefix("lnbcrt") {
+                prefixLength = 6  // Bitcoin regtest
+            } else if hrp.hasPrefix("lntbs") {
+                prefixLength = 5  // Bitcoin signet
+            } else if hrp.hasPrefix("lnbc") {
+                prefixLength = 4  // Bitcoin mainnet
+            } else if hrp.hasPrefix("lntb") {
+                prefixLength = 4  // Bitcoin testnet
             } else {
                 throw CashuError.bolt11InvalidInvoiceError("")
             }
+            
+            let amountPart = String(hrp.dropFirst(prefixLength))
+            
+            // If no amount specified, return 0
+            if amountPart.isEmpty {
+                return 0
+            }
+            
+            // Parse amount and optional multiplier
+            let validMultipliers: Set<Character> = ["m", "u", "n", "p"]
+            let multiplier: Character?
+            let numString: String
+            
+            if let lastChar = amountPart.last, validMultipliers.contains(lastChar) {
+                multiplier = lastChar
+                numString = String(amountPart.dropLast())
+            } else {
+                multiplier = nil
+                numString = amountPart
+            }
+            
+            guard var n = Double(numString) else {
+                throw CashuError.bolt11InvalidInvoiceError("")
+            }
+            
+            switch multiplier {
+            case "m": n *= 100000      // milli-bitcoin to satoshis
+            case "u": n *= 100         // micro-bitcoin to satoshis
+            case "n": n *= 0.1         // nano-bitcoin to satoshis
+            case "p": n *= 0.0001      // pico-bitcoin to satoshis
+            case nil:
+                // No multiplier means whole bitcoins
+                n *= 100000000
+            default:
+                throw CashuError.bolt11InvalidInvoiceError("")
+            }
+            
+            return n >= 1 ? Int(n) : 0
         }
     }
 
