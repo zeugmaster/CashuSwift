@@ -28,7 +28,8 @@ let package = Package(
                  from: "1.0.0"),
         .package(url: "https://github.com/myfreeweb/SwiftCBOR.git",
                  from: "0.4.4"),
-        .package(url: "https://github.com/zeugmaster/Bolt11.git", from: "0.1.0")
+        .package(url: "https://github.com/zeugmaster/Bolt11.git",
+                 from: "0.1.0")
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
