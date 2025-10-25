@@ -18,10 +18,10 @@ let package = Package(
             targets: ["CashuSwift"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/zeugmaster/swift-secp256k1.git",
-                 branch: "main"),
+        .package(url: "https://github.com/21-DOT-DEV/swift-secp256k1",
+                 exact: "0.19.0"),
         .package(url: "https://github.com/zeugmaster/BIP32.git",
-                 branch: "main"),
+                 exact:"1.2.0"),
         .package(url: "https://github.com/mkrd/Swift-BigInt.git",
                  from: "2.0.0"),
         .package(url: "https://github.com/pengpengliu/BIP39.git",
