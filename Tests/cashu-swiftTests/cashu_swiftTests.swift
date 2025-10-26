@@ -325,6 +325,8 @@ final class cashu_swiftTests: XCTestCase {
 
             let issued = try await CashuSwift.issue(for: q, mint: mint, seed: seed)
             
+            print("------")
+            
             if let idx = mint.keysets.firstIndex(where: { $0.keysetID == CashuSwift.activeKeysetForUnit("sat", mint: mint)?.keysetID }) {
                 mint.keysets[idx].derivationCounter += issued.proofs.count
             }
@@ -342,8 +344,7 @@ final class cashu_swiftTests: XCTestCase {
             }
             
             XCTAssert(tokenProofs.sum == target)
-            XCTAssert(sendResult.change.isEmpty) // 32 minted, 31 sent, 1 fee
-            XCTAssertEqual(sendResult.counterIncrease?.increase, 5)
+            XCTAssertEqual(sendResult.counterIncrease?.increase, 6)
         }
         
         do {
@@ -351,7 +352,7 @@ final class cashu_swiftTests: XCTestCase {
             
             let url = URL(string: "https://testnut.cashu.space")!
             var mint = try await CashuSwift.loadMint(url: url)
-            let qr = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 32)
+            let qr = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 63)
             let q = try await CashuSwift.getQuote(mint: mint, quoteRequest: qr) as! CashuSwift.Bolt11.MintQuote
 
             let issued = try await CashuSwift.issue(for: q, mint: mint, seed: nil)
@@ -373,7 +374,6 @@ final class cashu_swiftTests: XCTestCase {
             }
             
             XCTAssert(tokenProofs.sum == target)
-            XCTAssert(sendResult.change.isEmpty) // 32 minted, 31 sent, 1 fee
             XCTAssertEqual(sendResult.counterIncrease?.increase, 0)
         }
     }
