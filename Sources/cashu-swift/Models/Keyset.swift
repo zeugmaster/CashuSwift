@@ -7,6 +7,7 @@
 
 import Foundation
 import CryptoKit
+import secp256k1
 
 extension CashuSwift {
     struct KeysetList: Decodable {
@@ -67,7 +68,11 @@ extension CashuSwift {
             if self.keysetID.count == 12 {
                 return self.keysetID == Keyset.calculateKeysetID(keyset: self.keys)
             } else if keysetID.count == 16 {
-                return self.keysetID == Keyset.calculateHexKeysetID(keyset: self.keys)
+                do {
+                    return try self.keysetID == Keyset.calculateHexKeysetID(keyset: self.keys)
+                } catch {
+                    return false
+                }
             } else {
                 fatalError()
             }
@@ -90,7 +95,7 @@ extension CashuSwift {
             return id
         }
         
-        static func calculateHexKeysetID(keyset:Dictionary<String,String>) -> String {
+        static func calculateHexKeysetID(keyset:Dictionary<String,String>) throws -> String {
             let sortedValues = keyset.sorted { (firstElement, secondElement) -> Bool in
                 guard let firstKey = UInt(firstElement.key),
                       let secondKey = UInt(secondElement.key) else {
@@ -99,13 +104,17 @@ extension CashuSwift {
                 return firstKey < secondKey
             }.map { $0.value }
             
+            // Convert hex public key strings to bytes using secp256k1 extension, concatenate them, then hash
             var concatData = [UInt8]()
             for stringKey in sortedValues {
-                try! concatData.append(contentsOf: stringKey.bytes)
+                // Use the secp256k1 String.bytes extension which properly parses hex strings
+                let bytes = try stringKey.bytes
+                concatData.append(contentsOf: bytes)
             }
             
             let hashData = Data(SHA256.hash(data: concatData))
-            let result = String(bytes: hashData).prefix(14)
+            let hexString = hashData.map { String(format: "%02x", $0) }.joined()
+            let result = String(hexString.prefix(14))
             
             return "00" + result
         }
