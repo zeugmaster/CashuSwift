@@ -192,41 +192,88 @@ final class cashu_swiftTests: XCTestCase {
     }
     
     func testMintingWithDetSec() async throws {
-//        let mintURL = URL(string: "http://localhost:3339")!
-//        
-//        let mint = try await CashuSwift.loadMint(url: mintURL)
-//        
-//        let amount = 31
-//        
-//        let quote = try await CashuSwift.getQuote(mint: mint, quoteRequest: CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: amount))
-//        let mnemmonic = Mnemonic()
-//        let seed = String(bytes: mnemmonic.seed)
-//        
-//        var proofs = try await CashuSwift.issue(for: quote, on: mint, seed: seed)
-//        mint.keysets.first(where: { $0.keysetID == proofs.first?.keysetID })!.derivationCounter += proofs.count
-//        
-//        
-//        // triple swap to make sure detsec counter increments correctly
-//        for _ in 0...3 {
-//            (proofs, _) = try await CashuSwift.swap(mint: mint, proofs: proofs, seed: seed)
-//        }
+        let mnemmonic = Mnemonic()
+        let seed = String(bytes: mnemmonic.seed)
+
+        
+        let url = URL(string: "https://testmint.macadamia.cash")!
+        var mint = try await CashuSwift.loadMint(url: url)
+        let qr = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 32)
+        let q = try await CashuSwift.getQuote(mint: mint, quoteRequest: qr) as! CashuSwift.Bolt11.MintQuote
+
+        let issued = try await CashuSwift.issue(for: q, mint: mint, seed: seed)
+        
+        if let idx = mint.keysets.firstIndex(where: { $0.keysetID == CashuSwift.activeKeysetForUnit("sat", mint: mint)?.keysetID }) {
+            mint.keysets[idx].derivationCounter += issued.proofs.count
+        }
+        
+        // TODO: add thorough testing for swaps of different amounts...
     }
     
     func testSendReceive() async throws {
-        let url = URL(string: "http://localhost:3339")!
-        let mint = try await CashuSwift.loadMint(url: url)
-        let qr = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 32)
-        let q = try await CashuSwift.getQuote(mint: mint, quoteRequest: qr)
-        let proofs = try await CashuSwift.issue(for: q, on: mint)
         
-        let (token, change) = try await CashuSwift.send(mint: mint, proofs: proofs, amount: 15)
-//        let tokenString = try token.serialize(.V3)
+        let mnemmonic = Mnemonic()
+        let seed = String(bytes: mnemmonic.seed)
+
         
-        print(CashuSwift.sum(token.proofsByMint.first!.value))
-        print(CashuSwift.sum(change))
+        do {
+            let url = URL(string: "https://testmint.macadamia.cash")!
+            var mint = try await CashuSwift.loadMint(url: url)
+            let qr = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 32)
+            let q = try await CashuSwift.getQuote(mint: mint, quoteRequest: qr) as! CashuSwift.Bolt11.MintQuote
+
+            let issued = try await CashuSwift.issue(for: q, mint: mint, seed: seed)
+            
+            if let idx = mint.keysets.firstIndex(where: { $0.keysetID == CashuSwift.activeKeysetForUnit("sat", mint: mint)?.keysetID }) {
+                mint.keysets[idx].derivationCounter += issued.proofs.count
+            }
+            
+            let sendResult = try await CashuSwift.send(inputs: issued.proofs,
+                                                       mint: mint,
+                                                       amount: 20,
+                                                       seed: seed,
+                                                       memo: nil,
+                                                       lockToPublicKey: nil)
+            
+            guard let tokenProofs = sendResult.token.proofsByMint.first?.value else {
+                XCTFail("token should contain proofs.")
+                return
+            }
+            
+            XCTAssert(tokenProofs.sum == 20)
+            XCTAssert(sendResult.change.sum == 12) // testmint.macadamia.cash does not have fees, easy calc
+        }
         
-        let received = try await CashuSwift.receive(mint: mint, token: token)
-        print(CashuSwift.sum(received))
+        do {
+            let url = URL(string: "https://testnut.cashu.space")!
+            var mint = try await CashuSwift.loadMint(url: url)
+            let qr = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 32)
+            let q = try await CashuSwift.getQuote(mint: mint, quoteRequest: qr) as! CashuSwift.Bolt11.MintQuote
+
+            let issued = try await CashuSwift.issue(for: q, mint: mint, seed: seed)
+            
+            if let idx = mint.keysets.firstIndex(where: { $0.keysetID == CashuSwift.activeKeysetForUnit("sat", mint: mint)?.keysetID }) {
+                mint.keysets[idx].derivationCounter += issued.proofs.count
+            }
+            
+            let sendResult = try await CashuSwift.send(inputs: issued.proofs,
+                                                       mint: mint,
+                                                       amount: 20,
+                                                       seed: seed,
+                                                       memo: nil,
+                                                       lockToPublicKey: nil)
+            
+            guard let tokenProofs = sendResult.token.proofsByMint.first?.value else {
+                XCTFail("token should contain proofs.")
+                return
+            }
+            
+            XCTAssert(tokenProofs.sum == 20)
+//            XCTAssert(sendResult.change.sum == 12) // testmint.macadamia.cash does not have fees, easy calc
+            
+            // TODO: make sure the appropriate amount in change comes back
+            print(sendResult.change.sum)
+        }
         
     }
     

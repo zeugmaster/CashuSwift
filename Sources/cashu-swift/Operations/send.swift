@@ -37,7 +37,8 @@ extension CashuSwift {
                             memo: String? = nil,
                             lockToPublicKey: String? = nil) async throws -> (token: Token,
                                                                              change: [Proof],
-                                                                             outputDLEQ: Crypto.DLEQVerificationResult) {
+                                                                             outputDLEQ: Crypto.DLEQVerificationResult,
+                                                                             counterIncrease: (keysetID: String, increase: Int)?) {
         let proofSum = sum(inputs)
         let inputFee = try calculateFee(for: inputs, of: mint)
         
@@ -45,7 +46,12 @@ extension CashuSwift {
         guard units.count == 1 else {
             throw CashuError.unitError("Input proofs have mixed units, which is not allowed.")
         }
+        
         let unit = units.first ?? "sat"
+        
+        guard let activeKeyset = activeKeysetForUnit(unit, mint: mint) else {
+            throw CashuError.noActiveKeysetForUnit(unit)
+        }
         
         // make sure inputs do not have spending condition
         for p in inputs {
@@ -57,7 +63,7 @@ extension CashuSwift {
         if (proofSum == amount ?? proofSum) && lockToPublicKey == nil {
             return (Token(proofs: [mint.url.absoluteString: inputs],
                           unit: unit,
-                          memo: memo), [], .valid)
+                          memo: memo), [], .valid, nil)
         }
         
         let split = try split(for: proofSum, target: amount, fee: inputFee)
@@ -78,7 +84,10 @@ extension CashuSwift {
                              unit: unit,
                              offset: keepOutputSets.outputs.count) // MARK: need to increase detsec counter in function
         
-        
+        var increase = keepOutputSets.outputs.count
+        if lockToPublicKey != nil || seed == nil {
+            increase += sendOutputSets.outputs.count
+        }
         
         let swapResult = try await swap(inputs: inputs,
                                         with: mint,
@@ -89,7 +98,7 @@ extension CashuSwift {
                           unit: unit,
                           memo: memo)
         
-        return (token, swapResult.keep, swapResult.outputDLEQ)
+        return (token, swapResult.keep, swapResult.outputDLEQ, (activeKeyset.keysetID, increase))
     }
     
     @available(*, deprecated)

@@ -87,14 +87,7 @@ extension CashuSwift {
     }
 
     
-    /// Issues ecash proofs after paying a mint quote.
-    /// - Parameters:
-    ///   - quote: The paid mint quote to issue proofs for
-    ///   - mint: The mint to issue proofs from
-    ///   - seed: Optional seed for deterministic proof generation
-    ///   - preferredDistribution: Optional preferred denomination distribution
-    /// - Returns: A tuple containing the issued proofs and DLEQ validation result
-    /// - Throws: An error if proof issuance fails
+    @available(*, deprecated, message: "This method returns the boolean flag for successful DLEQ verification but not the verbose result enum.")
     public static func issue(for quote:Quote,
                              with mint: Mint,
                              seed:String?,
@@ -123,6 +116,14 @@ extension CashuSwift {
         return (proofs, dleqValid)
     }
     
+    /// Issues ecash proofs after paying a mint quote.
+    /// - Parameters:
+    ///   - quote: The paid mint quote to issue proofs for
+    ///   - mint: The mint to issue proofs from
+    ///   - seed: Optional seed for deterministic proof generation
+    ///   - preferredDistribution: Optional preferred denomination distribution
+    /// - Returns: A tuple containing the issued proofs and DLEQ validation result
+    /// - Throws: An error if proof issuance fails
     public static func issue(for quote: Bolt11.MintQuote,
                              mint: Mint,
                              seed: String?,
