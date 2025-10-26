@@ -212,11 +212,10 @@ final class cashu_swiftTests: XCTestCase {
     
     func testSendReceive() async throws {
         
-        let mnemmonic = Mnemonic()
-        let seed = String(bytes: mnemmonic.seed)
-
-        
         do {
+            let mnemmonic = Mnemonic()
+            let seed = String(bytes: mnemmonic.seed)
+            
             let url = URL(string: "https://testmint.macadamia.cash")!
             var mint = try await CashuSwift.loadMint(url: url)
             let qr = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 32)
@@ -245,6 +244,9 @@ final class cashu_swiftTests: XCTestCase {
         }
         
         do {
+            let mnemmonic = Mnemonic()
+            let seed = String(bytes: mnemmonic.seed)
+            
             let url = URL(string: "https://testnut.cashu.space")!
             var mint = try await CashuSwift.loadMint(url: url)
             let qr = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 32)
@@ -275,6 +277,105 @@ final class cashu_swiftTests: XCTestCase {
             print(sendResult.change.sum)
         }
         
+        // check derivation counters for edge cases like proofs.sum == amount + fee
+        do {
+            let mnemmonic = Mnemonic()
+            let seed = String(bytes: mnemmonic.seed)
+            
+            let target = 31
+            
+            let url = URL(string: "https://testnut.cashu.space")!
+            var mint = try await CashuSwift.loadMint(url: url)
+            let qr = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 32)
+            let q = try await CashuSwift.getQuote(mint: mint, quoteRequest: qr) as! CashuSwift.Bolt11.MintQuote
+
+            let issued = try await CashuSwift.issue(for: q, mint: mint, seed: seed)
+            
+            if let idx = mint.keysets.firstIndex(where: { $0.keysetID == CashuSwift.activeKeysetForUnit("sat", mint: mint)?.keysetID }) {
+                mint.keysets[idx].derivationCounter += issued.proofs.count
+            }
+            
+            let sendResult = try await CashuSwift.send(inputs: issued.proofs,
+                                                       mint: mint,
+                                                       amount: target,
+                                                       seed: seed,
+                                                       memo: nil,
+                                                       lockToPublicKey: nil)
+            
+            guard let tokenProofs = sendResult.token.proofsByMint.first?.value else {
+                XCTFail("token should contain proofs.")
+                return
+            }
+            
+            XCTAssert(tokenProofs.sum == target)
+            XCTAssert(sendResult.change.isEmpty) // 32 minted, 31 sent, 1 fee
+            XCTAssertEqual(sendResult.counterIncrease?.increase, 5)
+        }
+        
+        do {
+            let mnemmonic = Mnemonic()
+            let seed = String(bytes: mnemmonic.seed)
+            
+            let target = 50
+            
+            let url = URL(string: "https://testnut.cashu.space")!
+            var mint = try await CashuSwift.loadMint(url: url)
+            let qr = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 127)
+            let q = try await CashuSwift.getQuote(mint: mint, quoteRequest: qr) as! CashuSwift.Bolt11.MintQuote
+
+            let issued = try await CashuSwift.issue(for: q, mint: mint, seed: seed)
+            
+            if let idx = mint.keysets.firstIndex(where: { $0.keysetID == CashuSwift.activeKeysetForUnit("sat", mint: mint)?.keysetID }) {
+                mint.keysets[idx].derivationCounter += issued.proofs.count
+            }
+            
+            let sendResult = try await CashuSwift.send(inputs: issued.proofs,
+                                                       mint: mint,
+                                                       amount: target,
+                                                       seed: seed,
+                                                       memo: nil,
+                                                       lockToPublicKey: nil)
+            
+            guard let tokenProofs = sendResult.token.proofsByMint.first?.value else {
+                XCTFail("token should contain proofs.")
+                return
+            }
+            
+            XCTAssert(tokenProofs.sum == target)
+            XCTAssert(sendResult.change.isEmpty) // 32 minted, 31 sent, 1 fee
+            XCTAssertEqual(sendResult.counterIncrease?.increase, 5)
+        }
+        
+        do {
+            let target = 31
+            
+            let url = URL(string: "https://testnut.cashu.space")!
+            var mint = try await CashuSwift.loadMint(url: url)
+            let qr = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 32)
+            let q = try await CashuSwift.getQuote(mint: mint, quoteRequest: qr) as! CashuSwift.Bolt11.MintQuote
+
+            let issued = try await CashuSwift.issue(for: q, mint: mint, seed: nil)
+            
+            if let idx = mint.keysets.firstIndex(where: { $0.keysetID == CashuSwift.activeKeysetForUnit("sat", mint: mint)?.keysetID }) {
+                mint.keysets[idx].derivationCounter += issued.proofs.count
+            }
+            
+            let sendResult = try await CashuSwift.send(inputs: issued.proofs,
+                                                       mint: mint,
+                                                       amount: target,
+                                                       seed: nil,
+                                                       memo: nil,
+                                                       lockToPublicKey: nil)
+            
+            guard let tokenProofs = sendResult.token.proofsByMint.first?.value else {
+                XCTFail("token should contain proofs.")
+                return
+            }
+            
+            XCTAssert(tokenProofs.sum == target)
+            XCTAssert(sendResult.change.isEmpty) // 32 minted, 31 sent, 1 fee
+            XCTAssertEqual(sendResult.counterIncrease?.increase, 0)
+        }
     }
     
     func testMelt() async throws {

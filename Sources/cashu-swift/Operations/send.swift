@@ -42,6 +42,11 @@ extension CashuSwift {
         let proofSum = sum(inputs)
         let inputFee = try calculateFee(for: inputs, of: mint)
         
+        // Validate amount is either nil or positive
+        if let amount = amount, amount <= 0 {
+            throw CashuError.invalidAmount
+        }
+        
         let units = try units(for: inputs, of: mint)
         guard units.count == 1 else {
             throw CashuError.unitError("Input proofs have mixed units, which is not allowed.")
@@ -84,8 +89,8 @@ extension CashuSwift {
                              unit: unit,
                              offset: keepOutputSets.outputs.count) // MARK: need to increase detsec counter in function
         
-        var increase = keepOutputSets.outputs.count
-        if lockToPublicKey != nil || seed == nil {
+        var increase = seed != nil ? keepOutputSets.outputs.count : 0
+        if lockToPublicKey == nil && seed != nil {
             increase += sendOutputSets.outputs.count
         }
         
