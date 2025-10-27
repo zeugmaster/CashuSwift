@@ -995,12 +995,42 @@ final class cashu_swiftTests: XCTestCase {
                 mint.keysets[idx].derivationCounter += increase
             }
             
+            print(try sendResult.token.serialize(to: .V4))
+            
             print("change sum: \(sendResult.change.sum)")
             print("token sum: \(String(describing: sendResult.token.proofsByMint.first?.value.sum))")
             let received = try await CashuSwift.receive(token: sendResult.token, of: mint, seed: seed, privateKey: privateKeyHex)
             XCTAssertEqual(received.outputDLEQ, .valid)
             XCTAssertEqual(received.inputDLEQ, .valid)
         }
+    }
+    
+    func testLocalLockedSendReceive() async throws {
+        let privateKeyHex = "e95f2010be31354aa13e5b93c4694a8c32fbccaa76274592a32e922bbd8253ac"
+        let pubkeyHex = "03f9f5b9805b23d62652180f40aadd8a37702afc0ba0f5a64f7bb761577fe3974e"
+        
+        let mnemmonic = Mnemonic()
+        let seed = String(bytes: mnemmonic.seed)
+        
+        let url = URL(string: "http://localhost:3338")!
+        var mint = try await CashuSwift.loadMint(url: url)
+        
+        let qr = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 334)
+        let quote = try await CashuSwift.getQuote(mint: mint, quoteRequest: qr) as! CashuSwift.Bolt11.MintQuote
+        
+        let issued = try await CashuSwift.issue(for: quote, mint: mint, seed: seed)
+        
+        if let idx = mint.keysets.firstIndex(where: { $0.keysetID == CashuSwift.activeKeysetForUnit("sat", mint: mint)?.keysetID }) {
+            mint.keysets[idx].derivationCounter += issued.proofs.count
+        }
+        
+        let sendResult = try await CashuSwift.send(inputs: issued.proofs,
+                                                   mint: mint,
+                                                   amount: 201,
+                                                   seed: seed,
+                                                   memo: nil,
+                                                   lockToPublicKey: pubkeyHex)
+        
     }
     
     func testSplit() throws {
