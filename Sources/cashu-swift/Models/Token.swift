@@ -38,6 +38,32 @@ extension CashuSwift {
             return false
         }
         
+        /// Returns an array of public keys (as hex strings) that the token is locked to, or nil if not P2PK locked.
+        public var p2pkLockedPublicKeys: [String]? {
+            var publicKeys = [String]()
+            
+            for proofs in proofsByMint.values {
+                for proof in proofs {
+                    if let spendingCondition = SpendingCondition.deserialize(from: proof.secret),
+                       spendingCondition.kind == .P2PK {
+                        // Add the main public key from payload data
+                        publicKeys.append(spendingCondition.payload.data)
+                        
+                        // Add any additional public keys from tags
+                        if let tags = spendingCondition.payload.tags {
+                            for tag in tags {
+                                if case .pubkeys(let keys) = tag {
+                                    publicKeys.append(contentsOf: keys)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            return publicKeys.isEmpty ? nil : Array(Set(publicKeys))
+        }
+        
         /// Serializes the token to a string representation.
         /// - Parameter version: The token version to use for serialization
         /// - Returns: The serialized token string
