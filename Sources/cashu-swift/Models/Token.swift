@@ -25,6 +25,19 @@ extension CashuSwift {
         /// Dictionary containing the mint URL absolute string as key and a list of `Proof` as the proofs for this token.
         public let proofsByMint: Dictionary<String, [Proof]>
         
+        /// Returns true if any of the token's proofs contain a P2PK spending condition.
+        public var isP2PKLocked: Bool {
+            for proofs in proofsByMint.values {
+                for proof in proofs {
+                    if let spendingCondition = SpendingCondition.deserialize(from: proof.secret),
+                       spendingCondition.kind == .P2PK {
+                        return true
+                    }
+                }
+            }
+            return false
+        }
+        
         /// Serializes the token to a string representation.
         /// - Parameter version: The token version to use for serialization
         /// - Returns: The serialized token string
