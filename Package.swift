@@ -45,7 +45,7 @@ let package = Package(
               .enableExperimentalFeature("StrictConcurrency")
             ]),
         .testTarget(
-            name: "cashu-swiftTests",
+            name: "CashuSwiftTests",
             dependencies: ["CashuSwift"]),
     ]
 )
