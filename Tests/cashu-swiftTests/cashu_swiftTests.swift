@@ -1353,4 +1353,64 @@ final class cashu_swiftTests: XCTestCase {
         let receiveResult = try await CashuSwift.receive(token: sendResult.token, of: mint, seed: nil, privateKey: nil)
         print(receiveResult.debugPretty())
     }
+    
+    func testPayPaymentRequest() async throws {
+        let privateKeyHex = "e95f2010be31354aa13e5b93c4694a8c32fbccaa76274592a32e922bbd8253ac"
+        let pubkeyHex = "03f9f5b9805b23d62652180f40aadd8a37702afc0ba0f5a64f7bb761577fe3974e"
+        
+        let mint = try await CashuSwift.loadMint(url: URL(string: dnsTestMint)!)
+        
+        do {
+            let qr = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 512)
+            let q = try await CashuSwift.getQuote(mint: mint, quoteRequest: qr) as! CashuSwift.Bolt11.MintQuote
+            
+            let issued = try await CashuSwift.issue(for: q, mint: mint, seed: nil)
+            
+            let paymentRequest = CashuSwift.PaymentRequest(paymentId: String(UUID().uuidString.prefix(6).lowercased()),
+                                                           amount: 21,
+                                                           unit: "sat",
+                                                           singleUse: true,
+                                                           mints: [],
+                                                           description: nil,
+                                                           transports: nil,
+                                                           lockingCondition: nil)
+            
+            let sendResult = try await CashuSwift.send(request: paymentRequest,
+                                                       mint: mint,
+                                                       inputs: issued.proofs,
+                                                       memo: nil,
+                                                       seed: nil)
+            
+            print(sendResult.payload.debugPretty())
+            
+        }
+        
+        do {
+            let qr = CashuSwift.Bolt11.RequestMintQuote(unit: "sat", amount: 512)
+            let q = try await CashuSwift.getQuote(mint: mint, quoteRequest: qr) as! CashuSwift.Bolt11.MintQuote
+            
+            let issued = try await CashuSwift.issue(for: q, mint: mint, seed: nil)
+            
+            let paymentRequest = CashuSwift.PaymentRequest(paymentId: String(UUID().uuidString.prefix(6).lowercased()),
+                                                           amount: 21,
+                                                           unit: "sat",
+                                                           singleUse: true,
+                                                           mints: [],
+                                                           description: nil,
+                                                           transports: nil,
+                                                           lockingCondition: CashuSwift.NUT10Option(kind: "P2PK",
+                                                                                                    data: pubkeyHex,
+                                                                                                    tags: nil))
+            
+            let sendResult = try await CashuSwift.send(request: paymentRequest,
+                                                       mint: mint,
+                                                       inputs: issued.proofs,
+                                                       memo: nil,
+                                                       seed: nil)
+            
+            print(sendResult.payload.debugPretty())
+            print(try sendResult.payload.toToken().serialize(to: .V4))
+            
+        }
+    }
 }
