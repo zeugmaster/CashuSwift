@@ -84,6 +84,7 @@ extension CashuSwift {
                     } else if self.keysetID.hasPrefix("01") {
                         return try Keyset.calculateHexKeysetIDv2(keyset: self.keys,
                                                                  unit: self.unit,
+                                                                 inputFeePPK: self.inputFeePPK,
                                                                  finalExpiry: self.finalExpiry) == self.keysetID
                     } else {
                         return false
@@ -119,7 +120,7 @@ extension CashuSwift {
         }
         
         static func calculateHexKeysetID(keyset:Dictionary<String,String>) throws -> String {
-            let concatData = try concatKeys(keyset: keyset)
+            let concatData = try concatKeysV0(keyset: keyset)
             
             let hashData = Data(SHA256.hash(data: concatData))
             let hexString = hashData.map { String(format: "%02x", $0) }.joined()
@@ -128,23 +129,44 @@ extension CashuSwift {
             return "00" + result
         }
         
-        static func calculateHexKeysetIDv2(keyset: Dictionary<String, String>, unit: String, finalExpiry: Int?) throws -> String {
-            var concatData = try concatKeys(keyset: keyset)
-            
-            let unitData = "unit:\(unit.lowercased())".utf8
-            concatData.append(contentsOf: unitData)
-            
-            if let finalExpiry {
-                let exp = "final_expiry:\(finalExpiry)".utf8
-                concatData.append(contentsOf: exp)
+        static func calculateHexKeysetIDv2(keyset: Dictionary<String, String>,
+                                            unit: String,
+                                            inputFeePPK: Int?,
+                                            finalExpiry: Int?) throws -> String {
+            // 1. Sort keys by amount in ascending numerical order
+            // 2. Concatenate as "amount:pubkey_hex" separated by commas
+            let sortedPairs = keyset.sorted { (firstElement, secondElement) -> Bool in
+                guard let firstKey = UInt(firstElement.key),
+                      let secondKey = UInt(secondElement.key) else {
+                    return false
+                }
+                return firstKey < secondKey
             }
             
-            let hash = Data(SHA256.hash(data: concatData))
+            let keyStrings = sortedPairs.map { "\($0.key):\($0.value.lowercased())" }
+            var preimage = keyStrings.joined(separator: ",")
             
-            return "01" + String(bytes: hash)
+            // 3. Add unit with "|unit:" prefix
+            preimage += "|unit:\(unit.lowercased())"
+            
+            // 4. Add input_fee_ppk if non-zero
+            if let fee = inputFeePPK, fee != 0 {
+                preimage += "|input_fee_ppk:\(fee)"
+            }
+            
+            // 5. Add final_expiry if present and non-zero
+            if let finalExpiry, finalExpiry != 0 {
+                preimage += "|final_expiry:\(finalExpiry)"
+            }
+            
+            // 6. SHA256 hash
+            let hash = Data(SHA256.hash(data: preimage.data(using: .utf8)!))
+            
+            // 7. Prefix with version byte "01" and return full hex
+            return "01" + hash.map { String(format: "%02x", $0) }.joined()
         }
         
-        private static func concatKeys(keyset: Dictionary<String, String>) throws -> [UInt8] {
+        private static func concatKeysV0(keyset: Dictionary<String, String>) throws -> [UInt8] {
             let sortedValues = keyset.sorted { (firstElement, secondElement) -> Bool in
                 guard let firstKey = UInt(firstElement.key),
                       let secondKey = UInt(secondElement.key) else {
