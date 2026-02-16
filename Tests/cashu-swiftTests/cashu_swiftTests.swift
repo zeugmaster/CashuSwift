@@ -1417,6 +1417,14 @@ final class cashu_swiftTests: XCTestCase {
     
     // MARK: - NUT-02 Keyset ID Test Vectors
     
+    func testKeysetFromTestMint() async throws {
+        let url = URL(string: "https://v2.fake.thesimplekid.dev")!
+        
+        let mint = try await CashuSwift.loadMint(url: url)
+        
+        XCTAssert(mint.keysets.allSatisfy({ $0.validID }))
+    }
+    
     func testKeysetIDV1Vector1() throws {
         // Test vector from https://github.com/cashubtc/nuts/blob/main/tests/02-tests.md
         let keys: [String: String] = [
