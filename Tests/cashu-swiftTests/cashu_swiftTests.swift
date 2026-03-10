@@ -14,6 +14,9 @@ final class cashu_swiftTests: XCTestCase {
         let invoice = "lnbc1u1p5tzakfpp5rmx3hpalue6tuwgsnkke8qf56eqv0v80p9d8n07r7xnt5pzyr8wqdqggdshx6r4cqzpuxqrwzqsp5u9nx53qsrd4kldd7j0j0flffz0fgsm62ujs8akdyf3clsyc2sg7q9qxpqysgqwkze9vkrxa3c8y0gfryvr4s2eapludn3tnn80slwtcgsjw8q878qcqpwnh2ftww8ypgj093kkehrqwlkmnma7c5e7n92e7qns2vlpxgp3aacr8"
         XCTAssertEqual(try CashuSwift.Bolt11.satAmountFromInvoice(pr: invoice), 100)
         XCTAssertEqual(try CashuSwift.Bolt11.satAmountFromInvoice(pr: invoice.uppercased()), 100)
+        
+        let regtest = "lnbcrt5u1p500v6mpp54wyqmftxhmrqeauhfvqrtcngvgh8pgdqxfu9exx8ps8uf46wcu8sdqqcqzzsxqyz5vqsp59qcl48hjgn7s80un5adlmgtuqy4xp3n4w6ukt6euheu7qhqgrl5s9qxpqysgqd7xghe9l6n0m6fef7ca5zdrfm304hr2w93cnnysgtkj8akvvutcxffhru9403s8fu4fl7hrmcv9tqplfrwqs7hk8725f8qwzamspxdqp790zqd"
+        XCTAssertEqual(try CashuSwift.Bolt11.satAmountFromInvoice(pr: regtest), 500)
     }
     
     func testSecretSerialization() throws {
