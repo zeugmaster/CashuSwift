@@ -60,6 +60,55 @@ public enum CashuError: Swift.Error {
     case paymentRequestAmount(String)
 }
 
+extension CashuError: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case .networkError: return "Network error"
+        case .cryptoError(let msg): return "Crypto error: \(msg)"
+        case .quoteNotPaid: return "Quote not paid"
+        case .blindedMessageAlreadySigned: return "Blinded message already signed"
+        case .alreadySpent: return "Proofs already spent"
+        case .transactionUnbalanced: return "Transaction unbalanced"
+        case .invalidToken: return "Invalid token"
+        case .tokenEncoding(let msg): return "Token encoding error: \(msg)"
+        case .tokenDecoding(let msg): return "Token decoding error: \(msg)"
+        case .unsupportedToken(let msg): return "Unsupported token: \(msg)"
+        case .inputError(let msg): return "Input error: \(msg)"
+        case .insufficientInputs(let msg): return "Insufficient inputs: \(msg)"
+        case .unitIsNotSupported(let msg): return "Unit not supported: \(msg)"
+        case .keysetInactive: return "Keyset inactive"
+        case .amountOutsideOfLimitRange: return "Amount outside limit range"
+        case .proofsAlreadyIssuedForQuote: return "Proofs already issued for quote"
+        case .mintingDisabled: return "Minting disabled"
+        case .typeMismatch(let msg): return "Type mismatch: \(msg)"
+        case .preferredDistributionMismatch(let msg): return "Preferred distribution mismatch: \(msg)"
+        case .noActiveKeysetForUnit(let msg): return "No active keyset for unit: \(msg)"
+        case .unitError(let msg): return "Unit error: \(msg)"
+        case .invalidAmount: return "Invalid amount"
+        case .missingRequestDetail(let msg): return "Missing request detail: \(msg)"
+        case .restoreError(let msg): return "Restore error: \(msg)"
+        case .feeCalculationError(let msg): return "Fee calculation error: \(msg)"
+        case .partiallySpentToken: return "Partially spent token"
+        case .bolt11InvalidInvoiceError(let msg): return "Invalid bolt11 invoice: \(msg)"
+        case .quoteIsPending: return "Quote is pending"
+        case .invoiceAlreadyPaid: return "Invoice already paid"
+        case .quoteIsExpired: return "Quote is expired"
+        case .unknownError(let msg): return "Unknown error: \(msg)"
+        case .invalidKeysetID(let msg): return "Invalid keyset ID: \(msg)"
+        case .spendingConditionError(let msg): return "Spending condition error: \(msg)"
+        case .invalidKey(let msg): return "Invalid key: \(msg)"
+        case .p2pkSigningError(let msg): return "P2PK signing error: \(msg)"
+        case .invalidSplit(let msg): return "Invalid split: \(msg)"
+        case .paymentRequestEncoding(let msg): return "Payment request encoding error: \(msg)"
+        case .paymentRequestDecoding(let msg): return "Payment request decoding error: \(msg)"
+        case .paymentRequestValidation(let msg): return "Payment request validation error: \(msg)"
+        case .unsupportedTransport(let msg): return "Unsupported transport: \(msg)"
+        case .lockingConditionMismatch(let msg): return "Locking condition mismatch: \(msg)"
+        case .paymentRequestAmount(let msg): return "Payment request amount error: \(msg)"
+        }
+    }
+}
+
 extension CashuError: Equatable {
     public static func == (lhs: CashuError, rhs: CashuError) -> Bool {
         switch (lhs, rhs) {
