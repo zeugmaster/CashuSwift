@@ -297,10 +297,11 @@ let updatedKeysets = try await CashuSwift.updatedKeysetsForMint(mint)
 // Split amounts into optimal denominations
 let denominations = CashuSwift.splitIntoBase2Numbers(127)  // [1, 2, 4, 8, 16, 32, 64]
 
-// Select proofs for exact amount
-if let (selected, remaining) = proofs.pick(42) {
-    print("Selected proofs: \(selected.sum) sats")
-    print("Remaining proofs: \(remaining.sum) sats")
+// Select proofs with mint-aware unit validation
+if let (selected, remaining, fee) = proofs.pick(42, mint: mint) {
+    print("Selected proofs: \(selected.sum)")
+    print("Remaining proofs: \(remaining.sum)")
+    print("Fee: \(fee)")
 }
 
 // Sum proofs easily

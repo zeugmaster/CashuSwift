@@ -20,14 +20,14 @@ public enum CashuSwift {
     ///   - distribution: Array of amounts for each output
     ///   - mint: The mint to generate outputs for
     ///   - seed: Optional seed for deterministic generation
-    ///   - unit: The unit to use (default: "sat")
+    ///   - unit: The unit to use
     ///   - offset: Offset for deterministic counter (default: 0)
     /// - Returns: A tuple containing outputs, blinding factors, and secrets
     /// - Throws: An error if no active keyset is found for the unit
     public static func generateOutputs(distribution: [Int],
                                                 mint: Mint,
                                                 seed: String?,
-                                                unit: String = "sat",
+                                                unit: String,
                                                 offset: Int = 0) throws -> ((outputs: [Output],
                                                                              blindingFactors: [String],
                                                                              secrets: [String])) {
@@ -45,13 +45,13 @@ public enum CashuSwift {
     ///   - amount: The total amount to lock
     ///   - mint: The mint to generate outputs for
     ///   - publicKey: The Schnorr public key to lock to
-    ///   - unit: The unit to use (default: "sat")
+    ///   - unit: The unit to use
     /// - Returns: A tuple containing outputs, blinding factors, and secrets
     /// - Throws: An error if the operation fails
     public static func generateP2PKOutputs(for amount: Int,
                                            mint: Mint,
                                            publicKey: String,
-                                           unit: String = "sat") throws -> ((outputs: [Output],
+                                           unit: String) throws -> ((outputs: [Output],
                                                                              blindingFactors: [String],
                                                                              secrets: [String])) {
         try generateP2PKOutputs(distribution: splitIntoBase2Numbers(amount),
@@ -65,13 +65,13 @@ public enum CashuSwift {
     ///   - distribution: Array of amounts for each output
     ///   - mint: The mint to generate outputs for
     ///   - publicKey: The Schnorr public key to lock to
-    ///   - unit: The unit to use (default: "sat")
+    ///   - unit: The unit to use
     /// - Returns: A tuple containing outputs, blinding factors, and secrets
     /// - Throws: An error if the operation fails
     public static func generateP2PKOutputs(distribution: [Int],
                                            mint: Mint,
                                            publicKey: String,
-                                           unit: String = "sat") throws -> ((outputs: [Output],
+                                           unit: String) throws -> ((outputs: [Output],
                                                                              blindingFactors: [String],
                                                                              secrets: [String])) {
         guard let keyset = activeKeysetForUnit(unit, mint: mint) else {
@@ -109,6 +109,12 @@ public enum CashuSwift {
                                             seed: String? = nil) throws -> ((outputs: [Output],
                                                                              blindingFactors: [String],
                                                                              secrets: [String])) {
+        
+        let proofUnit = try validateUnit(unit, for: proofs, of: mint, context: "Blank output generation")
+        
+        if let quoteUnit = quote.quoteRequest?.unit, quoteUnit != proofUnit {
+            throw CashuError.unitError("Melt quote unit '\(quoteUnit)' does not match blank output unit '\(proofUnit)'.")
+        }
         
         guard let activeKeyset = activeKeysetForUnit(unit, mint: mint) else {
             throw CashuError.noActiveKeysetForUnit(unit)
@@ -224,7 +230,9 @@ public enum CashuSwift {
                             ignoreFees: Bool = false) -> (selected: [ProofRepresenting],
                                                           change: [ProofRepresenting],
                                                           fee: Int)? {
-        // Checks ...
+        guard (try? singleUnit(for: proofs, of: mint)) != nil else {
+            return nil
+        }
 
         // Sort proofs in descending order
         var sortedProofs = proofs.sorted(by: { $0.amount > $1.amount })
@@ -372,6 +380,32 @@ public enum CashuSwift {
         return units
     }
     
+    /// Returns the single unit represented by a proof list, rejecting mixed-unit or foreign proofs.
+    static func singleUnit(for proofs:[ProofRepresenting], of mint:MintRepresenting) throws -> String {
+        let proofUnits = try units(for: proofs, of: mint)
+        
+        guard proofUnits.count == 1, let unit = proofUnits.first else {
+            throw CashuError.unitError("Proofs must resolve to exactly one unit, got \(proofUnits).")
+        }
+        
+        return unit
+    }
+    
+    /// Verifies that a proof list's keyset-derived unit matches a caller-provided unit string.
+    @discardableResult
+    static func validateUnit(_ claimedUnit: String,
+                             for proofs:[ProofRepresenting],
+                             of mint:MintRepresenting,
+                             context: String) throws -> String {
+        let proofUnit = try singleUnit(for: proofs, of: mint)
+        
+        guard proofUnit == claimedUnit else {
+            throw CashuError.unitError("\(context) unit '\(claimedUnit)' does not match proof unit '\(proofUnit)'.")
+        }
+        
+        return proofUnit
+    }
+    
     /// Splits an integer into its base-2 components.
     /// - Parameter n: The number to split
     /// - Returns: Array of powers of 2 that sum to n
@@ -467,8 +501,17 @@ extension Array where Element : ProofRepresenting {
         self.reduce(0) { $0 + $1.amount }
     }
     
+    @available(*, deprecated, message: "This helper is unit-blind. Use pick(_:mint:ignoreFees:) so mixed-unit proofs are rejected.")
     public func pick(_ amount:Int) -> (picked:[ProofRepresenting], change:[ProofRepresenting])? {
         CashuSwift.selectProofsToSumTarget(proofs: self, targetAmount: amount)
+    }
+    
+    public func pick(_ amount:Int,
+                     mint: MintRepresenting,
+                     ignoreFees: Bool = false) -> (selected:[ProofRepresenting],
+                                                   change:[ProofRepresenting],
+                                                   fee: Int)? {
+        CashuSwift.pick(self, amount: amount, mint: mint, ignoreFees: ignoreFees)
     }
 }
 

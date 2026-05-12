@@ -33,9 +33,14 @@ extension CashuSwift {
             logger.warning("Mint URL field from token does not seem to match this mints URL.")
         }
         
-        guard let tokenProofs = token.proofsByMint.first?.value,
-              try units(for: tokenProofs, of: mint).count == 1 else {
-            throw CashuError.unitError("Proofs to swap are either of mixed unit or foreign to this mint.")
+        guard let tokenProofs = token.proofsByMint.first?.value else {
+            throw CashuError.invalidToken
+        }
+        
+        let proofUnit = try singleUnit(for: tokenProofs, of: mint)
+        
+        guard proofUnit == token.unit else {
+            throw CashuError.unitError("Token unit '\(token.unit)' does not match proof unit '\(proofUnit)'.")
         }
         
         // make sure tokens with shortened keyset ids resolve correctly

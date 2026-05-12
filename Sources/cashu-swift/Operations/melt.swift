@@ -30,6 +30,25 @@ extension CashuSwift {
                                            blindingFactors: [String],
                                            secrets: [String])? = nil) async throws -> MeltResult {
         
+        let proofUnit = try singleUnit(for: proofs, of: mint)
+        
+        if let quoteUnit = quote.quoteRequest?.unit, quoteUnit != proofUnit {
+            throw CashuError.unitError("Melt quote unit '\(quoteUnit)' does not match input proof unit '\(proofUnit)'.")
+        }
+        
+        if let blankOutputs, !blankOutputs.outputs.isEmpty {
+            let outputUnits = try Set(blankOutputs.outputs.map { output -> String in
+                guard let outputKeyset = mint.keysets.first(where: { $0.keysetID == output.id }) else {
+                    throw CashuError.unitError("Blank output keyset \(output.id) is not associated with mint \(mint.url.absoluteString).")
+                }
+                return outputKeyset.unit
+            })
+            
+            guard outputUnits == Set([proofUnit]) else {
+                throw CashuError.unitError("Blank output units \(outputUnits) do not match input proof unit '\(proofUnit)'.")
+            }
+        }
+        
         let lightningFee: Int = quote.feeReserve
         let inputFee: Int = try calculateFee(for: proofs, of: mint)
         let targetAmount = quote.amount + lightningFee + inputFee
@@ -40,12 +59,8 @@ extension CashuSwift {
         
         logger.debug("Attempting melt with quote amount: \(quote.amount), lightning fee reserve: \(lightningFee), input fee: \(inputFee).")
         
-        guard let units = try? units(for: proofs, of: mint), units.count == 1 else {
-            throw CashuError.unitError("Could not determine singular unit for input proofs.")
-        }
-        
-        guard let keyset = activeKeysetForUnit(units.first!, mint: mint) else {
-            throw CashuError.noActiveKeysetForUnit("No active keyset for unit \(units)")
+        guard let keyset = activeKeysetForUnit(proofUnit, mint: mint) else {
+            throw CashuError.noActiveKeysetForUnit("No active keyset for unit \(proofUnit)")
         }
         
         let noDLEQ = proofs.map({ Proof(keysetID: $0.keysetID, amount: $0.amount, secret: $0.secret, C: $0.C, dleq: nil, witness: nil) })
@@ -105,11 +120,13 @@ extension CashuSwift {
     /// - Throws: An error if the state cannot be retrieved
     public static func meltState(for quoteID: String,
                                  with mint: Mint,
+                                 quoteRequest: Bolt11.RequestMeltQuote? = nil,
                                  blankOutputs: (outputs: [Output],
                                                 blindingFactors: [String],
                                                 secrets: [String])? = nil) async throws -> MeltResult {
         let url = mint.url.appending(path: "/v1/melt/quote/bolt11/\(quoteID)")
-        let quote = try await Network.get(url: url, expected: Bolt11.MeltQuote.self)
+        var quote = try await Network.get(url: url, expected: Bolt11.MeltQuote.self)
+        quote.quoteRequest = quoteRequest
         
         var change: [Proof]?
         

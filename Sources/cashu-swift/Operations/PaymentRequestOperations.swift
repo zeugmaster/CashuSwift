@@ -74,7 +74,7 @@ extension CashuSwift {
                                             privateKey: String?) async throws -> ReceiveResult {
         
         // Validate payload against request
-        try payload.validates(against: request)
+        try payload.validates(against: request, mint: mint)
         
         // Convert payload to token
         let token = payload.toToken()
@@ -151,4 +151,3 @@ extension CashuSwift {
         return selected
     }
 }
-

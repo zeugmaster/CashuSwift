@@ -1,4 +1,5 @@
 import XCTest
+import Foundation
 @testable import CashuSwift
 
 final class PaymentRequestTests: XCTestCase {
@@ -196,5 +197,208 @@ final class PaymentRequestTests: XCTestCase {
         
         XCTAssertThrowsError(try requestWithAmountNoUnit.validate())
     }
+    
+    func testPaymentRequestPayloadRejectsClaimedUnitMismatch() throws {
+        let mint = try makeMultiUnitMint()
+        let payload = CashuSwift.PaymentRequestPayload(
+            id: "unit-test",
+            memo: nil,
+            mint: mint.url.absoluteString,
+            unit: "usd",
+            proofs: [proof(keysetID: Self.satKeysetID, amount: 10)]
+        )
+        let request = CashuSwift.PaymentRequest(
+            paymentId: "unit-test",
+            amount: 10,
+            unit: "usd",
+            singleUse: nil,
+            mints: [mint.url.absoluteString],
+            description: nil,
+            transports: nil,
+            lockingCondition: nil
+        )
+        
+        XCTAssertThrowsError(try payload.validates(against: request, mint: mint)) { error in
+            guard case CashuError.paymentRequestValidation(let message) = error else {
+                return XCTFail("Expected paymentRequestValidation, got \(error)")
+            }
+            XCTAssertTrue(message.contains("proof unit 'sat'"))
+        }
+    }
+    
+    func testReceivePaymentRequestRejectsClaimedUnitMismatchBeforeSwap() async throws {
+        let mint = try makeMultiUnitMint()
+        let payload = CashuSwift.PaymentRequestPayload(
+            id: "unit-test",
+            memo: nil,
+            mint: mint.url.absoluteString,
+            unit: "usd",
+            proofs: [proof(keysetID: Self.satKeysetID, amount: 10)]
+        )
+        let request = CashuSwift.PaymentRequest(
+            paymentId: "unit-test",
+            amount: 10,
+            unit: "usd",
+            singleUse: nil,
+            mints: [mint.url.absoluteString],
+            description: nil,
+            transports: nil,
+            lockingCondition: nil
+        )
+        
+        do {
+            _ = try await CashuSwift.receivePaymentRequest(
+                payload: payload,
+                request: request,
+                mint: mint,
+                seed: nil,
+                privateKey: nil
+            )
+            XCTFail("Expected unit mismatch to throw before network swap")
+        } catch CashuError.paymentRequestValidation(let message) {
+            XCTAssertTrue(message.contains("proof unit 'sat'"))
+        } catch {
+            XCTFail("Expected paymentRequestValidation, got \(error)")
+        }
+    }
+    
+    func testTokenSatisfiesWithMintRejectsClaimedUnitMismatch() throws {
+        let mint = try makeMultiUnitMint()
+        let token = CashuSwift.Token(
+            proofs: [mint.url.absoluteString: [proof(keysetID: Self.satKeysetID, amount: 10)]],
+            unit: "usd"
+        )
+        let request = CashuSwift.PaymentRequest(
+            paymentId: nil,
+            amount: 10,
+            unit: "usd",
+            singleUse: nil,
+            mints: [mint.url.absoluteString],
+            description: nil,
+            transports: nil,
+            lockingCondition: nil
+        )
+        
+        XCTAssertFalse(token.satisfies(request, mint: mint))
+    }
+    
+    func testReceiveRejectsTokenUnitMismatchBeforeSwap() async throws {
+        let mint = try makeMultiUnitMint()
+        let token = CashuSwift.Token(
+            proofs: [mint.url.absoluteString: [proof(keysetID: Self.satKeysetID, amount: 10)]],
+            unit: "usd"
+        )
+        
+        do {
+            _ = try await CashuSwift.receive(token: token, of: mint, seed: nil, privateKey: nil)
+            XCTFail("Expected unit mismatch to throw before network swap")
+        } catch CashuError.unitError(let message) {
+            XCTAssertTrue(message.contains("proof unit 'sat'"))
+        } catch {
+            XCTFail("Expected unitError, got \(error)")
+        }
+    }
+    
+    func testPickRejectsMixedUnitProofs() throws {
+        let mint = try makeMultiUnitMint()
+        let proofs = [
+            proof(keysetID: Self.satKeysetID, amount: 8),
+            proof(keysetID: Self.usdKeysetID, amount: 8)
+        ]
+        
+        XCTAssertNil(CashuSwift.pick(proofs, amount: 8, mint: mint, ignoreFees: true))
+    }
+    
+    func testMeltRejectsQuoteUnitMismatchBeforeNetworkRequest() async throws {
+        let mint = try makeMultiUnitMint()
+        let quote = CashuSwift.Bolt11.MeltQuote(
+            paid: nil,
+            state: nil,
+            quoteRequest: CashuSwift.Bolt11.RequestMeltQuote(unit: "usd", request: "lnbc1unit", options: nil),
+            quote: "quote-id",
+            amount: 10,
+            feeReserve: 0,
+            expiry: nil,
+            paymentPreimage: nil,
+            change: nil
+        )
+        
+        do {
+            _ = try await CashuSwift.melt(
+                quote: quote,
+                mint: mint,
+                proofs: [proof(keysetID: Self.satKeysetID, amount: 16)]
+            )
+            XCTFail("Expected unit mismatch to throw before network melt")
+        } catch CashuError.unitError(let message) {
+            XCTAssertTrue(message.contains("Melt quote unit 'usd'"))
+        } catch {
+            XCTFail("Expected unitError, got \(error)")
+        }
+    }
+    
+    func testGenerateBlankOutputsRejectsUnitMismatch() throws {
+        let mint = try makeMultiUnitMint()
+        let quote = CashuSwift.Bolt11.MeltQuote(
+            paid: nil,
+            state: nil,
+            quoteRequest: CashuSwift.Bolt11.RequestMeltQuote(unit: "usd", request: "lnbc1unit", options: nil),
+            quote: "quote-id",
+            amount: 10,
+            feeReserve: 0,
+            expiry: nil,
+            paymentPreimage: nil,
+            change: nil
+        )
+        
+        XCTAssertThrowsError(
+            try CashuSwift.generateBlankOutputs(
+                quote: quote,
+                proofs: [proof(keysetID: Self.satKeysetID, amount: 16)],
+                mint: mint,
+                unit: "usd"
+            )
+        ) { error in
+            guard case CashuError.unitError(let message) = error else {
+                return XCTFail("Expected unitError, got \(error)")
+            }
+            XCTAssertTrue(message.contains("proof unit 'sat'"))
+        }
+    }
+    
+    private static let satKeysetID = "satKeyset001"
+    private static let usdKeysetID = "usdKeyset001"
+    
+    private func makeMultiUnitMint() throws -> CashuSwift.Mint {
+        let keysets = try [
+            keyset(id: Self.satKeysetID, unit: "sat"),
+            keyset(id: Self.usdKeysetID, unit: "usd")
+        ]
+        
+        return CashuSwift.Mint(url: URL(string: "https://mint.example.com")!, keysets: keysets)
+    }
+    
+    private func keyset(id: String, unit: String) throws -> CashuSwift.Keyset {
+        let json = """
+        {
+          "id": "\(id)",
+          "unit": "\(unit)",
+          "active": true,
+          "input_fee_ppk": 0,
+          "keys": {
+            "1": "021111111111111111111111111111111111111111111111111111111111111111"
+          }
+        }
+        """
+        return try JSONDecoder().decode(CashuSwift.Keyset.self, from: Data(json.utf8))
+    }
+    
+    private func proof(keysetID: String, amount: Int) -> CashuSwift.Proof {
+        CashuSwift.Proof(
+            keysetID: keysetID,
+            amount: amount,
+            secret: "secret-\(keysetID)-\(amount)",
+            C: "02\(String(repeating: "1", count: 64))"
+        )
+    }
 }
-

@@ -95,7 +95,8 @@ extension CashuSwift {
         }
         init(token:TokenV3) throws {
             self.memo = token.memo
-            self.unit = token.unit ?? "sat" // FIXME: technically not ideal, there might be non-sat V3 tokens
+            // Legacy V3 tokens may omit unit. Receive-time keyset validation rejects this fallback for non-sat proofs.
+            self.unit = token.unit ?? "sat"
             self.proofsByMint = Dictionary(uniqueKeysWithValues: token.token.map { ($0.mint, $0.proofs) })
         }
         
@@ -263,16 +264,60 @@ extension CashuSwift.Token {
 // MARK: - NUT-18 Payment Request Support
 
 extension CashuSwift.Token {
-    /// Checks if this token satisfies a payment request.
+    /// Checks if this token's metadata satisfies a payment request.
     /// - Parameter request: The payment request to check against
-    /// - Returns: True if the token satisfies all requirements of the payment request
+    /// - Returns: True if the token metadata satisfies the payment request
+    @available(*, deprecated, message: "Use satisfies(_:mint:) to verify proof keyset units against token.unit.")
     public func satisfies(_ request: CashuSwift.PaymentRequest) -> Bool {
-        // Check unit
+        satisfiesMetadata(request)
+    }
+    
+    /// Checks if this token satisfies a payment request and that proof keysets match the token unit.
+    /// - Parameters:
+    ///   - request: The payment request to check against
+    ///   - mint: The mint used to resolve proof keysets to units
+    /// - Returns: True if the token satisfies all requirements of the payment request
+    public func satisfies(_ request: CashuSwift.PaymentRequest, mint: MintRepresenting) -> Bool {
+        guard proofsByMint.count == 1,
+              let (mintURL, proofs) = proofsByMint.first,
+              mintURL == mint.url.absoluteString else {
+            return false
+        }
+        
+        guard let proofUnit = try? CashuSwift.singleUnit(for: proofs, of: mint),
+              proofUnit == self.unit else {
+            return false
+        }
+        
         if let requestUnit = request.unit, requestUnit != self.unit {
             return false
         }
         
-        // Check amount
+        if let requestAmount = request.amount {
+            let totalAmount = proofs.reduce(0) { $0 + $1.amount }
+            if totalAmount != requestAmount {
+                return false
+            }
+        }
+        
+        if let acceptedMints = request.mints, !acceptedMints.contains(mintURL) {
+            return false
+        }
+        
+        if let lockingCondition = request.lockingCondition {
+            guard satisfies(lockingCondition: lockingCondition, proofs: proofs) else {
+                return false
+            }
+        }
+        
+        return true
+    }
+    
+    private func satisfiesMetadata(_ request: CashuSwift.PaymentRequest) -> Bool {
+        if let requestUnit = request.unit, requestUnit != self.unit {
+            return false
+        }
+        
         if let requestAmount = request.amount {
             let totalAmount = proofsByMint.values.flatMap { $0 }.reduce(0) { $0 + $1.amount }
             if totalAmount != requestAmount {
@@ -280,27 +325,28 @@ extension CashuSwift.Token {
             }
         }
         
-        // Check mint (token must be from a single mint, and it must be accepted)
         guard proofsByMint.count == 1 else { return false }
-        guard let mintURL = proofsByMint.keys.first else { return false }
+        guard let (mintURL, proofs) = proofsByMint.first else { return false }
         
         if let acceptedMints = request.mints, !acceptedMints.contains(mintURL) {
             return false
         }
         
-        // Check locking conditions
         if let lockingCondition = request.lockingCondition {
-            guard let proofs = proofsByMint.first?.value else { return false }
+            return satisfies(lockingCondition: lockingCondition, proofs: proofs)
+        }
+        
+        return true
+    }
+    
+    private func satisfies(lockingCondition: CashuSwift.NUT10Option, proofs: [CashuSwift.Proof]) -> Bool {
+        for proof in proofs {
+            guard let spendingCondition = CashuSwift.SpendingCondition.deserialize(from: proof.secret) else {
+                return false
+            }
             
-            for proof in proofs {
-                guard let spendingCondition = CashuSwift.SpendingCondition.deserialize(from: proof.secret) else {
-                    return false
-                }
-                
-                // Check kind and data match
-                if spendingCondition.kind.rawValue != lockingCondition.kind || spendingCondition.payload.data != lockingCondition.data {
-                    return false
-                }
+            if spendingCondition.kind.rawValue != lockingCondition.kind || spendingCondition.payload.data != lockingCondition.data {
+                return false
             }
         }
         

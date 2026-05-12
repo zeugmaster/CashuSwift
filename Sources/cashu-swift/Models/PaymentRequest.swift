@@ -598,10 +598,33 @@ extension CashuSwift {
             return proofs.reduce(0) { $0 + $1.amount }
         }
         
-        /// Validates that the payload satisfies a payment request.
+        /// Validates that the payload metadata satisfies a payment request.
         /// - Parameter request: The payment request to validate against
         /// - Throws: An error if validation fails
+        @available(*, deprecated, message: "Use validates(against:mint:) to also verify the proofs' keyset-derived unit.")
         public func validates(against request: PaymentRequest) throws {
+            try validateMetadata(against: request)
+        }
+        
+        /// Validates that the payload satisfies a payment request and that its proofs match the claimed unit.
+        /// - Parameters:
+        ///   - request: The payment request to validate against
+        ///   - mint: The mint used to resolve proof keysets to units
+        /// - Throws: An error if validation fails
+        public func validates(against request: PaymentRequest, mint: MintRepresenting) throws {
+            try validateMetadata(against: request)
+            
+            guard self.mint == mint.url.absoluteString else {
+                throw CashuError.paymentRequestValidation("Payload mint '\(self.mint)' does not match validation mint '\(mint.url.absoluteString)'")
+            }
+            
+            let proofUnit = try CashuSwift.singleUnit(for: proofs, of: mint)
+            guard proofUnit == unit else {
+                throw CashuError.paymentRequestValidation("Payload unit '\(unit)' does not match proof unit '\(proofUnit)'")
+            }
+        }
+        
+        private func validateMetadata(against request: PaymentRequest) throws {
             // Check payment ID matches
             if let requestId = request.paymentId, requestId != id {
                 throw CashuError.paymentRequestValidation("Payment ID mismatch: expected '\(requestId)', got '\(id ?? "nil")'")

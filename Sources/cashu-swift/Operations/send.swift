@@ -41,12 +41,7 @@ extension CashuSwift {
             throw CashuError.invalidAmount
         }
         
-        let units = try units(for: inputs, of: mint)
-        guard units.count == 1 else {
-            throw CashuError.unitError("Input proofs have mixed units, which is not allowed.")
-        }
-        
-        let unit = units.first ?? "sat"
+        let unit = try singleUnit(for: inputs, of: mint)
         
         guard let activeKeyset = activeKeysetForUnit(unit, mint: mint) else {
             throw CashuError.noActiveKeysetForUnit(unit)
@@ -122,15 +117,10 @@ extension CashuSwift {
         let proofSum = sum(inputs)
         let inputFee = try calculateFee(for: inputs, of: mint)
         
-        let units = try units(for: inputs, of: mint)
-        guard units.count == 1 else {
-            throw CashuError.unitError("Input proofs have mixed units, which is not allowed.")
-        }
+        let unit = try singleUnit(for: inputs, of: mint)
         
-        let unit = units.first ?? "sat"
-        
-        guard unit == request.unit ?? "sat" else {
-            throw CashuError.unitError("Payment request unit and input unit do not match.")
+        if let requestUnit = request.unit, unit != requestUnit {
+            throw CashuError.unitError("Payment request unit '\(requestUnit)' does not match input unit '\(unit)'.")
         }
         
         // make sure inputs do not have spending condition

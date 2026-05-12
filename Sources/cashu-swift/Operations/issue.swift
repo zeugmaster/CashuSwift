@@ -76,6 +76,22 @@ extension CashuSwift {
         return IssueResult(proofs: proofs, dleqResult: dleqResult)
     }
     
+    /// Issues ecash proofs when the quote was loaded separately from its original request details.
+    public static func issue(for quote: Bolt11.MintQuote,
+                             mint: Mint,
+                             unit: String,
+                             amount: Int,
+                             seed: String?,
+                             preferredDistribution: [Int]? = nil) async throws -> IssueResult {
+        var quoteWithRequestDetail = quote
+        quoteWithRequestDetail.requestDetail = Bolt11.RequestMintQuote(unit: unit, amount: amount)
+        
+        return try await issue(for: quoteWithRequestDetail,
+                               mint: mint,
+                               seed: seed,
+                               preferredDistribution: preferredDistribution)
+    }
+    
     /// Gets the current state of a mint quote.
     /// - Parameters:
     ///   - quoteID: The quote ID to check
@@ -83,8 +99,11 @@ extension CashuSwift {
     /// - Returns: The current mint quote state
     /// - Throws: An error if the quote cannot be retrieved
     public static func mintQuoteState(for quoteID: String,
-                                      mint: Mint) async throws -> Bolt11.MintQuote {
+                                      mint: Mint,
+                                      requestDetail: Bolt11.RequestMintQuote? = nil) async throws -> Bolt11.MintQuote {
         let url = mint.url.appending(path: "/v1/mint/quote/bolt11/\(quoteID)")
-        return try await Network.get(url: url, expected: Bolt11.MintQuote.self)
+        var quote = try await Network.get(url: url, expected: Bolt11.MintQuote.self)
+        quote.requestDetail = requestDetail
+        return quote
     }
 }

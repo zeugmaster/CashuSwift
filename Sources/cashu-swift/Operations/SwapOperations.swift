@@ -36,6 +36,8 @@ extension CashuSwift {
                                                                                         inputDLEQ: Crypto.DLEQVerificationResult,
                                                                                         outputDLEQ: Crypto.DLEQVerificationResult) {
         
+        let unit = try singleUnit(for: inputs, of: mint)
+        
         let inputDLEQ = try Crypto.checkDLEQ(for: inputs, with: mint)
         
         let fee = try calculateFee(for: inputs, of: mint)
@@ -56,14 +58,8 @@ extension CashuSwift {
             changeAmount = 0
         }
         
-        let units = try units(for: inputs, of: mint)
-        
-        guard units.count == 1 else {
-            throw CashuError.unitError("Proofs to swap are either of mixed unit or foreign to this mint.")
-        }
-        
-        guard let activeKeyset = activeKeysetForUnit(units.first!, mint: mint) else {
-            throw CashuError.noActiveKeysetForUnit("no active keyset could be found for unit \(String(describing: units.first))")
+        guard let activeKeyset = activeKeysetForUnit(unit, mint: mint) else {
+            throw CashuError.noActiveKeysetForUnit("no active keyset could be found for unit \(unit)")
         }
         
         let swapDistribution = CashuSwift.splitIntoBase2Numbers(returnAmount)
@@ -120,6 +116,8 @@ extension CashuSwift {
                                                                                                                      inputDLEQ: Crypto.DLEQVerificationResult,
                                                                                                                      outputDLEQ: Crypto.DLEQVerificationResult) {
         
+        let inputUnit = try singleUnit(for: inputs, of: mint)
+        
         let inputDLEQ = try Crypto.checkDLEQ(for: inputs, with: mint)
         
         let fee = try calculateFee(for: inputs, of: mint)
@@ -131,12 +129,6 @@ extension CashuSwift {
             throw CashuError.insufficientInputs("SWAP: sum of proofs (\(proofSum)) is less than keep and send outputs (\(outputSum)) + fees (\(fee))")
         }
         
-        let units = try units(for: inputs, of: mint)
-        
-        guard units.count == 1 else {
-            throw CashuError.unitError("Proofs to swap are either of mixed unit or foreign to this mint.")
-        }
-        
         let keysetIDs = Set((sendOutputs.0 + keepOutputs.0).map({ $0.id }))
         guard keysetIDs.count == 1 else { // FIXME: use appropriate error or remove
             throw CashuError.unknownError("outputs to send and keep seem to use different keysets, which is not supported \(keysetIDs)")
@@ -144,6 +136,10 @@ extension CashuSwift {
         
         guard let keyset = mint.keysets.first(where: { $0.keysetID == keysetIDs.first }), keyset.active else {
             throw CashuError.unknownError("keyset \(keysetIDs.first ?? "nil") could not be found or is inactive")
+        }
+        
+        guard keyset.unit == inputUnit else {
+            throw CashuError.unitError("Swap output unit '\(keyset.unit)' does not match input proof unit '\(inputUnit)'.")
         }
         
         var combined:[(o: Output, i:Int, toSend:Bool)] =
