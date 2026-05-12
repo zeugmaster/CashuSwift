@@ -220,17 +220,6 @@ for result in restoreResults {
 // Calculate fees before operations
 let inputFee = try CashuSwift.calculateFee(for: proofs, of: mint)
 print("This operation will cost \(inputFee) sats in fees")
-
-// Smart proof selection with fee consideration
-if let (selectedProofs, changeProofs, totalFee) = CashuSwift.pick(
-    proofs,
-    amount: 42,
-    mint: mint,
-    ignoreFees: false
-) {
-    print("Selected proofs worth \(selectedProofs.sum) sats")
-    print("Total fee: \(totalFee) sats")
-}
 ```
 
 #### Token Formats
@@ -296,13 +285,6 @@ let updatedKeysets = try await CashuSwift.updatedKeysetsForMint(mint)
 ```swift
 // Split amounts into optimal denominations
 let denominations = CashuSwift.splitIntoBase2Numbers(127)  // [1, 2, 4, 8, 16, 32, 64]
-
-// Select proofs with mint-aware unit validation
-if let (selected, remaining, fee) = proofs.pick(42, mint: mint) {
-    print("Selected proofs: \(selected.sum)")
-    print("Remaining proofs: \(remaining.sum)")
-    print("Fee: \(fee)")
-}
 
 // Sum proofs easily
 let totalValue = proofs.sum

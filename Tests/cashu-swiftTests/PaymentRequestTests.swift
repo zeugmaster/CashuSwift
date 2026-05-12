@@ -299,16 +299,6 @@ final class PaymentRequestTests: XCTestCase {
         }
     }
     
-    func testPickRejectsMixedUnitProofs() throws {
-        let mint = try makeMultiUnitMint()
-        let proofs = [
-            proof(keysetID: Self.satKeysetID, amount: 8),
-            proof(keysetID: Self.usdKeysetID, amount: 8)
-        ]
-        
-        XCTAssertNil(CashuSwift.pick(proofs, amount: 8, mint: mint, ignoreFees: true))
-    }
-    
     func testMeltRejectsQuoteUnitMismatchBeforeNetworkRequest() async throws {
         let mint = try makeMultiUnitMint()
         let quote = CashuSwift.Bolt11.MeltQuote(

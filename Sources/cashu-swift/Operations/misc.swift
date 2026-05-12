@@ -224,41 +224,6 @@ public enum CashuSwift {
         }
     }
     
-    public static func pick(_ proofs: [ProofRepresenting],
-                            amount: Int,
-                            mint: MintRepresenting,
-                            ignoreFees: Bool = false) -> (selected: [ProofRepresenting],
-                                                          change: [ProofRepresenting],
-                                                          fee: Int)? {
-        guard (try? singleUnit(for: proofs, of: mint)) != nil else {
-            return nil
-        }
-
-        // Sort proofs in descending order
-        var sortedProofs = proofs.sorted(by: { $0.amount > $1.amount })
-        var currentProofSum = 0
-        var totalFeePPK = 0
-
-        var selected = [ProofRepresenting]()
-
-        while !sortedProofs.isEmpty {
-            let proof = sortedProofs.removeFirst()
-            selected.append(proof)
-
-            let feePPK = mint.keysets.first(where: { $0.keysetID == proof.keysetID })?.inputFeePPK ?? 0
-            totalFeePPK += feePPK
-            currentProofSum += proof.amount
-
-            let totalFee = ignoreFees ? 0 : ((totalFeePPK + 999) / 1000)
-            if currentProofSum >= (amount + totalFee) {
-                // Remaining proofs are the change
-                let change = sortedProofs
-                return (selected, change, totalFee)
-            }
-        }
-        return nil
-    }
-
     public static func numericalRepresentation(of keysetID: String) throws -> Int {
         let bytes: [UInt8]
         if keysetID.count == 12 {
@@ -281,40 +246,6 @@ public enum CashuSwift {
         let result = big % (Int(pow(2.0, 31.0)) - 1)
         return Int(result)
     }
-
-    
-    
-    static func selectProofsToSumTarget(proofs: [ProofRepresenting], targetAmount: Int) -> ([ProofRepresenting], [ProofRepresenting])? {
-        guard targetAmount > 0 else {
-            return nil
-        }
-        
-        let n = proofs.count
-        let totalSubsets = 1 << n  // Total number of subsets (2^n)
-
-        for subset in 0..<totalSubsets {
-            var sum = 0
-            var selectedProofs = [ProofRepresenting]()
-            var remainingProofs = [ProofRepresenting]()
-            
-            for i in 0..<n {
-                if (subset & (1 << i)) != 0 {
-                    sum += proofs[i].amount
-                    selectedProofs.append(proofs[i])
-                } else {
-                    remainingProofs.append(proofs[i])
-                }
-            }
-            
-            if sum == targetAmount {
-                return (selectedProofs, remainingProofs)
-            }
-        }
-        
-        // No subset sums up to targetAmount
-        return nil
-    }
-    
     /// Calculates the total fee for spending the provided proofs.
     /// - Parameters:
     ///   - proofs: The proofs to calculate fees for
@@ -499,19 +430,6 @@ extension Array where Element : ProofRepresenting {
     
     public var sum: Int {
         self.reduce(0) { $0 + $1.amount }
-    }
-    
-    @available(*, deprecated, message: "This helper is unit-blind. Use pick(_:mint:ignoreFees:) so mixed-unit proofs are rejected.")
-    public func pick(_ amount:Int) -> (picked:[ProofRepresenting], change:[ProofRepresenting])? {
-        CashuSwift.selectProofsToSumTarget(proofs: self, targetAmount: amount)
-    }
-    
-    public func pick(_ amount:Int,
-                     mint: MintRepresenting,
-                     ignoreFees: Bool = false) -> (selected:[ProofRepresenting],
-                                                   change:[ProofRepresenting],
-                                                   fee: Int)? {
-        CashuSwift.pick(self, amount: amount, mint: mint, ignoreFees: ignoreFees)
     }
 }
 

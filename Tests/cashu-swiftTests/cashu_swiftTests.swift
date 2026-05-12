@@ -512,40 +512,6 @@ final class cashu_swiftTests: XCTestCase {
     
     typealias Proof = CashuSwift.Proof
     
-    func testProofSelection() async throws {
-        
-        let mint = try await CashuSwift.loadMint(url: URL(string: "http://localhost:3339")!)
-        
-        let keysetID = CashuSwift.activeKeysetForUnit("sat", mint: mint)!.keysetID
-
-        let proofs =   [Proof(keysetID: keysetID, amount: 1, secret: "", C: ""),
-                        Proof(keysetID: keysetID, amount: 1, secret: "", C: ""),
-                        Proof(keysetID: keysetID, amount: 8, secret: "", C: ""),
-                        Proof(keysetID: keysetID, amount: 4, secret: "", C: ""),
-                        Proof(keysetID: keysetID, amount: 32, secret: "", C: ""),
-                        Proof(keysetID: keysetID, amount: 2, secret: "", C: ""),
-                        Proof(keysetID: keysetID, amount: 16, secret: "", C: ""),
-                        Proof(keysetID: keysetID, amount: 128, secret: "", C: "")]
-        
-        let selection1 = CashuSwift.pick(proofs, amount: 50, mint: mint)
-        print(selection1 ?? "nil")
-        
-        let selection2 = CashuSwift.pick(proofs, amount: 1, mint: mint)
-        print(selection2 ?? "nil")
-        
-        let selection3 = CashuSwift.pick(proofs, amount: proofs.sum, mint: mint)
-        print(selection3 ?? "nil")
-        
-        let invalidSelection = CashuSwift.pick(proofs, amount: proofs.sum, mint: mint, ignoreFees: true)
-        print(invalidSelection ?? "nil")
-        
-        let invalidSelection2 = CashuSwift.pick(proofs, amount: 3000, mint: mint)
-        print(invalidSelection2 ?? "nil")
-        
-        let selection4 = CashuSwift.pick(proofs, amount: 165, mint: mint)
-        print(selection4 ?? "nil")
-    }
-    
     func testInfoLoad() async throws {
         let url = URL(string: "https://mint.macadamia.cash")!
         let mint = try await CashuSwift.loadMint(url: url)
