@@ -25,7 +25,7 @@ let package = Package(
         .package(url: "https://github.com/mkrd/Swift-BigInt.git",
                  from: "2.0.0"),
         .package(url: "https://github.com/pengpengliu/BIP39.git",
-                 from: "1.0.0"),
+                 exact: "1.0.1"),
         .package(url: "https://github.com/myfreeweb/SwiftCBOR.git",
                  from: "0.4.4")
     ],
