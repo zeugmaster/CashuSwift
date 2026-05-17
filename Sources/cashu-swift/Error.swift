@@ -58,6 +58,10 @@ public enum CashuError: Swift.Error {
     case unsupportedTransport(String)
     case lockingConditionMismatch(String)
     case paymentRequestAmount(String)
+
+    // Payment-method backend errors
+    case unsupportedPaymentMethod(String)
+    case bolt12RequiresPubkey
 }
 
 extension CashuError: LocalizedError {
@@ -105,6 +109,8 @@ extension CashuError: LocalizedError {
         case .unsupportedTransport(let msg): return "Unsupported transport: \(msg)"
         case .lockingConditionMismatch(let msg): return "Locking condition mismatch: \(msg)"
         case .paymentRequestAmount(let msg): return "Payment request amount error: \(msg)"
+        case .unsupportedPaymentMethod(let msg): return "Unsupported payment method: \(msg)"
+        case .bolt12RequiresPubkey: return "BOLT12 mint quotes require a pubkey per NUT-25"
         }
     }
 }
@@ -128,7 +134,8 @@ extension CashuError: Equatable {
              (.quoteIsPending, .quoteIsPending),
              (.invoiceAlreadyPaid, .invoiceAlreadyPaid),
              (.quoteIsExpired, .quoteIsExpired),
-             (.invalidKeysetID, .invalidKeysetID):
+             (.invalidKeysetID, .invalidKeysetID),
+             (.bolt12RequiresPubkey, .bolt12RequiresPubkey):
             return true
         
         // Cases with associated values (String)
@@ -157,7 +164,8 @@ extension CashuError: Equatable {
              (.paymentRequestValidation, .paymentRequestValidation),
              (.unsupportedTransport, .unsupportedTransport),
              (.lockingConditionMismatch, .lockingConditionMismatch),
-             (.paymentRequestAmount, .paymentRequestAmount):
+             (.paymentRequestAmount, .paymentRequestAmount),
+             (.unsupportedPaymentMethod, .unsupportedPaymentMethod):
             return true
             
         default:

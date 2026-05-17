@@ -302,21 +302,20 @@ final class PaymentRequestTests: XCTestCase {
     func testMeltRejectsQuoteUnitMismatchBeforeNetworkRequest() async throws {
         let mint = try makeMultiUnitMint()
         let quote = CashuSwift.Bolt11.MeltQuote(
-            paid: nil,
-            state: nil,
-            quoteRequest: CashuSwift.Bolt11.RequestMeltQuote(unit: "usd", request: "lnbc1unit", options: nil),
             quote: "quote-id",
+            request: "lnbc1unit",
             amount: 10,
+            unit: "usd",
             feeReserve: 0,
+            state: nil,
             expiry: nil,
             paymentPreimage: nil,
             change: nil
         )
         
         do {
-            _ = try await CashuSwift.melt(
-                quote: quote,
-                mint: mint,
+            _ = try await CashuSwift.Bolt11.melt(
+                quote: quote, from: mint,
                 proofs: [proof(keysetID: Self.satKeysetID, amount: 16)]
             )
             XCTFail("Expected unit mismatch to throw before network melt")
@@ -330,12 +329,12 @@ final class PaymentRequestTests: XCTestCase {
     func testGenerateBlankOutputsRejectsUnitMismatch() throws {
         let mint = try makeMultiUnitMint()
         let quote = CashuSwift.Bolt11.MeltQuote(
-            paid: nil,
-            state: nil,
-            quoteRequest: CashuSwift.Bolt11.RequestMeltQuote(unit: "usd", request: "lnbc1unit", options: nil),
             quote: "quote-id",
+            request: "lnbc1unit",
             amount: 10,
+            unit: "usd",
             feeReserve: 0,
+            state: nil,
             expiry: nil,
             paymentPreimage: nil,
             change: nil

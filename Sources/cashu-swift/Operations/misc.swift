@@ -102,18 +102,18 @@ public enum CashuSwift {
     /// Creates blank outputs for overpaid Lightning fees.
     ///
     /// Allows a wallet to create and persist blank outputs for an overpaid amount `sum(proofs) - quote.amount - inputFee`
-    public static func generateBlankOutputs(quote: CashuSwift.Bolt11.MeltQuote,
+    public static func generateBlankOutputs(quote: some MeltQuoteResponse,
                                             proofs: [some ProofRepresenting],
                                             mint: MintRepresenting,
                                             unit: String,
                                             seed: String? = nil) throws -> ((outputs: [Output],
                                                                              blindingFactors: [String],
                                                                              secrets: [String])) {
-        
+
         let proofUnit = try validateUnit(unit, for: proofs, of: mint, context: "Blank output generation")
-        
-        if let quoteUnit = quote.quoteRequest?.unit, quoteUnit != proofUnit {
-            throw CashuError.unitError("Melt quote unit '\(quoteUnit)' does not match blank output unit '\(proofUnit)'.")
+
+        guard quote.unit == proofUnit else {
+            throw CashuError.unitError("Melt quote unit '\(quote.unit)' does not match blank output unit '\(proofUnit)'.")
         }
         
         guard let activeKeyset = activeKeysetForUnit(unit, mint: mint) else {
