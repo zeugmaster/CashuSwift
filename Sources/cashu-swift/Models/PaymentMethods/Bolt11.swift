@@ -97,6 +97,11 @@ extension CashuSwift {
         }
 
         /// Mint → wallet: melt quote response with fee reserve and (after payment) preimage.
+        ///
+        /// `feeReserve` and `paymentPreimage` are NUT-23-specific and live on the
+        /// concrete type, not on `MeltQuoteResponse`. Other payment methods may
+        /// use a different fee model (e.g. onchain `fee_options`) or a different
+        /// payment proof (e.g. onchain `outpoint`).
         public struct MeltQuote: CashuSwift.MeltQuoteResponse {
             public let quote: String
             public let request: String?
@@ -128,6 +133,10 @@ extension CashuSwift {
                 self.expiry = expiry
                 self.paymentPreimage = paymentPreimage
                 self.change = change
+            }
+
+            public func requiredInputAmount(inputFee: Int) throws -> Int {
+                amount + feeReserve + inputFee
             }
 
             enum CodingKeys: String, CodingKey {
@@ -178,8 +187,9 @@ extension CashuSwift {
                 amount: amount,
                 mint: mint,
                 seed: seed,
-                preferredDistribution: preferredDistribution
-            )
+                preferredDistribution: preferredDistribution) { quoteID, outputs in
+                StandardMintExecutionBody(quote: quoteID, outputs: outputs)
+            }
         }
 
         /// Melts proofs to pay the BOLT11 invoice referenced by the quote.
@@ -196,9 +206,10 @@ extension CashuSwift {
                 mint: mint,
                 proofs: proofs,
                 timeout: timeout,
-                blankOutputs: blankOutputs,
-                preferAsync: preferAsync
-            )
+                blankOutputs: blankOutputs
+            ) { quoteID, inputs, outputs in
+                StandardMeltExecutionBody(quote: quoteID, inputs: inputs, outputs: outputs, preferAsync: preferAsync)
+            }
         }
 
         /// Re-checks an existing melt quote's state and unblinds any change.

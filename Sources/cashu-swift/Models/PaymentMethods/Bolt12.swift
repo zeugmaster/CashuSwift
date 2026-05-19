@@ -152,6 +152,10 @@ extension CashuSwift {
                 self.change = change
             }
 
+            public func requiredInputAmount(inputFee: Int) throws -> Int {
+                amount + feeReserve + inputFee
+            }
+
             enum CodingKeys: String, CodingKey {
                 case quote, request, amount, unit, state, expiry, change
                 case feeReserve = "fee_reserve"
@@ -204,7 +208,9 @@ extension CashuSwift {
                 mint: mint,
                 seed: seed,
                 preferredDistribution: preferredDistribution
-            )
+            ) { quoteID, outputs in
+                StandardMintExecutionBody(quote: quoteID, outputs: outputs)
+            }
         }
 
         public static func melt(quote: MeltQuote,
@@ -220,9 +226,10 @@ extension CashuSwift {
                 mint: mint,
                 proofs: proofs,
                 timeout: timeout,
-                blankOutputs: blankOutputs,
-                preferAsync: preferAsync
-            )
+                blankOutputs: blankOutputs
+            ) { quoteID, inputs, outputs in
+                StandardMeltExecutionBody(quote: quoteID, inputs: inputs, outputs: outputs, preferAsync: preferAsync)
+            }
         }
 
         public static func meltState(_ id: String,

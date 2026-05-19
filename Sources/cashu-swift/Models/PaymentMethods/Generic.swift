@@ -184,6 +184,13 @@ extension CashuSwift {
             }
         }
 
+        /// Method-agnostic melt quote.
+        ///
+        /// Best-effort decoding: assumes the BOLT11-shaped flat fields
+        /// (`fee_reserve`, `payment_preimage`) on the wire. Methods with a
+        /// different shape (e.g. onchain `fee_options` + `outpoint`) must use
+        /// their own namespace; the full server response is preserved in `raw`
+        /// for UI inspection.
         public struct MeltQuote: CashuSwift.MeltQuoteResponse {
             public let method: PaymentMethodID
             public let quote: String
@@ -216,6 +223,10 @@ extension CashuSwift {
                 self.paymentPreimage = paymentPreimage
                 self.change = change
                 self.raw = raw
+            }
+
+            public func requiredInputAmount(inputFee: Int) throws -> Int {
+                amount + feeReserve + inputFee
             }
 
             public init(from decoder: Decoder) throws {
@@ -312,7 +323,9 @@ extension CashuSwift {
                 mint: mint,
                 seed: seed,
                 preferredDistribution: preferredDistribution
-            )
+            ) { quoteID, outputs in
+                StandardMintExecutionBody(quote: quoteID, outputs: outputs)
+            }
         }
 
         public static func melt(quote: MeltQuote,
@@ -328,9 +341,10 @@ extension CashuSwift {
                 mint: mint,
                 proofs: proofs,
                 timeout: timeout,
-                blankOutputs: blankOutputs,
-                preferAsync: preferAsync
-            )
+                blankOutputs: blankOutputs
+            ) { quoteID, inputs, outputs in
+                StandardMeltExecutionBody(quote: quoteID, inputs: inputs, outputs: outputs, preferAsync: preferAsync)
+            }
         }
 
         public static func meltState(_ id: String,

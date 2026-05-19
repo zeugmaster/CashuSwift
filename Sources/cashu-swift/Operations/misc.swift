@@ -129,8 +129,9 @@ public enum CashuSwift {
         }
         
         let inputFee = try calculateFee(for: proofs, of: mint)
-        let amountOverpaid = proofs.sum - quote.amount - quote.feeReserve - inputFee
-        
+        let requiredTotal = try quote.requiredInputAmount(inputFee: inputFee)
+        let amountOverpaid = proofs.sum - requiredTotal
+
         let blankDistribution = Array(repeating: 0, count: calculateNumberOfBlankOutputs(amountOverpaid))
         
         return try Crypto.generateOutputs(amounts: blankDistribution,
