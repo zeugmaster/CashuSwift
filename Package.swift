@@ -39,7 +39,7 @@ let package = Package(
                 .product(name: "BIP32", package: "BIP32"),
                 .product(name: "BigNumber", package: "Swift-BigInt"),
                 .product(name: "BIP39", package: "BIP39"),
-                .product(name: "SwiftCBOR", package: "SwiftCBOR")
+                .product(name: "SwiftCBOR", package: "SwiftCBOR"),
             ],
             swiftSettings: [
               .enableExperimentalFeature("StrictConcurrency")
