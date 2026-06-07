@@ -300,8 +300,14 @@ extension CashuSwift {
                 logger.info("Melt quote contained no change promises.")
                 return MeltResult(quote: quote, change: [], dleqResult: .valid)
             }
-            guard let blankOutputs else {
-                logger.warning("Melt quote returned change but no blank outputs were supplied to unblind it.")
+            guard let blankOutputs, !blankOutputs.outputs.isEmpty else {
+                // No blank outputs (or an empty set) is a legitimate state: the original
+                // melt had no overpayment beyond the fee reserve, so the wallet generated
+                // zero blank outputs and there is nothing to unblind. Some mints still echo
+                // `change: []` (a non-nil empty array) here, which passes the guard above —
+                // so we must also treat an empty `outputs` array as "no change to receive"
+                // rather than trying to derive a keyset id from it (which would throw).
+                logger.info("Melt quote has no blank outputs to unblind change into; returning no change.")
                 return MeltResult(quote: quote, change: [], dleqResult: .valid)
             }
 

@@ -129,10 +129,17 @@ public enum CashuSwift {
         }
         
         let inputFee = try calculateFee(for: proofs, of: mint)
-        let requiredTotal = try quote.requiredInputAmount(inputFee: inputFee)
-        let amountOverpaid = proofs.sum - requiredTotal
 
-        let blankDistribution = Array(repeating: 0, count: calculateNumberOfBlankOutputs(amountOverpaid))
+        // NUT-08: blank outputs must be able to receive the *maximum* possible change,
+        // which occurs when the actual Lightning fee turns out to be 0. In that case the
+        // mint keeps only `amount + inputFee` and returns everything else — i.e. the full
+        // fee reserve plus any wallet overpayment. Sizing on `proofs.sum - amount - inputFee`
+        // (rather than the overpayment *beyond* the fee reserve) guarantees we never
+        // under-provision and silently lose change, and — crucially — avoids generating
+        // zero blank outputs when the selected proofs cover the required total exactly.
+        let maxPotentialReturn = proofs.sum - quote.amount - inputFee
+
+        let blankDistribution = Array(repeating: 0, count: calculateNumberOfBlankOutputs(maxPotentialReturn))
         
         return try Crypto.generateOutputs(amounts: blankDistribution,
                                           keysetID: activeKeyset.keysetID,
