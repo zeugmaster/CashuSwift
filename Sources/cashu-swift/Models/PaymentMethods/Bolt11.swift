@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Bolt11
 
 extension CashuSwift {
     /// BOLT11 (Lightning invoice) payment method per NUT-23.
@@ -231,6 +232,17 @@ extension CashuSwift {
 
         /// Parses a BOLT11 invoice and returns its amount in satoshis (0 if the invoice is amountless).
         public static func satAmount(from invoice: String) throws -> Int {
+            do {
+                guard let millisatoshis = try Bolt11Decoder.decode(invoice).amountMillisatoshis else {
+                    return 0
+                }
+                return Int(millisatoshis / 1_000)
+            } catch {
+                return try satAmountFromHumanReadablePart(invoice)
+            }
+        }
+
+        private static func satAmountFromHumanReadablePart(_ invoice: String) throws -> Int {
             let lower = invoice.lowercased()
             guard let range = lower.range(of: "1", options: .backwards) else {
                 throw CashuError.bolt11InvalidInvoiceError("")
@@ -238,7 +250,7 @@ extension CashuSwift {
             let endIndex = range.lowerBound
             let hrp = String(lower[..<endIndex])
 
-            var prefixLength: Int = 0
+            let prefixLength: Int
             if hrp.hasPrefix("lnbcrt") {
                 prefixLength = 6
             } else if hrp.hasPrefix("lntbs") {

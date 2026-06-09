@@ -22,6 +22,37 @@ final class UnitTests: XCTestCase {
         XCTAssertEqual(try CashuSwift.Bolt11.satAmount(from: invoice.uppercased()), 100)
     }
 
+    func testDecodeLightningRequestBolt11() throws {
+        let invoice = "lnbc2500u1pvjluezsp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygspp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdq5xysxxatsyp3k7enxv4jsxqzpu9qrsgquk0rl77nj30yxdy8j9vdx85fkpmdla2087ne0xh8nhedh8w27kyke0lp53ut353s06fv3qfegext0eh0ymjpf39tuven09sam30g4vgpfna3rh"
+
+        let decoded = try CashuSwift.decodeLightningRequest("lightning:\(invoice)")
+
+        guard case let .bolt11Invoice(bolt11) = decoded else {
+            return XCTFail("Expected a BOLT11 invoice")
+        }
+        XCTAssertEqual(bolt11.amountMillisatoshis, 250_000_000)
+        XCTAssertEqual(bolt11.invoiceDescription, "1 cup coffee")
+    }
+
+    func testDecodeLightningRequestBolt12Offer() throws {
+        let nodeID = Data([0x02] + Array(repeating: 0x11, count: 32))
+        let offerBytes = bolt12TLV([
+            (8, Data([0x03, 0xe8])),
+            (10, Data("coffee".utf8)),
+            (22, nodeID)
+        ])
+        let encoded = encodeBolt12(hrp: "lno", bytes: offerBytes)
+
+        let decoded = try CashuSwift.decodeLightningRequest(encoded)
+
+        guard case let .bolt12Offer(offer) = decoded else {
+            return XCTFail("Expected a BOLT12 offer")
+        }
+        XCTAssertEqual(offer.amount, 1_000)
+        XCTAssertEqual(offer.description, "coffee")
+        XCTAssertEqual(offer.issuerID, nodeID)
+    }
+
     func testSecretSerialization() throws {
         
         // test that deserialization from string works properly
@@ -334,6 +365,67 @@ final class UnitTests: XCTestCase {
         
         XCTAssertEqual(expectedSecrets, outputs.secrets)
         XCTAssertEqual(expBF, outputs.blindingFactors)
+    }
+
+    private func bolt12TLV(_ records: [(UInt64, Data)]) -> Data {
+        var result = Data()
+        for (type, value) in records {
+            result.append(bigSize(type))
+            result.append(bigSize(UInt64(value.count)))
+            result.append(value)
+        }
+        return result
+    }
+
+    private func bigSize(_ value: UInt64) -> Data {
+        if value < 0xfd {
+            return Data([UInt8(value)])
+        }
+        if value <= 0xffff {
+            return Data([0xfd, UInt8(value >> 8), UInt8(value)])
+        }
+        if value <= 0xffff_ffff {
+            return Data([0xfe, UInt8(value >> 24), UInt8(value >> 16), UInt8(value >> 8), UInt8(value)])
+        }
+        return Data([
+            0xff,
+            UInt8(value >> 56),
+            UInt8(value >> 48),
+            UInt8(value >> 40),
+            UInt8(value >> 32),
+            UInt8(value >> 24),
+            UInt8(value >> 16),
+            UInt8(value >> 8),
+            UInt8(value)
+        ])
+    }
+
+    private func encodeBolt12(hrp: String, bytes: Data) -> String {
+        let charset = Array("qpzry9x8gf2tvdw0s3jn54khce6mua7l")
+        let words = convertBits(data: Array(bytes), fromBits: 8, toBits: 5, pad: true)
+        return hrp + "1" + String(words.map { charset[Int($0)] })
+    }
+
+    private func convertBits(data: [UInt8], fromBits: Int, toBits: Int, pad: Bool) -> [UInt8] {
+        var accumulator: UInt32 = 0
+        var bits = 0
+        var result: [UInt8] = []
+        let maxValue = UInt32((1 << toBits) - 1)
+
+        for value in data {
+            accumulator = (accumulator << fromBits) | UInt32(value)
+            bits += fromBits
+            while bits >= toBits {
+                bits -= toBits
+                result.append(UInt8((accumulator >> bits) & maxValue))
+            }
+        }
+
+        if pad, bits > 0 {
+            result.append(UInt8((accumulator << (toBits - bits)) & maxValue))
+        }
+
+        return result
     }
 
 }

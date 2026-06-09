@@ -27,7 +27,11 @@ let package = Package(
         .package(url: "https://github.com/pengpengliu/BIP39.git",
                  exact: "1.0.1"),
         .package(url: "https://github.com/myfreeweb/SwiftCBOR.git",
-                 from: "0.4.4")
+                 from: "0.4.4"),
+        .package(url: "https://github.com/zeugmaster/Bolt11.git",
+                 exact: "0.1.3"),
+        .package(url: "https://github.com/zeugmaster/Bolt12.git",
+                 exact: "0.1.0")
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
@@ -39,7 +43,9 @@ let package = Package(
                 .product(name: "BIP32", package: "BIP32"),
                 .product(name: "BigNumber", package: "Swift-BigInt"),
                 .product(name: "BIP39", package: "BIP39"),
-                .product(name: "SwiftCBOR", package: "SwiftCBOR")
+                .product(name: "SwiftCBOR", package: "SwiftCBOR"),
+                .product(name: "Bolt11", package: "Bolt11"),
+                .product(name: "Bolt12", package: "Bolt12")
             ],
             swiftSettings: [
               .enableExperimentalFeature("StrictConcurrency")
