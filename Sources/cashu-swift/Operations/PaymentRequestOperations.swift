@@ -121,33 +121,4 @@ extension CashuSwift {
         let bytes = (0..<4).map { _ in UInt8.random(in: 0...255) }
         return bytes.map { String(format: "%02x", $0) }.joined()
     }
-    
-    /// Generates a random nonce for spending conditions.
-    private static func generateRandomNonce() -> String {
-        let bytes = (0..<32).map { _ in UInt8.random(in: 0...255) }
-        return bytes.map { String(format: "%02x", $0) }.joined()
-    }
-    
-    /// Selects proofs to cover a specific amount.
-    private static func selectProofs(from proofs: [Proof], amount: Int) throws -> [Proof] {
-        var selected: [Proof] = []
-        var total = 0
-        
-        // Sort proofs by amount (smallest first for better selection)
-        let sortedProofs = proofs.sorted { $0.amount < $1.amount }
-        
-        for proof in sortedProofs {
-            if total >= amount {
-                break
-            }
-            selected.append(proof)
-            total += proof.amount
-        }
-        
-        guard total >= amount else {
-            throw CashuError.insufficientInputs("Cannot select enough proofs to cover amount \(amount)")
-        }
-        
-        return selected
-    }
 }
