@@ -62,7 +62,7 @@ final class ProofSelectionTargetTests: XCTestCase {
         let r = try CashuSwift.selectProofs(proofs([512, 512]), targetAmount: 500, mint: m,
                                             unit: "sat", purpose: .swap,
                                             denominationTarget: .default)
-        XCTAssertEqual(r.kind, .mintTransaction)
+        XCTAssertEqual(r.kind, .swap)
         XCTAssertEqual(r.inputFee, 0)
         XCTAssertEqual(r.selected.count, 1)            // one 512 covers it
         XCTAssertEqual(r.changeAmount, 12)

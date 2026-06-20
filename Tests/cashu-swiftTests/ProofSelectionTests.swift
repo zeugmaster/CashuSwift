@@ -149,7 +149,7 @@ final class ProofSelectionTests: XCTestCase {
         let proofs = [proof(100, "HI", id: 1), proof(101, "LO", id: 2)]
         let r = try CashuSwift.selectProofs(proofs, targetAmount: 100, mint: m,
                                             unit: "sat", purpose: .swap)
-        XCTAssertEqual(r.kind, .mintTransaction)
+        XCTAssertEqual(r.kind, .swap)
         XCTAssertEqual(r.inputFee, 0)
         XCTAssertEqual(r.selected.count, 1)
         XCTAssertEqual(r.selected.first?.amount, 101)
@@ -181,12 +181,12 @@ final class ProofSelectionTests: XCTestCase {
         XCTAssertEqual(r.selected.first?.keysetID, "A")
     }
 
-    /// #7 — for mint transactions, inactive keysets win an otherwise-exact tie.
+    /// #7 — for swaps, inactive keysets win an otherwise-exact tie.
     func testInactiveKeysetPreferredForMint() throws {
         let m = mint([ks("ACT", ppk: 0, active: true), ks("INACT", ppk: 0, active: false)])
         let proofs = [proof(100, "ACT", id: 1), proof(100, "INACT", id: 2)]
         var policy = CashuSwift.ProofSelectionPolicy.default
-        policy.preferInactiveKeysetsForMintTransactions = true
+        policy.preferInactiveKeysetsForSwaps = true
         let r = try CashuSwift.selectProofs(proofs, targetAmount: 100, mint: m,
                                             unit: "sat", purpose: .swap, policy: policy)
         XCTAssertEqual(r.selected.count, 1)
@@ -336,12 +336,12 @@ final class ProofSelectionTests: XCTestCase {
         XCTAssertTrue(cs.allSatisfy { inputCs.contains($0) })
     }
 
-    func testDirectNoExactSubsetFallsToMintTransaction() throws {
+    func testDirectNoExactSubsetFallsToSwap() throws {
         let m = mint([ks("A", ppk: 0)])
         let proofs = [proof(2, "A", id: 1), proof(4, "A", id: 2)]   // no subset sums to 3
         let r = try CashuSwift.selectProofs(proofs, targetAmount: 3, mint: m,
                                             unit: "sat", purpose: .tokenTransferUnlocked)
-        XCTAssertEqual(r.kind, .mintTransaction)
+        XCTAssertEqual(r.kind, .swap)
         XCTAssertGreaterThanOrEqual(r.netAmount, 3)
     }
 

@@ -26,8 +26,8 @@
 //      (in which case optimality is reported truthfully).
 //
 //  NUT-02 input fees: fee(S) = ceil( Σ inputFeePPK(S) / 1000 ), paid only when
-//  a mint transaction (swap/melt/receive/…) is required — never for a direct
-//  token send of existing proofs.
+//  the selected proofs are spent in a swap or melt — never for a direct token
+//  send of existing proofs.
 //
 
 import Foundation
@@ -51,8 +51,8 @@ extension CashuSwift {
 
         /// Whether an exact, fee-free subset of existing proofs may satisfy the
         /// request. Only an unlocked direct transfer can be fulfilled without a
-        /// mint transaction; every other purpose mints new outputs and pays the
-        /// NUT-02 input fee.
+        /// swap or melt; every other purpose creates new outputs via a swap and
+        /// pays the NUT-02 input fee.
         var allowsDirectExact: Bool { self == .tokenTransferUnlocked }
     }
 
@@ -64,10 +64,10 @@ extension CashuSwift {
         /// Try an exact, fee-free direct subset before fee-aware selection
         /// (only consulted for purposes whose `allowsDirectExact` is true).
         public var preferDirectExact: Bool
-        /// For mint transactions, break otherwise-equal candidates by spending
+        /// For swaps and melts, break otherwise-equal candidates by spending
         /// *inactive* keysets first (keyset hygiene). Never overrides
         /// fee/change/count/amount.
-        public var preferInactiveKeysetsForMintTransactions: Bool
+        public var preferInactiveKeysetsForSwaps: Bool
         /// For direct sends, break otherwise-equal candidates by keeping the
         /// recipient on *active* keysets. Never overrides proof-count/fee order.
         public var avoidInactiveKeysetsForDirectSend: Bool
@@ -83,13 +83,13 @@ extension CashuSwift {
         public var randomSeed: Data
 
         public init(preferDirectExact: Bool = true,
-                    preferInactiveKeysetsForMintTransactions: Bool = false,
+                    preferInactiveKeysetsForSwaps: Bool = false,
                     avoidInactiveKeysetsForDirectSend: Bool = false,
                     maxStates: Int? = 200_000,
                     bestEffortWhenStateLimitHit: Bool = false,
                     randomSeed: Data = Data()) {
             self.preferDirectExact = preferDirectExact
-            self.preferInactiveKeysetsForMintTransactions = preferInactiveKeysetsForMintTransactions
+            self.preferInactiveKeysetsForSwaps = preferInactiveKeysetsForSwaps
             self.avoidInactiveKeysetsForDirectSend = avoidInactiveKeysetsForDirectSend
             self.maxStates = maxStates
             self.bestEffortWhenStateLimitHit = bestEffortWhenStateLimitHit
@@ -99,9 +99,9 @@ extension CashuSwift {
         public static let `default` = ProofSelectionPolicy()
     }
 
-    /// Whether the result is a direct token send (no mint interaction) or a
-    /// mint transaction (swap/melt) the caller must execute.
-    public enum ProofSelectionKind: Sendable, Equatable { case directToken, mintTransaction }
+    /// Whether the result is a direct token send (no mint round-trip) or a swap —
+    /// i.e. a swap or melt the caller must execute to produce the new outputs.
+    public enum ProofSelectionKind: Sendable, Equatable { case directToken, swap }
 
     /// Whether the selection is mathematically proven optimal under the
     /// comparator, or a best-effort result returned because the state cap hit.
@@ -167,7 +167,7 @@ extension CashuSwift {
     ///     reproduces `Σ ≥ amount + feeReserve + inputFee`.
     ///   - mint: Source of per-keyset fee rates and active/inactive status.
     ///   - unit: The unit being spent (e.g. `"sat"`).
-    ///   - purpose: Drives direct-vs-mint-transaction behaviour.
+    ///   - purpose: Drives direct-vs-swap behaviour.
     ///   - policy: Tie-breaking knobs and guardrails.
     ///   - denominationTarget: Optional offline-optimization shape. When supplied,
     ///     selection moves toward the target in *both* directions: it prefers
@@ -225,20 +225,20 @@ extension CashuSwift {
             }
         }
 
-        // Stage 2 — fee-aware bounded knapsack (mint transaction).
-        let mintItems = bundle(eligible,
-                               scoreForActive: mintScorer(policy),
+        // Stage 2 — fee-aware bounded knapsack (swap / melt).
+        let feeAwareItems = bundle(eligible,
+                               scoreForActive: feeAwareScorer(policy),
                                dropFeeDominated: true)
         let eligibleRaw = eligible.reduce(0) { $0 + $1.amount }
-        let outcome = try feeAwareSubset(mintItems, target: targetAmount, policy: policy,
+        let outcome = try feeAwareSubset(feeAwareItems, target: targetAmount, policy: policy,
                                          eligibleRawAmount: eligibleRaw, purpose: purpose)
 
         let changeOverride = plan.map {
-            changeOutputDistribution(state: outcome.state, items: mintItems,
+            changeOutputDistribution(state: outcome.state, items: feeAwareItems,
                                      eligible: eligible, target: targetAmount, plan: $0)
         }
-        return mintResult(outcome.state, optimality: outcome.optimality,
-                          items: mintItems, proofs: proofs, target: targetAmount,
+        return feeAwareResult(outcome.state, optimality: outcome.optimality,
+                          items: feeAwareItems, proofs: proofs, target: targetAmount,
                           purpose: purpose, changeOutputAmountsOverride: changeOverride)
     }
 
@@ -413,8 +413,8 @@ extension CashuSwift {
         policy.avoidInactiveKeysetsForDirectSend ? { $0 ? 0 : 1 } : { _ in 0 }
     }
 
-    private static func mintScorer(_ policy: ProofSelectionPolicy) -> (Bool) -> Int {
-        policy.preferInactiveKeysetsForMintTransactions ? { $0 ? 1 : 0 } : { _ in 0 }
+    private static func feeAwareScorer(_ policy: ProofSelectionPolicy) -> (Bool) -> Int {
+        policy.preferInactiveKeysetsForSwaps ? { $0 ? 1 : 0 } : { _ in 0 }
     }
 
     // MARK: - DP state
@@ -480,7 +480,7 @@ extension CashuSwift {
 
     // MARK: - Stage 2: fee-aware bounded knapsack
 
-    /// Fee-aware Pareto DP. Finds the selection minimising the mint-transaction
+    /// Fee-aware Pareto DP. Finds the selection minimising the swap
     /// comparator subject to `net ≥ target`.
     private static func feeAwareSubset(_ items: [SelectionItem],
                                        target: Int,
@@ -504,7 +504,7 @@ extension CashuSwift {
         // heuristics, falling back to the guaranteed-feasible all-items state.
         var best = allState
         for seed in heuristicSeeds(items, target: target) {
-            if mintBetter(seed, than: best, target: target) { best = seed }
+            if feeAwareBetter(seed, than: best, target: target) { best = seed }
         }
 
         // states[amount] = Pareto-minimal open (net < target) states at `amount`.
@@ -522,7 +522,7 @@ extension CashuSwift {
                     if candidate.net >= target {
                         // Feasible: evaluate, but do not extend — extension only
                         // raises amount/ppk/count, never lowering fee or change.
-                        if mintBetter(candidate, than: best, target: target) { best = candidate }
+                        if feeAwareBetter(candidate, than: best, target: target) { best = candidate }
                     } else {
                         insertPareto(candidate, into: &states[candidate.amount, default: []],
                                      stateCount: &stateCount)
@@ -582,9 +582,9 @@ extension CashuSwift {
         a.ppk <= b.ppk && a.proofCount <= b.proofCount && a.keysetScore <= b.keysetScore
     }
 
-    /// Mint-transaction comparator: lowest fee, then change, then proof count,
+    /// Swap comparator: lowest fee, then change, then proof count,
     /// then raw amount, then keyset hygiene, then a stable tie-break.
-    private static func mintBetter(_ a: SelectionState, than b: SelectionState, target: Int) -> Bool {
+    private static func feeAwareBetter(_ a: SelectionState, than b: SelectionState, target: Int) -> Bool {
         let af = a.fee, bf = b.fee
         if af != bf { return af < bf }
         let ac = a.net - target, bc = b.net - target
@@ -615,7 +615,7 @@ extension CashuSwift {
                                     optimality: .provedOptimal)
     }
 
-    private static func mintResult<P: ProofRepresenting>(
+    private static func feeAwareResult<P: ProofRepresenting>(
         _ state: SelectionState, optimality: ProofSelectionOptimality,
         items: [SelectionItem], proofs: [P], target: Int, purpose: ProofSelectionPurpose,
         changeOutputAmountsOverride: [Int]? = nil
@@ -628,7 +628,7 @@ extension CashuSwift {
         // Use the target-aware change split when supplied; otherwise the base-2 split.
         let changeOutputAmounts = changeOutputAmountsOverride
             ?? (change > 0 ? splitIntoBase2Numbers(change) : [])
-        return ProofSelectionResult(kind: .mintTransaction,
+        return ProofSelectionResult(kind: .swap,
                                     selected: selected,
                                     inputFee: fee,
                                     netAmount: net,
