@@ -169,6 +169,13 @@ extension CashuSwift {
     ///   - unit: The unit being spent (e.g. `"sat"`).
     ///   - purpose: Drives direct-vs-mint-transaction behaviour.
     ///   - policy: Tie-breaking knobs and guardrails.
+    ///   - denominationTarget: Optional offline-optimization shape. When supplied,
+    ///     selection moves toward the target in *both* directions: it prefers
+    ///     spending over-represented (surplus) denominations as a low-priority
+    ///     tie-breaker (never overriding fee/change/count), and it shapes
+    ///     `changeOutputAmounts` to fill the wallet's denomination deficits instead
+    ///     of a plain base-2 split. `nil` reproduces the prior base-2 behaviour
+    ///     exactly. See `DistributionPlanning.swift`.
     /// - Returns: A `ProofSelectionResult` over the caller's proof type.
     /// - Throws: `ProofSelectionError` on infeasible / invalid / stale-keyset input.
     public static func selectProofs<P: ProofRepresenting>(
@@ -177,7 +184,8 @@ extension CashuSwift {
         mint: some MintRepresenting,
         unit: String,
         purpose: ProofSelectionPurpose,
-        policy: ProofSelectionPolicy = .default
+        policy: ProofSelectionPolicy = .default,
+        denominationTarget: DenominationTarget? = nil
     ) throws -> ProofSelectionResult<P> {
 
         guard targetAmount >= 0 else { throw ProofSelectionError.invalidTarget }
@@ -190,6 +198,21 @@ extension CashuSwift {
                                         netAmount: 0, changeAmount: 0, sendOutputAmounts: [],
                                         changeOutputAmounts: [], blankOutputAmounts: [],
                                         keysetIDsSpent: [], optimality: .provedOptimal)
+        }
+
+        // Optional denomination-target context: the power-of-two basis used to shape
+        // change outputs toward the wallet's ideal distribution. Absent ⇒
+        // `changeOverride` nil ⇒ identical to the prior base-2 behaviour.
+        //
+        // Note: the target deliberately does *not* bias input selection. For
+        // power-of-two denominations the selector's optimum is essentially unique in
+        // (fee, change, count, amount), so a "drain surplus" input tie-breaker would
+        // almost never fire yet would widen the Stage-2 Pareto frontier. The surplus
+        // direction is handled where it can act without sacrificing optimality: a
+        // wallet-initiated consolidation swap (see `idealDistribution` /
+        // `denominationGap`). Here we only shape the change *outputs* (deficit fill).
+        let plan = denominationTarget.map {
+            denominationPlan(eligible: eligible, mint: mint, unit: unit, target: $0)
         }
 
         // Stage 1 — exact, fee-free direct subset.
@@ -209,8 +232,61 @@ extension CashuSwift {
         let eligibleRaw = eligible.reduce(0) { $0 + $1.amount }
         let outcome = try feeAwareSubset(mintItems, target: targetAmount, policy: policy,
                                          eligibleRawAmount: eligibleRaw, purpose: purpose)
+
+        let changeOverride = plan.map {
+            changeOutputDistribution(state: outcome.state, items: mintItems,
+                                     eligible: eligible, target: targetAmount, plan: $0)
+        }
         return mintResult(outcome.state, optimality: outcome.optimality,
-                          items: mintItems, proofs: proofs, target: targetAmount, purpose: purpose)
+                          items: mintItems, proofs: proofs, target: targetAmount,
+                          purpose: purpose, changeOutputAmountsOverride: changeOverride)
+    }
+
+    // MARK: - Denomination-target planning (offline-send optimization)
+
+    /// The power-of-two basis (and target) used to shape change outputs toward the
+    /// wallet's ideal denomination distribution.
+    private struct DenominationPlan {
+        let target: DenominationTarget
+        let basis: [Int]
+    }
+
+    /// Resolves the basis to plan over from the eligible (this-mint/unit) inventory:
+    /// the active keyset's supported denominations capped at the inventory's top bit,
+    /// or synthesized powers of two if no keyset enumerates them.
+    private static func denominationPlan(eligible: [EligibleProof],
+                                         mint: some MintRepresenting,
+                                         unit: String,
+                                         target: DenominationTarget) -> DenominationPlan {
+        let balance = eligible.reduce(0) { $0 + $1.amount }
+        let cap = target.maxDenomination ?? topBitDenomination(balance)
+        let basis = activeKeysetForUnit(unit, mint: mint).map { denominationBasis(keyset: $0, cap: cap) }
+                    ?? powersOfTwo(upTo: cap)
+        return DenominationPlan(target: target, basis: basis)
+    }
+
+    /// The change-output split that best fills the wallet's denomination deficits,
+    /// given the inventory it retains after spending `state`'s inputs. Empty when
+    /// there is no change. Sums exactly to the change amount (so it can feed a
+    /// `preferredReturnDistribution` without a mismatch).
+    private static func changeOutputDistribution(state: SelectionState,
+                                                 items: [SelectionItem],
+                                                 eligible: [EligibleProof],
+                                                 target: Int,
+                                                 plan: DenominationPlan) -> [Int] {
+        let change = state.net - target
+        guard change > 0 else { return [] }
+        let spent = Set(state.chosen.flatMap { items[$0].indices })
+        var retained: [Int: Int] = [:]
+        var retainedSum = 0
+        for e in eligible where !spent.contains(e.index) {
+            retained[e.amount, default: 0] += 1
+            retainedSum += e.amount
+        }
+        let ideal = idealCounts(balance: retainedSum + change, target: plan.target,
+                                denominations: plan.basis)
+        return fillDistribution(amount: change, retained: retained, ideal: ideal,
+                                denominations: plan.basis)
     }
 
     // MARK: - Eligibility & keyset resolution
@@ -541,20 +617,24 @@ extension CashuSwift {
 
     private static func mintResult<P: ProofRepresenting>(
         _ state: SelectionState, optimality: ProofSelectionOptimality,
-        items: [SelectionItem], proofs: [P], target: Int, purpose: ProofSelectionPurpose
+        items: [SelectionItem], proofs: [P], target: Int, purpose: ProofSelectionPurpose,
+        changeOutputAmountsOverride: [Int]? = nil
     ) -> ProofSelectionResult<P> {
         let proofIndices = state.chosen.flatMap { items[$0].indices }.sorted()
         let selected = proofIndices.map { proofs[$0] }
         let fee = state.fee
         let net = state.net
         let change = net - target
+        // Use the target-aware change split when supplied; otherwise the base-2 split.
+        let changeOutputAmounts = changeOutputAmountsOverride
+            ?? (change > 0 ? splitIntoBase2Numbers(change) : [])
         return ProofSelectionResult(kind: .mintTransaction,
                                     selected: selected,
                                     inputFee: fee,
                                     netAmount: net,
                                     changeAmount: change,
                                     sendOutputAmounts: splitIntoBase2Numbers(target),
-                                    changeOutputAmounts: change > 0 ? splitIntoBase2Numbers(change) : [],
+                                    changeOutputAmounts: changeOutputAmounts,
                                     blankOutputAmounts: [],
                                     keysetIDsSpent: Set(selected.map { $0.keysetID }),
                                     optimality: optimality)
