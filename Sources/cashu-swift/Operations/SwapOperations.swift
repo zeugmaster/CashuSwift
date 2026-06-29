@@ -20,7 +20,11 @@ extension CashuSwift {
     ///   - mint: The mint to swap with
     ///   - amount: Optional amount to swap (if nil, swaps all minus fees)
     ///   - seed: Optional seed for deterministic secret generation
-    ///   - preferredReturnDistribution: Optional preferred denomination distribution for change
+    ///   - preferredReturnDistribution: Optional preferred denomination distribution. When
+    ///     `amount` is non-nil it shapes the *change* (must sum to the change amount); when
+    ///     `amount` is nil (keep everything) it shapes the *entire returned pool* (must sum
+    ///     to `proofSum − fee`) — used for receive- and consolidation-time rebalancing.
+    ///     A mismatch throws `preferredDistributionMismatch`.
     /// - Returns: A tuple containing:
     ///   - new: The new proofs
     ///   - change: The change proofs
@@ -62,19 +66,36 @@ extension CashuSwift {
             throw CashuError.noActiveKeysetForUnit("no active keyset could be found for unit \(unit)")
         }
         
-        let swapDistribution = CashuSwift.splitIntoBase2Numbers(returnAmount)
-        
-        let changeDistribution = preferredReturnDistribution.map({ $0 }) ?? splitIntoBase2Numbers(changeAmount)
-        
-        guard changeDistribution.reduce(0, +) == changeAmount else {
-            throw CashuError.preferredDistributionMismatch(
-            """
-            preferredReturnDistribution does not add up to expected change amount.
-            proof sum: \(proofSum), return amount: \(returnAmount), change amount: \
-            \(changeAmount), fees: \(fee), preferred distr sum: \(changeDistribution.reduce(0, +))
-            """)
+        let swapDistribution: [Int]
+        let changeDistribution: [Int]
+
+        if amount == nil {
+            // No send portion: the whole returned pool is kept, so a preferred
+            // distribution (if given) shapes all of it — enabling receive- and
+            // consolidation-time rebalancing toward a denomination target.
+            swapDistribution = preferredReturnDistribution ?? splitIntoBase2Numbers(returnAmount)
+            changeDistribution = []
+            guard swapDistribution.reduce(0, +) == returnAmount else {
+                throw CashuError.preferredDistributionMismatch(
+                """
+                preferredReturnDistribution does not add up to the returned amount.
+                proof sum: \(proofSum), return amount: \(returnAmount), fees: \(fee), \
+                preferred distr sum: \(swapDistribution.reduce(0, +))
+                """)
+            }
+        } else {
+            swapDistribution = CashuSwift.splitIntoBase2Numbers(returnAmount)
+            changeDistribution = preferredReturnDistribution ?? splitIntoBase2Numbers(changeAmount)
+            guard changeDistribution.reduce(0, +) == changeAmount else {
+                throw CashuError.preferredDistributionMismatch(
+                """
+                preferredReturnDistribution does not add up to expected change amount.
+                proof sum: \(proofSum), return amount: \(returnAmount), change amount: \
+                \(changeAmount), fees: \(fee), preferred distr sum: \(changeDistribution.reduce(0, +))
+                """)
+            }
         }
-        
+
         let combinedDistribution = (swapDistribution + changeDistribution).sorted()
         
         let deterministicFactors = seed.map({ ($0, activeKeyset.derivationCounter) })
