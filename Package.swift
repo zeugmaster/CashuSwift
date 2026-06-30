@@ -31,7 +31,9 @@ let package = Package(
         .package(url: "https://github.com/zeugmaster/Bolt11.git",
                  exact: "0.1.3"),
         .package(url: "https://github.com/zeugmaster/Bolt12.git",
-                 exact: "0.1.0")
+                 exact: "0.1.0"),
+        .package(url: "https://github.com/zeugmaster/SwiftBLST.git",
+                 from: "0.2.0")
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
@@ -45,13 +47,17 @@ let package = Package(
                 .product(name: "BIP39", package: "BIP39"),
                 .product(name: "SwiftCBOR", package: "SwiftCBOR"),
                 .product(name: "Bolt11", package: "Bolt11"),
-                .product(name: "Bolt12", package: "Bolt12")
+                .product(name: "Bolt12", package: "Bolt12"),
+                .product(name: "SwiftBLST", package: "SwiftBLST")
             ],
             swiftSettings: [
               .enableExperimentalFeature("StrictConcurrency")
             ]),
         .testTarget(
             name: "cashu-swiftTests",
-            dependencies: ["CashuSwift"]),
+            dependencies: [
+                "CashuSwift",
+                .product(name: "SwiftBLST", package: "SwiftBLST")
+            ]),
     ]
 )
