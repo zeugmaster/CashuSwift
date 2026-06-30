@@ -81,18 +81,28 @@ public enum CashuSwift {
         var outputs = [Output]()
         var blindingFactors = [String]()
         var secrets = [String]()
+        // The P2PK secret is curve-independent; only the blinding curve depends on the keyset.
+        let isBLS = KeysetVersion(keysetID: keyset.keysetID)?.isBLS == true
         for amount in distribution {
             let nonce = try String(bytes: secp256k1.Signing.PrivateKey().dataRepresentation)
             let payload = SpendingCondition.Payload(nonce: nonce, data: publicKey, tags: nil)
             let sc = SpendingCondition(kind: .P2PK, payload: payload)
             let secret = try sc.serialize() // ONLY EVER SERIALIZE THIS ONCE to not have order of fields change
-            let blindingFactor = try secp256k1.Signing.PrivateKey()
-            let outputRaw = try Crypto.output(secret: secret, blindingFactor: blindingFactor)
-            let output = Output(amount: amount,
-                                B_: String(bytes: outputRaw.dataRepresentation),
-                                id: keyset.keysetID)
-            outputs.append(output)
-            blindingFactors.append(String(bytes: blindingFactor.dataRepresentation))
+
+            let B_Hex: String
+            let blindingFactorHex: String
+            if isBLS {
+                let r = try Crypto.BLS.randomScalar()
+                B_Hex = String(bytes: Crypto.BLS.blind(secret: secret, r: r).compressedBytes)
+                blindingFactorHex = String(bytes: r.bytes)
+            } else {
+                let blindingFactor = try secp256k1.Signing.PrivateKey()
+                let outputRaw = try Crypto.output(secret: secret, blindingFactor: blindingFactor)
+                B_Hex = String(bytes: outputRaw.dataRepresentation)
+                blindingFactorHex = String(bytes: blindingFactor.dataRepresentation)
+            }
+            outputs.append(Output(amount: amount, B_: B_Hex, id: keyset.keysetID))
+            blindingFactors.append(blindingFactorHex)
             secrets.append(secret)
         }
         return (outputs, blindingFactors, secrets)
@@ -154,9 +164,9 @@ public enum CashuSwift {
     /// - Throws: An error if the check fails
     public static func check(_ proofs:[ProofRepresenting], mint:MintRepresenting) async throws -> [Proof.ProofState] {
         let ys = try proofs.map { proof in
-            try Crypto.secureHashToCurve(message: proof.secret).stringRepresentation
+            try stateCheckY(for: proof)
         }
-        
+
         let request = Proof.StateCheckRequest(Ys: ys)
         let response = try await Network.post(url: mint.url.appending(path: "/v1/checkstate"),
                                               body: request,
@@ -168,9 +178,9 @@ public enum CashuSwift {
     
     public static func check(_ proofs:[ProofRepresenting], url:URL) async throws -> [Proof.ProofState] {
         let ys = try proofs.map { proof in
-            try Crypto.secureHashToCurve(message: proof.secret).stringRepresentation
+            try stateCheckY(for: proof)
         }
-        
+
         let request = Proof.StateCheckRequest(Ys: ys)
         let response = try await Network.post(url: url.appending(path: "/v1/checkstate"),
                                               body: request,
@@ -180,8 +190,17 @@ public enum CashuSwift {
         }
     }
 
+    /// NUT-07 lookup point `Y = hashToCurve(secret)` (compressed hex) for a proof's state check.
+    /// The curve is selected by keyset version: BLS12-381 G1 for v3 (`02…`), secp256k1 otherwise.
+    static func stateCheckY(for proof: ProofRepresenting) throws -> String {
+        if KeysetVersion(keysetID: proof.keysetID)?.isBLS == true {
+            return String(bytes: Crypto.BLS.hashToCurveG1(proof.secret).compressedBytes)
+        }
+        return try Crypto.secureHashToCurve(message: proof.secret).stringRepresentation
+    }
+
     // MARK: - MISC
-    
+
     static func normalize(_ proofs:[ProofRepresenting]) -> [Proof] {
         proofs.map({ CashuSwift.Proof($0) })
     }
