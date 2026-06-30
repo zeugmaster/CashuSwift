@@ -287,33 +287,28 @@ public enum CashuSwift {
         
         var units:Set<String> = []
         for proof in proofs {
-            if proof.keysetID.count == 12 {
+            guard let version = KeysetVersion(keysetID: proof.keysetID) else {
+                throw CashuError.invalidKeysetID("Invalid keyset id \(proof.keysetID)")
+            }
+            if version.supportsShortID {
+                // v1 / v3 IDs may be shortened — resolve to the full keyset by prefix.
+                let keysets = mint.keysets.filter({ $0.keysetID.hasPrefix(proof.keysetID) })
+
+                guard !keysets.isEmpty else {
+                    throw CashuError.unitError("unable to determine any keyset with id \(proof.keysetID) for mint \(mint.url.absoluteString)")
+                }
+
+                guard keysets.count == 1 else {
+                    throw CashuError.invalidKeysetID("keyset id \(proof.keysetID) of mint \(mint.url.absoluteString) resolves to MORE THAN ONE keyset")
+                }
+
+                units.insert(keysets.first!.unit)
+            } else {
+                // legacy / v0 IDs are always full — match exactly.
                 guard let keysetForID = mint.keysets.first(where: { $0.keysetID == proof.keysetID }) else {
                     throw CashuError.unitError("unable to determine keyset with id \(proof.keysetID) for mint \(mint.url.absoluteString)")
                 }
                 units.insert(keysetForID.unit)
-            } else {
-                if proof.keysetID.hasPrefix("00") {
-                    guard let keysetForID = mint.keysets.first(where: { $0.keysetID == proof.keysetID }) else {
-                        throw CashuError.unitError("unable to determine keyset with id \(proof.keysetID) for mint \(mint.url.absoluteString)")
-                    }
-                    
-                    units.insert(keysetForID.unit)
-                } else if proof.keysetID.hasPrefix("01") {
-                    let keysets = mint.keysets.filter({ $0.keysetID.hasPrefix(proof.keysetID) })
-                    
-                    guard !keysets.isEmpty else {
-                        throw CashuError.unitError("unable to determine any keyset with id \(proof.keysetID) for mint \(mint.url.absoluteString)")
-                    }
-                    
-                    guard keysets.count == 1 else {
-                        throw CashuError.invalidKeysetID("keyset id \(proof.keysetID) of mint \(mint.url.absoluteString) resolves to MORE THAN ONE keyset")
-                    }
-                    
-                    units.insert(keysets.first!.unit)
-                } else {
-                    throw CashuError.invalidKeysetID("Invalid keyset id \(proof.keysetID)")
-                }
             }
         }
         return units
@@ -392,7 +387,7 @@ extension Array where Element : ProofRepresenting {
     
     public func withShortKeysetID() -> [CashuSwift.Proof] {
         self.map { p in
-            let shortID = p.keysetID.count != 12 && p.keysetID.hasPrefix("01") ? String(p.keysetID.prefix(16)) : p.keysetID
+            let shortID = CashuSwift.KeysetVersion(keysetID: p.keysetID)?.supportsShortID == true ? String(p.keysetID.prefix(16)) : p.keysetID
             return CashuSwift.Proof(keysetID: shortID,
                                     amount: p.amount,
                                     secret: p.secret,
@@ -407,23 +402,21 @@ extension Array where Element : ProofRepresenting {
         
         for p in self {
             let fullID: String
-            if p.keysetID.count == 12 {
+            guard let version = CashuSwift.KeysetVersion(keysetID: p.keysetID) else {
+                throw CashuError.invalidKeysetID("keyset id \(p.keysetID) is invalid (neither legacy, nor v0 '00', v1 '01' or v3 '02')")
+            }
+            switch version {
+            case .legacyBase64, .v0:
                 fullID = p.keysetID
-            } else {
-                if p.keysetID.hasPrefix("00") {
-                    fullID = p.keysetID
-                } else if p.keysetID.hasPrefix("01") {
-                    let keysets = mint.keysets.filter({ $0.keysetID.hasPrefix(p.keysetID) })
-                    guard !keysets.isEmpty else {
-                        throw CashuError.invalidKeysetID("No keyset of mint \(mint.url.absoluteString) could be determined for short id \(p.keysetID)")
-                    }
-                    guard keysets.count == 1 else {
-                        throw CashuError.invalidKeysetID("More than one keyset of mint \(mint.url.absoluteString) matches the shortened version \(p.keysetID)")
-                    }
-                    fullID = keysets.first!.keysetID
-                } else {
-                    throw CashuError.invalidKeysetID("keyset id \(p.keysetID) is invalid (neither legacy, nor v0 '00' or v1 '01'")
+            case .v1, .v3:
+                let keysets = mint.keysets.filter({ $0.keysetID.hasPrefix(p.keysetID) })
+                guard !keysets.isEmpty else {
+                    throw CashuError.invalidKeysetID("No keyset of mint \(mint.url.absoluteString) could be determined for short id \(p.keysetID)")
                 }
+                guard keysets.count == 1 else {
+                    throw CashuError.invalidKeysetID("More than one keyset of mint \(mint.url.absoluteString) matches the shortened version \(p.keysetID)")
+                }
+                fullID = keysets.first!.keysetID
             }
             proofs.append(CashuSwift.Proof(keysetID: fullID,
                                            amount: p.amount,
