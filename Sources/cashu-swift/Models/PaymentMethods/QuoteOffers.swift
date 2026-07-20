@@ -94,7 +94,12 @@ extension CashuSwift {
             let request = Generic.MeltQuoteRequest(
                 method: offer.method,
                 unit: offer.unit,
-                request: offer.ticket
+                request: offer.ticket,
+                // cdk (<= rev 6132607) requires the method to be repeated in the
+                // body of custom-method melt quote requests (MeltQuoteCustomRequest
+                // has a mandatory `method` field), in addition to the URL path.
+                // Plain NUT-05 does not — harmless for conforming mints.
+                extra: ["method": .string(offer.method.rawValue)]
             )
             return try await Generic.requestMeltQuote(request, from: mint)
         }
