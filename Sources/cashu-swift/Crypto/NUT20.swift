@@ -9,6 +9,20 @@
 import Foundation
 import secp256k1
 
+extension CashuSwift {
+    /// Which NUT-20 `msg_to_sign` construction to use.
+    ///
+    /// The spec was revised to a domain-tagged, length-framed format, but deployed
+    /// mints (e.g. cdk <= rev 6132607) still verify the original plain
+    /// concatenation `quote_id || hex(B_0) || ... || hex(B_n)` as UTF-8 bytes.
+    /// Callers targeting such mints must pass `.legacyConcat` until the mint
+    /// implementation catches up.
+    public enum Nut20SignatureFormat: Sendable {
+        case current
+        case legacyConcat
+    }
+}
+
 extension CashuSwift.Crypto {
 
     /// Builds the NUT-20 `msg_to_sign` over raw bytes:
@@ -44,12 +58,29 @@ extension CashuSwift.Crypto {
         return Data(msg)
     }
 
+    /// Builds the pre-revision NUT-20 message: `quote_id || hex(B_0) || ... || hex(B_n)`
+    /// concatenated as UTF-8 bytes.
+    static func nut20LegacyMessageToSign(quoteID: String, outputs: [CashuSwift.Output]) -> Data {
+        var msg = quoteID
+        for output in outputs {
+            msg += output.B_.lowercased()
+        }
+        return Data(msg.utf8)
+    }
+
     /// BIP340 Schnorr signature on SHA-256 of the NUT-20 message, hex-encoded.
     static func nut20Signature(quoteID: String,
                                outputs: [CashuSwift.Output],
-                               privateKey: Data) throws -> String {
+                               privateKey: Data,
+                               format: CashuSwift.Nut20SignatureFormat = .current) throws -> String {
         let key = try secp256k1.Schnorr.PrivateKey(dataRepresentation: privateKey)
-        let message = try nut20MessageToSign(quoteID: quoteID, outputs: outputs)
+        let message: Data
+        switch format {
+        case .current:
+            message = try nut20MessageToSign(quoteID: quoteID, outputs: outputs)
+        case .legacyConcat:
+            message = nut20LegacyMessageToSign(quoteID: quoteID, outputs: outputs)
+        }
         let signature = try key.signature(for: message)
         return String(bytes: signature.bytes)
     }

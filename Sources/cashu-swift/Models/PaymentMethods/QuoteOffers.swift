@@ -126,7 +126,8 @@ extension CashuSwift {
                                 seed: String?,
                                 quoteKey: Data,
                                 amount: Int? = nil,
-                                preferredDistribution: [Int]? = nil) async throws -> IssueResult {
+                                preferredDistribution: [Int]? = nil,
+                                signatureFormat: Nut20SignatureFormat = .current) async throws -> IssueResult {
             guard let amount = amount ?? quote.amount, amount > 0 else {
                 throw CashuError.invalidAmount
             }
@@ -140,7 +141,8 @@ extension CashuSwift {
                 let signature = try Crypto.nut20Signature(
                     quoteID: quoteID,
                     outputs: outputs,
-                    privateKey: quoteKey
+                    privateKey: quoteKey,
+                    format: signatureFormat
                 )
                 return SignedMintExecutionBody(quote: quoteID, outputs: outputs, signature: signature)
             }

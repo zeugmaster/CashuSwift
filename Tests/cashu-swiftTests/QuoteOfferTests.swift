@@ -211,6 +211,15 @@ final class QuoteOfferTests: XCTestCase {
         XCTAssertEqual([UInt8](msg), expected)
     }
 
+    func testNut20LegacyMessageAggregation() {
+        let outputs = [
+            CashuSwift.Output(amount: 1, B_: "02AABB", id: "005b109edf5a8bd6"),
+            CashuSwift.Output(amount: 256, B_: "ccdd", id: "005b109edf5a8bd6"),
+        ]
+        let msg = CashuSwift.Crypto.nut20LegacyMessageToSign(quoteID: "q1", outputs: outputs)
+        XCTAssertEqual(msg, Data("q102aabbccdd".utf8))
+    }
+
     func testNut20KeyDerivationAndSignature() throws {
         let seed = "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899"
 
