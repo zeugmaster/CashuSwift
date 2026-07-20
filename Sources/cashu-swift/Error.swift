@@ -62,6 +62,15 @@ public enum CashuError: Swift.Error {
     // Payment-method backend errors
     case unsupportedPaymentMethod(String)
     case bolt12RequiresPubkey
+
+    // NUT-XX Quote Offer errors
+    case quoteOfferEncoding(String)
+    case quoteOfferDecoding(String)
+    case quoteOfferValidation(String)
+    case quoteOfferExpired
+    case quoteOfferRequiresPubkey
+    case offerTicketUnknownOrExpired // 20010
+    case offerTicketAlreadyClaimed // 20011
 }
 
 extension CashuError: LocalizedError {
@@ -111,6 +120,13 @@ extension CashuError: LocalizedError {
         case .paymentRequestAmount(let msg): return "Payment request amount error: \(msg)"
         case .unsupportedPaymentMethod(let msg): return "Unsupported payment method: \(msg)"
         case .bolt12RequiresPubkey: return "BOLT12 mint quotes require a pubkey per NUT-25"
+        case .quoteOfferEncoding(let msg): return "Quote offer encoding error: \(msg)"
+        case .quoteOfferDecoding(let msg): return "Quote offer decoding error: \(msg)"
+        case .quoteOfferValidation(let msg): return "Quote offer validation error: \(msg)"
+        case .quoteOfferExpired: return "Quote offer is expired"
+        case .quoteOfferRequiresPubkey: return "Claiming a mint quote offer requires a NUT-20 pubkey"
+        case .offerTicketUnknownOrExpired: return "Offer ticket is unknown or expired"
+        case .offerTicketAlreadyClaimed: return "Offer ticket has already been claimed"
         }
     }
 }
@@ -135,7 +151,11 @@ extension CashuError: Equatable {
              (.invoiceAlreadyPaid, .invoiceAlreadyPaid),
              (.quoteIsExpired, .quoteIsExpired),
              (.invalidKeysetID, .invalidKeysetID),
-             (.bolt12RequiresPubkey, .bolt12RequiresPubkey):
+             (.bolt12RequiresPubkey, .bolt12RequiresPubkey),
+             (.quoteOfferExpired, .quoteOfferExpired),
+             (.quoteOfferRequiresPubkey, .quoteOfferRequiresPubkey),
+             (.offerTicketUnknownOrExpired, .offerTicketUnknownOrExpired),
+             (.offerTicketAlreadyClaimed, .offerTicketAlreadyClaimed):
             return true
         
         // Cases with associated values (String)
@@ -165,7 +185,10 @@ extension CashuError: Equatable {
              (.unsupportedTransport, .unsupportedTransport),
              (.lockingConditionMismatch, .lockingConditionMismatch),
              (.paymentRequestAmount, .paymentRequestAmount),
-             (.unsupportedPaymentMethod, .unsupportedPaymentMethod):
+             (.unsupportedPaymentMethod, .unsupportedPaymentMethod),
+             (.quoteOfferEncoding, .quoteOfferEncoding),
+             (.quoteOfferDecoding, .quoteOfferDecoding),
+             (.quoteOfferValidation, .quoteOfferValidation):
             return true
             
         default:

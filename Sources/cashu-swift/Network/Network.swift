@@ -103,6 +103,11 @@ struct Network {
             return CashuError.keysetInactive
         case let s where s.contains("20001"):
             return CashuError.quoteNotPaid
+        // NUT-XX offer ticket codes must match before the loose "2001" typo branch below.
+        case let s where s.contains("20010"):
+            return CashuError.offerTicketUnknownOrExpired
+        case let s where s.contains("20011"):
+            return CashuError.offerTicketAlreadyClaimed
         case let s where s.contains("2001"): // to account for a typo in nutshell error codes
             return CashuError.quoteNotPaid
         case let s where s.contains("20002"):

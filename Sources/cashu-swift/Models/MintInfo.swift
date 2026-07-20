@@ -66,6 +66,8 @@ extension CashuSwift.Mint {
             public let nut15: NutInfo?
             public let nut17: NutInfo?
             public let nut20: NutInfo?
+            /// NUT-XX quote offers. The key is the placeholder "XX" until the NUT is numbered.
+            public let nutXX: NutInfo?
 
             enum CodingKeys: String, CodingKey {
                 case nut04 = "4"
@@ -80,6 +82,7 @@ extension CashuSwift.Mint {
                 case nut15 = "15"
                 case nut17 = "17"
                 case nut20 = "20"
+                case nutXX = "XX"
             }
 
             public init(from decoder: Decoder) throws {
@@ -96,6 +99,7 @@ extension CashuSwift.Mint {
                 nut15 = try container.decodeIfPresent(NutInfo.self, forKey: .nut15)
                 nut17 = try container.decodeIfPresent(NutInfo.self, forKey: .nut17)
                 nut20 = try container.decodeIfPresent(NutInfo.self, forKey: .nut20)
+                nutXX = try container.decodeIfPresent(NutInfo.self, forKey: .nutXX)
             }
         }
 
@@ -250,5 +254,13 @@ extension CashuSwift.Mint.Info {
                          unit: String,
                          direction: QuoteDirection) -> Bool {
         paymentMethodSetting(direction: direction, method: method, unit: unit) != nil
+    }
+
+    /// Whether the mint advertises NUT-XX quote offer support.
+    public var supportsQuoteOffers: Bool {
+        if case .bool(let supported) = nuts?.nutXX?.supported {
+            return supported
+        }
+        return false
     }
 }
