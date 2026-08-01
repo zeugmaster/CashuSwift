@@ -21,6 +21,19 @@ extension CashuSwift {
             init(_ string: String) { self.stringValue = string }
         }
 
+        /// Mint execution body carrying the NUT-20 signature: `{ quote, outputs, signature }`.
+        public struct SignedMintExecutionBody: Codable, Sendable {
+            public let quote: String
+            public let outputs: [Output]
+            public let signature: String
+
+            public init(quote: String, outputs: [Output], signature: String) {
+                self.quote = quote
+                self.outputs = outputs
+                self.signature = signature
+            }
+        }
+
         // MARK: - Quote requests
 
         public struct MintQuoteRequest: CashuSwift.MintQuoteRequest {
@@ -325,6 +338,45 @@ extension CashuSwift {
                 preferredDistribution: preferredDistribution
             ) { quoteID, outputs in
                 StandardMintExecutionBody(quote: quoteID, outputs: outputs)
+            }
+        }
+
+        /// Derives the deterministic NUT-20 quote-locking key `m/129373'/20'/0'/0'/{counter}`
+        /// from the wallet seed. Use a fresh counter per quote request and persist the
+        /// counter (or key) with the pending quote so the wallet can sign at issuance
+        /// and after restore.
+        public static func quoteLockingKey(seed: String, counter: UInt32) throws -> (privateKey: Data, publicKey: String) {
+            try Crypto.nut20QuoteLockingKey(seed: seed, counter: counter)
+        }
+
+        /// Issues ecash against a paid, NUT-20 locked mint quote. The execution body
+        /// carries a NUT-20 signature produced with `quoteKey` — the private key whose
+        /// public key was sent with the quote request. `amount` defaults to the
+        /// quote's amount.
+        public static func mint(quote: MintQuote,
+                                from mint: Mint,
+                                seed: String?,
+                                quoteKey: Data,
+                                amount: Int? = nil,
+                                preferredDistribution: [Int]? = nil,
+                                signatureFormat: Nut20SignatureFormat = .current) async throws -> IssueResult {
+            guard let amount = amount ?? quote.amount, amount > 0 else {
+                throw CashuError.invalidAmount
+            }
+            return try await CashuSwift._mint(
+                quote: quote,
+                amount: amount,
+                mint: mint,
+                seed: seed,
+                preferredDistribution: preferredDistribution
+            ) { quoteID, outputs in
+                let signature = try Crypto.nut20Signature(
+                    quoteID: quoteID,
+                    outputs: outputs,
+                    privateKey: quoteKey,
+                    format: signatureFormat
+                )
+                return SignedMintExecutionBody(quote: quoteID, outputs: outputs, signature: signature)
             }
         }
 
