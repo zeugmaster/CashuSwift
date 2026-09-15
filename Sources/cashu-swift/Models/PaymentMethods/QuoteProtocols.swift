@@ -10,7 +10,7 @@ extension CashuSwift {
     ///
     /// Mint quotes (NUT-23 BOLT11) cycle through `unpaid` → `paid` → `issued`.
     /// Melt quotes cycle through `unpaid` → `pending` → `paid`. Some method-specific
-    /// NUTs omit the `state` field (e.g. NUT-25 BOLT12 mint quotes, NUT-XX onchain
+    /// NUTs omit the `state` field (e.g. NUT-25 BOLT12 mint quotes, NUT-30 onchain
     /// mint quotes); in those cases the value is `nil` and the wallet should consult
     /// the method's own progress fields (e.g. `amountPaid` / `amountIssued`).
     public enum QuoteState: String, Codable, Sendable {
@@ -25,7 +25,7 @@ extension CashuSwift {
     /// user can pay.
     ///
     /// Concrete conformances live in the per-method namespaces (`Bolt11`, `Bolt12`,
-    /// `Generic`, future `Onchain`).
+    /// `Generic`, `Onchain`).
     public protocol MintQuoteRequest: Codable, Sendable {
         var method: PaymentMethodID { get }
         var unit: String { get }
@@ -54,7 +54,7 @@ extension CashuSwift {
     /// Melt quote returned by the mint.
     ///
     /// Method-specific fee details (BOLT11/12 flat `fee_reserve`, onchain
-    /// `fee_options` + `selected_estimated_blocks`) and method-specific payment
+    /// `fee_options` + `selected_fee_index`) and method-specific payment
     /// proofs (BOLT11/12 `payment_preimage`, onchain `outpoint`) live on the
     /// concrete conforming types. The protocol exposes `requiredInputAmount(inputFee:)`
     /// so the generic melt core can compute the input sum the wallet must cover

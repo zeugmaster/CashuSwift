@@ -3,7 +3,7 @@
 //  CashuSwift
 //
 //  Method-agnostic mint and melt operations. Each payment-method namespace
-//  (`Bolt11`, `Bolt12`, `Generic`, future `Onchain`) provides typed entry
+//  (`Bolt11`, `Bolt12`, `Generic`, `Onchain`) provides typed entry
 //  points that delegate into the generic implementations below and pass
 //  a method-specific execution-body builder.
 //
@@ -42,7 +42,7 @@ extension CashuSwift {
 
     /// Standard melt execution body — `{ quote, inputs, outputs?, prefer_async? }` —
     /// used by NUT-23 BOLT11 and NUT-25 BOLT12. Methods that need extra fields
-    /// (e.g. NUT-XX onchain's `estimated_blocks`) declare their own body type.
+    /// (e.g. NUT-30 onchain's `fee_index`) declare their own body type.
     public struct StandardMeltExecutionBody: Codable, Sendable {
         public let quote: String
         public let inputs: [Proof]
