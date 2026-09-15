@@ -25,6 +25,26 @@ extension CashuSwift {
 
 extension CashuSwift.Crypto {
 
+    /// Parses the compressed secp256k1 public key required by NUT-20.
+    static func nut20PublicKey(_ hex: String) throws -> PublicKey {
+        guard hex.utf8.count == 66,
+              let bytes = try? hex.bytes,
+              bytes.count == 33,
+              bytes.first == 0x02 || bytes.first == 0x03,
+              let key = try? PublicKey(dataRepresentation: bytes, format: .compressed) else {
+            throw CashuError.invalidKey("Quote pubkey must be a compressed secp256k1 public key.")
+        }
+        return key
+    }
+
+    static func validateNut20QuoteKey(_ privateKey: Data, pubkey: String) throws {
+        let expected = try nut20PublicKey(pubkey)
+        guard let key = try? PrivateKey(dataRepresentation: privateKey, format: .compressed),
+              key.publicKey.dataRepresentation == expected.dataRepresentation else {
+            throw CashuError.invalidKey("Quote signing key does not match the quote pubkey.")
+        }
+    }
+
     /// Builds the NUT-20 `msg_to_sign` over raw bytes:
     /// `b"Cashu_MintQuoteSig_v1" || len32(quote) || quote || per output: len32(amount)||amount || len32(B_)||B_`
     /// where amounts are canonical minimal big-endian bytes and `B_` is the raw

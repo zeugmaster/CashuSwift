@@ -12,7 +12,7 @@ extension CashuSwift {
     ///
     /// Unlike BOLT11, a BOLT12 offer can be paid multiple times. The mint tracks
     /// `amountPaid` and `amountIssued` and the wallet may call `mint` any number of
-    /// times for the same quote up to the unfunded delta.
+    /// times for the same quote up to the remaining paid balance.
     public enum Bolt12 {
 
         public static let id: PaymentMethodID = .bolt12
@@ -91,8 +91,21 @@ extension CashuSwift {
 
             public var method: PaymentMethodID { .bolt12 }
 
-            /// Amount remaining to be minted from this quote.
-            public var mintableAmount: Int { max(amountPaid - amountIssued, 0) }
+            /// Amount remaining to be minted, in `unit`.
+            /// Throws `invalidQuoteAccounting` for negative or inconsistent totals.
+            public var mintableAmount: Int {
+                get throws {
+                    guard amountPaid >= 0, amountIssued >= 0, amountIssued <= amountPaid else {
+                        throw CashuError.invalidQuoteAccounting
+                    }
+                    return amountPaid - amountIssued
+                }
+            }
+
+            func validate() throws {
+                _ = try mintableAmount
+                _ = try Crypto.nut20PublicKey(pubkey)
+            }
 
             public init(quote: String,
                         request: String,
@@ -165,10 +178,30 @@ extension CashuSwift {
 
         // MARK: - Entry points
 
+        /// Derives a NUT-20 quote-locking key from the wallet seed.
+        /// Use a fresh counter per quote and persist it (or the private key) with
+        /// the quote. Reuse that key for subsequent issuances of the same quote.
+        /// This counter is independent of the NUT-13 output derivation counters.
+        public static func quoteLockingKey(seed: String, counter: UInt32) throws -> (privateKey: Data, publicKey: String) {
+            try Crypto.nut20QuoteLockingKey(seed: seed, counter: counter)
+        }
+
         /// Requests a BOLT12 mint quote.
         public static func requestMintQuote(_ request: MintQuoteRequest,
                                             from mint: Mint) async throws -> MintQuote {
-            try await CashuSwift._requestMintQuote(request, from: mint, as: MintQuote.self)
+            guard !request.pubkey.isEmpty else { throw CashuError.bolt12RequiresPubkey }
+            let requestedKey = try Crypto.nut20PublicKey(request.pubkey)
+            if let amount = request.amount, amount <= 0 { throw CashuError.invalidAmount }
+            let quote = try await CashuSwift._requestMintQuote(request, from: mint, as: MintQuote.self)
+            try quote.validate()
+            let returnedKey = try Crypto.nut20PublicKey(quote.pubkey)
+            guard requestedKey.dataRepresentation == returnedKey.dataRepresentation else {
+                throw CashuError.invalidKey("Mint returned a different quote pubkey than requested.")
+            }
+            guard quote.unit == request.unit else {
+                throw CashuError.unitError("Mint quote unit does not match the requested unit.")
+            }
+            return quote
         }
 
         public static func requestMeltQuote(_ request: MeltQuoteRequest,
@@ -178,7 +211,12 @@ extension CashuSwift {
 
         public static func mintQuoteState(_ id: String,
                                           from mint: Mint) async throws -> MintQuote {
-            try await CashuSwift._mintQuoteState(quoteID: id, method: .bolt12, from: mint, as: MintQuote.self)
+            let quote = try await CashuSwift._mintQuoteState(quoteID: id, method: .bolt12, from: mint, as: MintQuote.self)
+            try quote.validate()
+            guard quote.quote == id else {
+                throw CashuError.inputError("Mint returned a different quote ID than requested.")
+            }
+            return quote
         }
 
         public static func meltQuoteState(_ id: String,
@@ -186,31 +224,47 @@ extension CashuSwift {
             try await CashuSwift._meltQuoteState(quoteID: id, method: .bolt12, from: mint, as: MeltQuote.self)
         }
 
-        /// Issues `amount` ecash against a BOLT12 mint quote.
-        ///
-        /// `amount` must be ≤ `quote.mintableAmount` (the difference between the
-        /// amount paid into the offer and the amount already issued). For multiple
-        /// partial mints, refresh the quote between calls via `mintQuoteState`.
+        /// BOLT12 quotes require the private key associated with their pubkey.
+        /// This overload throws before generating outputs or contacting the mint.
+        @available(*, deprecated, message: "BOLT12 minting requires quoteKey. Use mint(quote:from:amount:seed:quoteKey:preferredDistribution:).")
         public static func mint(quote: MintQuote,
                                 from mint: Mint,
                                 amount: Int,
                                 seed: String?,
                                 preferredDistribution: [Int]? = nil) async throws -> IssueResult {
+            throw CashuError.quoteSigningKeyRequired
+        }
+
+        /// Issues `amount` ecash using current NUT-20 quote authorization.
+        ///
+        /// `quoteKey` must match `quote.pubkey`; `seed` only controls output secrets.
+        /// `amount` must be positive and no greater than `try quote.mintableAmount`.
+        /// Refresh the quote between partial issuances via `mintQuoteState` and
+        /// serialize issuance attempts for a quote in the wallet.
+        /// Persist the proofs and consumed NUT-13 output counters in the wallet;
+        /// this operation does not update the mint's local derivation counters.
+        public static func mint(quote: MintQuote,
+                                from mint: Mint,
+                                amount: Int,
+                                seed: String?,
+                                quoteKey: Data,
+                                preferredDistribution: [Int]? = nil) async throws -> IssueResult {
+            let available = try quote.mintableAmount
+            try Crypto.validateNut20QuoteKey(quoteKey, pubkey: quote.pubkey)
             guard amount > 0 else {
                 throw CashuError.invalidAmount
             }
-            guard amount <= quote.mintableAmount else {
+            guard amount <= available else {
                 throw CashuError.amountOutsideOfLimitRange
             }
-            return try await CashuSwift._mint(
+            return try await CashuSwift._mintSigned(
                 quote: quote,
                 amount: amount,
                 mint: mint,
                 seed: seed,
+                quoteKey: quoteKey,
                 preferredDistribution: preferredDistribution
-            ) { quoteID, outputs in
-                StandardMintExecutionBody(quote: quoteID, outputs: outputs)
-            }
+            )
         }
 
         public static func melt(quote: MeltQuote,

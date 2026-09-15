@@ -78,6 +78,54 @@ print("Minted \(proofs.count) proofs totaling \(proofs.sum) sats")
 print("DLEQ verification: \(validDLEQ ? "✓ Passed" : "✗ Failed")")
 ```
 
+### BOLT12 minting and quote signing
+
+BOLT12 mint quotes require NUT-20 authorization. Keep the quote's private key
+(or its seed derivation counter) so every issuance against that quote can be
+signed, including after restarting the wallet.
+
+```swift
+// seedHex is the wallet's hex-encoded seed. Reserve and persist a fresh
+// quoteCounter for this quote, independently of NUT-13 output counters.
+let quoteKey = try CashuSwift.Bolt12.quoteLockingKey(
+    seed: seedHex, counter: quoteCounter
+)
+let quote = try await CashuSwift.Bolt12.requestMintQuote(
+    .init(unit: "sat", amount: nil, pubkey: quoteKey.publicKey),
+    from: mint
+)
+// Persist the quote and its key/counter before presenting quote.request for payment.
+
+// After payment, refresh the quote to read its cumulative accounting.
+let updated = try await CashuSwift.Bolt12.mintQuoteState(quote.quote, from: mint)
+let available = try updated.mintableAmount
+if available > 0 {
+    let result = try await CashuSwift.Bolt12.mint(
+        quote: updated,
+        from: mint,
+        amount: available, // A smaller positive amount is also allowed.
+        seed: seedHex,
+        quoteKey: quoteKey.privateKey
+    )
+    // Inspect result.dleqResult before crediting proofs. Persist the returned
+    // proofs and the consumed output counters; CashuSwift does not store them.
+}
+```
+
+Serialize issuance attempts for each quote and refresh it between partial
+issuances. The quote signing key stays the same for that quote; the wallet must
+reserve and advance NUT-13 output counters for each issuance. `seed` controls
+output derivation and does not replace `quoteKey`.
+
+Migration from 0.4.3:
+
+- Pass `quoteKey:` to typed `Bolt12.mint`. The unsigned overload is deprecated
+  and throws `CashuError.quoteSigningKeyRequired` without contacting the mint.
+- Read the balance with `try quote.mintableAmount`. Negative or inconsistent
+  paid/issued totals throw `CashuError.invalidQuoteAccounting`.
+- Typed BOLT12 uses the current NUT-20 signature format. The generic signed API
+  retains its existing defaults and explicit `.legacyConcat` compatibility option.
+
 ### Sending Ecash
 
 ```swift

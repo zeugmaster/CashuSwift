@@ -22,17 +22,7 @@ extension CashuSwift {
         }
 
         /// Mint execution body carrying the NUT-20 signature: `{ quote, outputs, signature }`.
-        public struct SignedMintExecutionBody: Codable, Sendable {
-            public let quote: String
-            public let outputs: [Output]
-            public let signature: String
-
-            public init(quote: String, outputs: [Output], signature: String) {
-                self.quote = quote
-                self.outputs = outputs
-                self.signature = signature
-            }
-        }
+        public typealias SignedMintExecutionBody = CashuSwift.SignedMintExecutionBody
 
         // MARK: - Quote requests
 
@@ -363,21 +353,15 @@ extension CashuSwift {
             guard let amount = amount ?? quote.amount, amount > 0 else {
                 throw CashuError.invalidAmount
             }
-            return try await CashuSwift._mint(
+            return try await CashuSwift._mintSigned(
                 quote: quote,
                 amount: amount,
                 mint: mint,
                 seed: seed,
-                preferredDistribution: preferredDistribution
-            ) { quoteID, outputs in
-                let signature = try Crypto.nut20Signature(
-                    quoteID: quoteID,
-                    outputs: outputs,
-                    privateKey: quoteKey,
-                    format: signatureFormat
-                )
-                return SignedMintExecutionBody(quote: quoteID, outputs: outputs, signature: signature)
-            }
+                quoteKey: quoteKey,
+                preferredDistribution: preferredDistribution,
+                signatureFormat: signatureFormat
+            )
         }
 
         public static func melt(quote: MeltQuote,

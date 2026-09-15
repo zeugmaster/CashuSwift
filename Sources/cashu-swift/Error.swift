@@ -62,6 +62,8 @@ public enum CashuError: Swift.Error {
     // Payment-method backend errors
     case unsupportedPaymentMethod(String)
     case bolt12RequiresPubkey
+    case quoteSigningKeyRequired
+    case invalidQuoteAccounting
 }
 
 extension CashuError: LocalizedError {
@@ -111,6 +113,8 @@ extension CashuError: LocalizedError {
         case .paymentRequestAmount(let msg): return "Payment request amount error: \(msg)"
         case .unsupportedPaymentMethod(let msg): return "Unsupported payment method: \(msg)"
         case .bolt12RequiresPubkey: return "BOLT12 mint quotes require a pubkey per NUT-25"
+        case .quoteSigningKeyRequired: return "Minting this quote requires its quote signing private key"
+        case .invalidQuoteAccounting: return "Mint quote amounts must satisfy 0 <= amount_issued <= amount_paid"
         }
     }
 }
@@ -135,7 +139,9 @@ extension CashuError: Equatable {
              (.invoiceAlreadyPaid, .invoiceAlreadyPaid),
              (.quoteIsExpired, .quoteIsExpired),
              (.invalidKeysetID, .invalidKeysetID),
-             (.bolt12RequiresPubkey, .bolt12RequiresPubkey):
+             (.bolt12RequiresPubkey, .bolt12RequiresPubkey),
+             (.quoteSigningKeyRequired, .quoteSigningKeyRequired),
+             (.invalidQuoteAccounting, .invalidQuoteAccounting):
             return true
         
         // Cases with associated values (String)
@@ -173,5 +179,4 @@ extension CashuError: Equatable {
         }
     }
 }
-
 
