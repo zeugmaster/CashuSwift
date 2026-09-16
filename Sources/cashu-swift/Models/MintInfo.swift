@@ -165,6 +165,8 @@ extension CashuSwift.Mint {
         public struct PaymentMethod: Codable, Sendable {
             public let method: CashuSwift.PaymentMethodID
             public let unit: String
+            /// Optional display name advertised by the mint (NUT-04 / NUT-05).
+            public let methodName: String?
             public let minAmount: Int?
             public let maxAmount: Int?
             /// Method-specific options as opaque JSON. For BOLT11 this commonly contains
@@ -176,18 +178,21 @@ extension CashuSwift.Mint {
 
             enum CodingKeys: String, CodingKey {
                 case method, unit, options, commands
+                case methodName = "method_name"
                 case minAmount = "min_amount"
                 case maxAmount = "max_amount"
             }
 
             public init(method: CashuSwift.PaymentMethodID,
                         unit: String,
+                        methodName: String? = nil,
                         minAmount: Int? = nil,
                         maxAmount: Int? = nil,
                         options: CashuSwift.JSONObject? = nil,
                         commands: [String]? = nil) {
                 self.method = method
                 self.unit = unit
+                self.methodName = methodName
                 self.minAmount = minAmount
                 self.maxAmount = maxAmount
                 self.options = options
@@ -199,6 +204,7 @@ extension CashuSwift.Mint {
                 let methodString = try container.decode(String.self, forKey: .method)
                 self.method = CashuSwift.PaymentMethodID(rawValue: methodString)
                 self.unit = try container.decode(String.self, forKey: .unit)
+                self.methodName = try container.decodeIfPresent(String.self, forKey: .methodName)
                 self.minAmount = try container.decodeIfPresent(Int.self, forKey: .minAmount)
                 self.maxAmount = try container.decodeIfPresent(Int.self, forKey: .maxAmount)
                 self.options = try container.decodeIfPresent(CashuSwift.JSONObject.self, forKey: .options)
