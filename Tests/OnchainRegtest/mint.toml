@@ -1,0 +1,41 @@
+[info]
+url = "http://127.0.0.1:19338"
+listen_host = "0.0.0.0"
+listen_port = 3338
+mnemonic = "env:CDK_MINTD_MNEMONIC"
+use_keyset_v2 = true
+
+[mint_info]
+name = "CashuSwift onchain regtest"
+
+[database]
+engine = "sqlite"
+
+[onchain]
+onchain_backend = "bdk"
+min_mint = 1000
+max_mint = 1000000
+min_melt = 1000
+max_melt = 1000000
+
+[bdk]
+network = "regtest"
+chain_source_type = "bitcoinrpc"
+bitcoind_rpc_host = "bitcoin"
+bitcoind_rpc_port = 18443
+bitcoind_rpc_user = "regtest"
+bitcoind_rpc_password = "env:CASHUSWIFT_TEST_RPC_PASSWORD"
+mnemonic = "env:CASHUSWIFT_TEST_BDK_MNEMONIC"
+num_confs = 2
+min_receive_amount_sat = 1000
+min_send_amount_sat = 1000
+sync_interval_secs = 1
+
+[bdk.batch_config]
+fee_options = ["immediate", "standard", "economy"]
+poll_interval_secs = 1
+standard_deadline_secs = 1
+economy_deadline_secs = 1
+
+[prometheus]
+enabled = false

@@ -1,0 +1,24 @@
+name: cashuswift-onchain-regtest
+services:
+  bitcoin:
+    image: bitcoin/bitcoin:29.0@sha256:a6aa8a9e349b4108d13c558dbe43064057bd7b6474b858966884f9cb95b7ed78
+    command: ["-regtest=1", "-server=1", "-rpcbind=0.0.0.0", "-rpcallowip=0.0.0.0/0", "-rpcuser=regtest", "-rpcpassword=regtest", "-fallbackfee=0.00001", "-txindex=1"]
+    ports: ["127.0.0.1:19443:18443"]
+    healthcheck:
+      test: ["CMD", "bitcoin-cli", "-regtest", "-rpcuser=regtest", "-rpcpassword=regtest", "getblockchaininfo"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+  mint:
+    image: cashubtc/mintd:0.18.0@sha256:fd938da187fb9fce82627ced6d419e675dbd6db5f0d50dc6930b1f6e18c359f0
+    command: ["sh", "-c", "mkdir -p /data && cdk-mintd -w /data config init --new-mint --file /config/mint.toml && exec cdk-mintd -w /data"]
+    ports: ["127.0.0.1:19338:3338"]
+    volumes: ["./mint.toml:/config/mint.toml:ro"]
+    environment:
+      # Public test-only mnemonics. These containers must never use real Bitcoin.
+      CDK_MINTD_MNEMONIC: "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
+      CASHUSWIFT_TEST_BDK_MNEMONIC: "legal winner thank year wave sausage worth useful legal winner thank yellow"
+      CASHUSWIFT_TEST_RPC_PASSWORD: "regtest"
+    depends_on:
+      bitcoin:
+        condition: service_healthy
