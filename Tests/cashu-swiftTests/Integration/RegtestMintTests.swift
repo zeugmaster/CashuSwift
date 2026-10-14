@@ -129,6 +129,13 @@ final class RegtestMintTests: XCTestCase {
         )
         XCTAssertEqual(result.quote.state, .paid)
 
+        // An honest mint's change must always be recoverable; the legacy `change`
+        // field and the explicit outcome must agree.
+        if case .unrecoverable(_, let error) = result.changeOutcome {
+            XCTFail("melt change should be recoverable against a live mint: \(error)")
+        }
+        XCTAssertEqual(result.change?.map(\.C), result.changeOutcome.recoveredProofs?.map(\.C))
+
         let change = result.change ?? []
         let inputFee = try CashuSwift.calculateFee(for: sourceProofs, of: sourceMint)
         // The invariant: change.sum + amount + actual_LN_fee + inputFee == proofs.sum,
