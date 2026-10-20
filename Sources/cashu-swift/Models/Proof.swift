@@ -22,6 +22,7 @@ extension CashuSwift {
         
         public enum CodingKeys: String, CodingKey {
             case keysetID = "id", amount, secret, C, dleq, witness
+            case spendInfo = "spend_info"
         }
         
         /// The keyset ID this proof belongs to.
@@ -42,6 +43,9 @@ extension CashuSwift {
         /// Optional witness data for spending conditions.
         public var witness: String?
         
+        /// NUT-00 spend info of a v3 proof (bearer key, ephemeral, internal key, tree, NUMS offset).
+        public var spendInfo: SpendInfo?
+        
         public var description: String {
             return "C: ...\(C.suffix(6)), amount: \(amount)"
         }
@@ -54,6 +58,7 @@ extension CashuSwift {
             self.amount = proofRepresentation.amount
             self.secret = proofRepresentation.secret
             self.dleq = proofRepresentation.dleq
+            self.spendInfo = proofRepresentation.spendInfo
             
             self.witness = nil
         }
@@ -66,18 +71,21 @@ extension CashuSwift {
         ///   - C: The blinded signature from the mint
         ///   - dleq: Optional DLEQ proof for signature verification
         ///   - witness: Optional witness data for spending conditions
+        ///   - spendInfo: Optional NUT-00 spend info (v3 proofs)
         public init(keysetID:String,
                     amount:Int,
                     secret:String,
                     C:String,
                     dleq: DLEQ? = nil,
-                    witness: String? = nil) {
+                    witness: String? = nil,
+                    spendInfo: SpendInfo? = nil) {
             self.keysetID = keysetID
             self.amount = amount
             self.secret = secret
             self.C = C
             self.dleq = dleq
             self.witness = witness
+            self.spendInfo = spendInfo
         }
         
         // MARK: - Additional nested types
@@ -95,6 +103,13 @@ extension CashuSwift {
             let Y: String
             let state: ProofState
             let witness: String?
+            /// NUT-07: the input digest a v3 witness signs, present with the witness.
+            let inputDigest: String?
+
+            enum CodingKeys: String, CodingKey {
+                case Y, state, witness
+                case inputDigest = "input_digest"
+            }
         }
         
         struct StateCheckRequest: Codable {
@@ -106,9 +121,34 @@ extension CashuSwift {
             let states: [ProofStateListEntry]
         }
         
-        /// Witness data for P2PK spending conditions.
-        public struct Witness: Codable, Sendable {
-            let signatures: [String]
+        /// Witness data: NUT-11 signatures, a v3 key-path signature, or a NUT-10 script-path
+        /// reveal (`leaf`, `control`, `signatures`, optional `preimage`).
+        public struct Witness: Codable, Sendable, Equatable {
+            public var signatures: [String]
+            public var leaf: String?
+            public var control: Control?
+            public var preimage: String?
+
+            public struct Control: Codable, Sendable, Equatable {
+                public let K: String
+                public let path: [String]
+                public init(K: String, path: [String]) {
+                    self.K = K
+                    self.path = path
+                }
+            }
+
+            public init(signatures: [String], leaf: String? = nil, control: Control? = nil, preimage: String? = nil) {
+                self.signatures = signatures
+                self.leaf = leaf
+                self.control = control
+                self.preimage = preimage
+            }
+
+            /// Parses a serialized witness JSON string.
+            public init(json: String) throws {
+                self = try JSONDecoder().decode(Witness.self, from: Data(json.utf8))
+            }
             
             func stringJSON() throws -> String {
                 let data = try JSONEncoder().encode(self)

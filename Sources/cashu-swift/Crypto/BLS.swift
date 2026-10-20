@@ -1,16 +1,19 @@
 //
 //  BLS.swift
 //
-//  Cashu v3 (BLS12-381) BDHKE: the pairing-based blind-signature scheme used by `02…`
+//  Cashu v3 (BLS12-381) blind signatures: the pairing-based scheme used by `02…`
 //  keysets, layered on the generic point/scalar/pairing primitives in SwiftBLST.
 //
-//  Curve roles (all wire values are compressed-point hex strings, same as secp v0/v1):
-//    - Y  = hashToCurveG1(secret)         G1, 48 bytes / 96 hex
+//  Curve roles (all wire values are compressed-point hex strings):
+//    - Y  = hashToCurveG1(secret bytes)   G1, 48 bytes / 96 hex
 //    - B_ = r·Y         (blinded message) G1
 //    - C_ = a·B_        (mint signature)  G1
 //    - C  = r⁻¹·C_      (unblinded sig)   G1
 //    - K  = a·G2        (mint pubkey)     G2, 96 bytes / 192 hex
 //  Verification is the pairing equality e(C, G2) == e(Y, K); v3 proofs carry no DLEQ.
+//
+//  On a v3 keyset the secret is a compressed secp256k1 public key (NUT-10 nutroot) and the
+//  bytes fed to hash_to_curve are its decoded 33 bytes (NUT-00 "Secret bytes").
 //
 
 import Foundation
@@ -19,7 +22,7 @@ import secp256k1  // hex helpers: `String(bytes:)` and `String.bytes`
 import SwiftBLST
 
 extension CashuSwift.Crypto {
-    /// Pairing-based BDHKE for BLS12-381 v3 keysets. Mirrors the secp BDHKE in `Crypto`.
+    /// Pairing-based blind signatures for BLS12-381 v3 keysets. Mirrors the secp BDHKE in `Crypto`.
     enum BLS {
 
         typealias Error = CashuSwift.Crypto.Error
@@ -29,10 +32,9 @@ extension CashuSwift.Crypto {
 
         // MARK: - Primitives
 
-        /// `Y = hashToCurveG1(secret)`, hashing the secret's UTF-8 bytes (matches the wire secret).
-        static func hashToCurveG1(_ secret: String) -> BLST.G1Point {
-            BLST.G1Point.hashToCurve(message: Array(secret.utf8),
-                                     domainSeparationTag: domainSeparationTag)
+        /// `Y = hashToCurveG1(message)` over raw bytes (a v3 proof's decoded 33-byte secret).
+        static func hashToCurveG1(_ message: [UInt8]) -> BLST.G1Point {
+            BLST.G1Point.hashToCurve(message: message, domainSeparationTag: domainSeparationTag)
         }
 
         /// Decode a compressed G1 point (`B_`/`C_`/`C`), rejecting bad encodings, the identity,
@@ -73,8 +75,8 @@ extension CashuSwift.Crypto {
         /// A uniformly random non-zero scalar in `[1, Fr)` via rejection sampling.
         ///
         /// `BLST.Scalar(bytes:)` accepts only `[1, Fr)` (blst's `blst_sk_check`), so trying random
-        /// 32-byte values and keeping the first that decodes is exactly NUT-13's rejection sampling
-        /// — avoiding the ~55% bias a modular reduction would introduce (Fr ≈ 0.45·2²⁵⁶).
+        /// 32-byte values and keeping the first that decodes avoids the bias a modular reduction
+        /// would introduce (Fr ≈ 0.45·2²⁵⁶).
         static func randomScalar() throws -> BLST.Scalar {
             var rng = SystemRandomNumberGenerator()
             for _ in 0..<0x10000 {
@@ -86,9 +88,9 @@ extension CashuSwift.Crypto {
 
         // MARK: - Blind / Unblind / Verify
 
-        /// `B_ = r·hashToCurveG1(secret)`.
-        static func blind(secret: String, r: BLST.Scalar) -> BLST.G1Point {
-            hashToCurveG1(secret).multiplied(by: r)
+        /// `B_ = r·hashToCurveG1(secretBytes)`.
+        static func blind(secretBytes: [UInt8], r: BLST.Scalar) -> BLST.G1Point {
+            hashToCurveG1(secretBytes).multiplied(by: r)
         }
 
         /// Wallet-side unblinding `C = r⁻¹·C_`. Unlike secp additive blinding, no mint key is needed.
@@ -97,70 +99,52 @@ extension CashuSwift.Crypto {
         }
 
         /// Single-proof verification via pairing equality `e(C, G2) == e(Y, K)`.
-        static func verify(C: BLST.G1Point, mintKey K2: BLST.G2Point, secret: String) -> Bool {
+        static func verify(C: BLST.G1Point, mintKey K2: BLST.G2Point, secretBytes: [UInt8]) -> Bool {
             if C.isInfinity || K2.isInfinity { return false }
-            let Y = hashToCurveG1(secret)
+            let Y = hashToCurveG1(secretBytes)
             // e(C, G2) == e(Y, K)  ⇔  e(-C, G2) · e(Y, K) == 1
             return BLST.Pairing.productIsOne([(C.negated(), .generator), (Y, K2)])
         }
 
-        // MARK: - High-level output / unblind helpers (hex in, hex out)
+        // MARK: - Output helpers (hex in, hex out)
+        //
+        // shortcut: the `secret` slot of a v3 output holds the 32-byte private key `k` (64 hex),
+        // not the wire secret `K = k·G`; `unblindPromises` derives `K` and attaches `spendInfo.k`.
+        // Keeps the (outputs, blindingFactors, secrets) tuple shape every caller already persists.
+        // Upgrade to a typed output set when the public tuple API is next broken anyway.
 
-        /// A random blinded output: `(B_ hex, blindingFactor hex, secret)`.
+        /// A random blinded output: a fresh secp keypair `(k, K)` and a random Fr blinding factor.
         static func randomOutput() throws -> (B_: String, blindingFactor: String, secret: String) {
-            // The secret is curve-independent: a random 32-byte value, hex-encoded (as for secp).
-            var rng = SystemRandomNumberGenerator()
-            let secretBytes = (0..<32).map { _ in UInt8.random(in: .min ... .max, using: &rng) }
-            let secret = String(bytes: secretBytes)
+            let k = try CashuSwift.Crypto.PrivateKey()
             let r = try randomScalar()
-            let B_ = blind(secret: secret, r: r)
-            return (String(bytes: B_.compressedBytes), String(bytes: r.bytes), secret)
+            let B_ = blind(secretBytes: Array(k.publicKey.dataRepresentation), r: r)
+            return (String(bytes: B_.compressedBytes), String(bytes: r.bytes), String(bytes: k.dataRepresentation))
         }
 
-        /// A NUT-13 deterministic blinded output for a v3 keyset: `(B_ hex, blindingFactor hex, secret)`.
-        ///
-        /// Secret derivation is identical to v1 (`Cashu_KDF_HMAC_SHA256 || keysetID || u64BE(counter) || 0x00`).
-        /// The blinding factor uses rejection sampling: the first `HMAC(seed, base || 0x01 || u32BE(attempt))`
-        /// digest that lands in `[1, Fr)`.
+        /// A NUT-13 v3 deterministic blinded output for `(keysetID, counter)`:
+        /// `k` by derivation type `0x00`, `r` by type `0x01`, `B_ = r·hashToCurveG1(k·G)`.
         static func deterministicOutput(keysetID: String,
                                         seed: String,
                                         index: Int) throws -> (B_: String, blindingFactor: String, secret: String) {
-            let seedBytes = try seed.bytes
-            let keysetIDBytes = try keysetID.bytes
-
-            var counterBE = UInt64(index).bigEndian
-            let counterBytes = withUnsafeBytes(of: &counterBE) { Array($0) }
-            let base = Array("Cashu_KDF_HMAC_SHA256".utf8) + keysetIDBytes + counterBytes
-
-            let secretDigest = hmacSHA256(key: seedBytes, message: base + [0x00])
-            let secret = String(bytes: secretDigest)  // hex string, matching v1
-
-            var blindingFactor: BLST.Scalar? = nil
-            for attempt in 0..<0x10000 {
-                var attemptBE = UInt32(attempt).bigEndian
-                let attemptBytes = withUnsafeBytes(of: &attemptBE) { Array($0) }
-                let digest = hmacSHA256(key: seedBytes, message: base + [0x01] + attemptBytes)
-                if let s = try? BLST.Scalar(bytes: digest) { blindingFactor = s; break }
-            }
-            guard let r = blindingFactor else {
-                throw Error.secretDerivation("v3 deterministic blinding factor derivation failed")
-            }
-
-            let B_ = blind(secret: secret, r: r)
-            return (String(bytes: B_.compressedBytes), String(bytes: r.bytes), secret)
+            guard index >= 0 else { throw Error.secretDerivation("negative derivation counter") }
+            let derived = try CashuSwift.Crypto.v3ProofKeys(seed: seed, keysetID: keysetID, counter: UInt64(index))
+            let B_ = blind(secretBytes: Array(derived.k.publicKey.dataRepresentation), r: derived.r)
+            return (String(bytes: B_.compressedBytes),
+                    String(bytes: derived.r.bytes),
+                    String(bytes: derived.k.dataRepresentation))
         }
 
         /// Unblind a v3 promise to a proof's `C`, verifying the pairing equality against the mint's
         /// G2 key for the amount. Throws if verification fails.
         static func unblindAndVerify(C_Hex: String,
                                      blindingFactorHex: String,
-                                     secret: String,
+                                     secretBytes: [UInt8],
                                      mintKeyHex: String) throws -> String {
             let C_ = try g1Point(fromHex: C_Hex)
             let r = try scalar(fromHex: blindingFactorHex)
             let K2 = try g2Point(fromHex: mintKeyHex)
             let C = unblind(C_: C_, r: r)
-            guard verify(C: C, mintKey: K2, secret: secret) else {
+            guard verify(C: C, mintKey: K2, secretBytes: secretBytes) else {
                 throw Error.unblinding("v3 pairing verification failed for unblinded signature")
             }
             return String(bytes: C.compressedBytes)
@@ -168,24 +152,22 @@ extension CashuSwift.Crypto {
 
         // MARK: - Batch verification
 
+        typealias BatchItem = (C: BLST.G1Point, K2: BLST.G2Point, secret: [UInt8])
+
         /// Deterministic Fiat-Shamir per-proof batch weights, each a non-zero Fr scalar.
         ///
         /// Transcript: `"Cashu_BLS_Batch_v1" || (C || K2 || u32BE(len(secret)) || secret)*`, collapsed
         /// to a 32-byte challenge; per item `wᵢ` = first `SHA256(challenge || u32BE(i) || u32BE(ctr))`
         /// digest in `[1, Fr)`.
-        static func deriveBatchWeights(_ items: [(C: BLST.G1Point, K2: BLST.G2Point, secret: String)]) throws -> [BLST.Scalar] {
+        static func deriveBatchWeights(_ items: [BatchItem]) throws -> [BLST.Scalar] {
             let challenge = batchChallenge(items)
 
             var weights = [BLST.Scalar]()
             weights.reserveCapacity(items.count)
             for i in 0..<items.count {
-                var iBE = UInt32(i).bigEndian
-                let iBytes = withUnsafeBytes(of: &iBE) { Array($0) }
                 var weight: BLST.Scalar? = nil
                 for ctr in 0..<0x10000 {
-                    var ctrBE = UInt32(ctr).bigEndian
-                    let ctrBytes = withUnsafeBytes(of: &ctrBE) { Array($0) }
-                    let digest = Array(CryptoKit.SHA256.hash(data: Data(challenge + iBytes + ctrBytes)))
+                    let digest = Array(CryptoKit.SHA256.hash(data: Data(challenge + u32BE(i) + u32BE(ctr))))
                     if let s = try? BLST.Scalar(bytes: digest) { weight = s; break }
                 }
                 guard let w = weight else {
@@ -198,7 +180,7 @@ extension CashuSwift.Crypto {
 
         /// Batch-verify many proofs with a single multi-pairing. Returns `true` iff every individual
         /// `e(Cᵢ, G2) == e(Yᵢ, K2ᵢ)` holds. Equivalent to, but faster than, verifying each proof.
-        static func batchVerify(_ items: [(C: BLST.G1Point, K2: BLST.G2Point, secret: String)]) throws -> Bool {
+        static func batchVerify(_ items: [BatchItem]) throws -> Bool {
             if items.isEmpty { return true }
             for item in items where item.C.isInfinity || item.K2.isInfinity { return false }
 
@@ -227,26 +209,20 @@ extension CashuSwift.Crypto {
 
         /// 32-byte Fiat-Shamir challenge that collapses the whole batch transcript
         /// `"Cashu_BLS_Batch_v1" || (C || K2 || u32BE(len(secret)) || secret)*`.
-        static func batchChallenge(_ items: [(C: BLST.G1Point, K2: BLST.G2Point, secret: String)]) -> [UInt8] {
+        static func batchChallenge(_ items: [BatchItem]) -> [UInt8] {
             var transcript = CryptoKit.SHA256()
             transcript.update(data: Data("Cashu_BLS_Batch_v1".utf8))
             for item in items {
                 transcript.update(data: Data(item.C.compressedBytes))
                 transcript.update(data: Data(item.K2.compressedBytes))
-                let secretBytes = Array(item.secret.utf8)
-                var lenBE = UInt32(secretBytes.count).bigEndian
-                transcript.update(data: Data(withUnsafeBytes(of: &lenBE) { Array($0) }))
-                transcript.update(data: Data(secretBytes))
+                transcript.update(data: Data(u32BE(item.secret.count)))
+                transcript.update(data: Data(item.secret))
             }
             return Array(transcript.finalize())
         }
 
-        // MARK: - Helpers
-
-        private static func hmacSHA256(key: [UInt8], message: [UInt8]) -> [UInt8] {
-            let mac = HMAC<CryptoKit.SHA256>.authenticationCode(for: Data(message),
-                                                                using: SymmetricKey(data: Data(key)))
-            return Array(mac)
+        private static func u32BE(_ n: Int) -> [UInt8] {
+            withUnsafeBytes(of: UInt32(n).bigEndian, Array.init)
         }
     }
 }

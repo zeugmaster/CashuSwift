@@ -78,31 +78,24 @@ public enum CashuSwift {
             throw CashuError.noActiveKeysetForUnit("No active keyset for unit '\(unit)'")
         }
         
+        guard KeysetVersion(keysetID: keyset.keysetID)?.isBLS != true else {
+            // v3 secrets are keys, not JSON; a lock to a public key is a receiver-keyed nutroot
+            // output whose spend info must travel with the proof. See `send(…, lockToPublicKey:)`.
+            throw CashuError.spendingConditionError("v3 keysets lock via nutroot; use send(lockToPublicKey:) or send(request:)")
+        }
         var outputs = [Output]()
         var blindingFactors = [String]()
         var secrets = [String]()
-        // The P2PK secret is curve-independent; only the blinding curve depends on the keyset.
-        let isBLS = KeysetVersion(keysetID: keyset.keysetID)?.isBLS == true
         for amount in distribution {
             let nonce = try String(bytes: secp256k1.Signing.PrivateKey().dataRepresentation)
             let payload = SpendingCondition.Payload(nonce: nonce, data: publicKey, tags: nil)
             let sc = SpendingCondition(kind: .P2PK, payload: payload)
             let secret = try sc.serialize() // ONLY EVER SERIALIZE THIS ONCE to not have order of fields change
 
-            let B_Hex: String
-            let blindingFactorHex: String
-            if isBLS {
-                let r = try Crypto.BLS.randomScalar()
-                B_Hex = String(bytes: Crypto.BLS.blind(secret: secret, r: r).compressedBytes)
-                blindingFactorHex = String(bytes: r.bytes)
-            } else {
-                let blindingFactor = try secp256k1.Signing.PrivateKey()
-                let outputRaw = try Crypto.output(secret: secret, blindingFactor: blindingFactor)
-                B_Hex = String(bytes: outputRaw.dataRepresentation)
-                blindingFactorHex = String(bytes: blindingFactor.dataRepresentation)
-            }
-            outputs.append(Output(amount: amount, B_: B_Hex, id: keyset.keysetID))
-            blindingFactors.append(blindingFactorHex)
+            let blindingFactor = try secp256k1.Signing.PrivateKey()
+            let outputRaw = try Crypto.output(secret: secret, blindingFactor: blindingFactor)
+            outputs.append(Output(amount: amount, B_: String(bytes: outputRaw.dataRepresentation), id: keyset.keysetID))
+            blindingFactors.append(String(bytes: blindingFactor.dataRepresentation))
             secrets.append(secret)
         }
         return (outputs, blindingFactors, secrets)
@@ -194,7 +187,7 @@ public enum CashuSwift {
     /// The curve is selected by keyset version: BLS12-381 G1 for v3 (`02…`), secp256k1 otherwise.
     static func stateCheckY(for proof: ProofRepresenting) throws -> String {
         if KeysetVersion(keysetID: proof.keysetID)?.isBLS == true {
-            return String(bytes: Crypto.BLS.hashToCurveG1(proof.secret).compressedBytes)
+            return String(bytes: Crypto.BLS.hashToCurveG1(try Crypto.v3SecretBytes(proof.secret)).compressedBytes)
         }
         return try Crypto.secureHashToCurve(message: proof.secret).stringRepresentation
     }
@@ -240,6 +233,8 @@ public enum CashuSwift {
         throw CashuError.invalidSplit("target value (\(String(describing: target))) for split can not be greater than total(\(total))-fee(\(fee)).")
     }
     
+    /// Wire shape of an input proof: no DLEQ and no spend info (bearer keys never leave the
+    /// wallet), witness kept.
     static func stripDLEQ(_ proofs: [Proof]) -> [CashuSwift.Proof] {
         proofs.map { p in
             CashuSwift.Proof(keysetID: p.keysetID,
@@ -247,7 +242,8 @@ public enum CashuSwift {
                              secret: p.secret,
                              C: p.C,
                              dleq: nil,
-                             witness: p.witness)
+                             witness: p.witness,
+                             spendInfo: nil)
         }
     }
     
@@ -412,7 +408,8 @@ extension Array where Element : ProofRepresenting {
                                     secret: p.secret,
                                     C: p.C,
                                     dleq: p.dleq,
-                                    witness: nil)
+                                    witness: nil,
+                                    spendInfo: p.spendInfo)
         }
     }
     
@@ -442,7 +439,8 @@ extension Array where Element : ProofRepresenting {
                                            secret: p.secret,
                                            C: p.C,
                                            dleq: p.dleq,
-                                           witness: nil))
+                                           witness: nil,
+                                           spendInfo: p.spendInfo))
         }
         
         return proofs

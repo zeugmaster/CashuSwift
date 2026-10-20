@@ -239,18 +239,34 @@ extension CashuSwift {
                 // v3 (BLS) keysets: multiplicative unblind C = r⁻¹·C_, then pairing-verify
                 // against the mint's G2 key for this amount. v3 proofs carry no DLEQ.
                 if KeysetVersion(keysetID: promise.id)?.isBLS == true {
+                    guard promise.dleq == nil else {
+                        throw Crypto.Error.unblinding("v3 promise carries a dleq field")
+                    }
                     guard let mintKeyHex = keyset.keys[String(promise.amount)] else {
                         throw CashuError.cryptoError("Could not associate mint pubkey from keyset. unblinding not possible")
                     }
+                    // The secrets slot holds either the bearer key `k` (32 bytes) or a precomputed
+                    // wire secret (33-byte point) whose spend info the caller attaches afterwards.
+                    let secret: String
+                    var spendInfo: SpendInfo? = nil
+                    let secretData = try secrets[i].bytes
+                    if secretData.count == 32 {
+                        let k = try PrivateKey(dataRepresentation: secretData)
+                        secret = String(bytes: k.publicKey.dataRepresentation)
+                        spendInfo = SpendInfo(k: secrets[i])
+                    } else {
+                        secret = secrets[i]
+                    }
                     let cHex = try BLS.unblindAndVerify(C_Hex: promise.C_,
                                                         blindingFactorHex: blindingFactors[i],
-                                                        secret: secrets[i],
+                                                        secretBytes: try v3SecretBytes(secret),
                                                         mintKeyHex: mintKeyHex)
                     proofs.append(Proof(keysetID: promise.id,
                                         amount: promise.amount,
-                                        secret: secrets[i],
+                                        secret: secret,
                                         C: cHex,
-                                        dleq: nil))
+                                        dleq: nil,
+                                        spendInfo: spendInfo))
                     continue
                 }
 
@@ -325,9 +341,7 @@ extension CashuSwift {
 
                 // v3 (BLS) proofs carry no DLEQ; verify the pairing equality instead.
                 if KeysetVersion(keysetID: p.keysetID)?.isBLS == true {
-                    let C = try BLS.g1Point(fromHex: p.C)
-                    let K2 = try BLS.g2Point(fromHex: AString)
-                    checks.append(BLS.verify(C: C, mintKey: K2, secret: p.secret))
+                    checks.append(try verifyV3(p, mintKeyHex: AString))
                     continue
                 }
 
@@ -365,9 +379,7 @@ extension CashuSwift {
 
                 // v3 (BLS) proofs carry no DLEQ; verify the pairing equality e(C, G2) == e(Y, K) instead.
                 if KeysetVersion(keysetID: p.keysetID)?.isBLS == true {
-                    let C = try BLS.g1Point(fromHex: p.C)
-                    let K2 = try BLS.g2Point(fromHex: AString)
-                    checks.append(BLS.verify(C: C, mintKey: K2, secret: p.secret))
+                    checks.append(try verifyV3(p, mintKeyHex: AString))
                     continue
                 }
 
@@ -386,6 +398,22 @@ extension CashuSwift {
             return checks.allTrue ? .valid : .fail
         }
         
+        /// The decoded 33 bytes of a v3 secret (a compressed secp256k1 point), NUT-00 "Secret bytes".
+        static func v3SecretBytes(_ secret: String) throws -> [UInt8] {
+            guard let key = try? nut20PublicKey(secret) else {
+                throw Error.invalidSecret("v3 secret must be a compressed secp256k1 public key")
+            }
+            return Array(key.dataRepresentation)
+        }
+
+        /// Pairing check for a v3 proof; a proof that carries `dleq` is malformed (NUT-12) and fails.
+        static func verifyV3(_ proof: Proof, mintKeyHex: String) throws -> Bool {
+            guard proof.dleq == nil else { return false }
+            let C = try BLS.g1Point(fromHex: proof.C)
+            let K2 = try BLS.g2Point(fromHex: mintKeyHex)
+            return BLS.verify(C: C, mintKey: K2, secretBytes: try v3SecretBytes(proof.secret))
+        }
+
         static func verifyDLEQ(A: PublicKey, B_: PublicKey, C_: PublicKey, e: Data, s: Data) throws -> Bool {
             // R1 = s*G - e*A
             // R2 = s*B' - e*C'

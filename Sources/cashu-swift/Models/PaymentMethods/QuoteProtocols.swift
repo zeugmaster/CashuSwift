@@ -41,6 +41,10 @@ extension CashuSwift {
         var amount: Int? { get }
         var state: QuoteState? { get }
         var expiry: Int? { get }
+        /// NUT-20 / NUT-04 quote lock key, when the quote is locked. Mandatory on v3 keysets.
+        var quotePubkey: String? { get }
+        /// `amount_issued` so far, for methods that track partial issuance; `nil` reads as 0.
+        var quoteAmountIssued: Int? { get }
     }
 
     /// Request to create a melt quote — the wallet asks the mint to make a
@@ -75,4 +79,9 @@ extension CashuSwift {
         /// selected yet.
         func requiredInputAmount(inputFee: Int) throws -> Int
     }
+}
+
+public extension CashuSwift.MintQuoteResponse {
+    var quotePubkey: String? { nil }
+    var quoteAmountIssued: Int? { nil }
 }

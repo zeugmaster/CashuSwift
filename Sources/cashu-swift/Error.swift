@@ -64,6 +64,10 @@ public enum CashuError: Swift.Error {
     case bolt12RequiresPubkey
     case quoteSigningKeyRequired
     case invalidQuoteAccounting
+
+    // v3 / nutroot errors
+    case quoteAmountIssuedMismatch // 20008
+    case keysetPendingRotation // 12004
 }
 
 extension CashuError: LocalizedError {
@@ -115,6 +119,8 @@ extension CashuError: LocalizedError {
         case .bolt12RequiresPubkey: return "BOLT12 mint quotes require a pubkey per NUT-25"
         case .quoteSigningKeyRequired: return "Minting this quote requires its quote signing private key"
         case .invalidQuoteAccounting: return "Mint quote amounts must satisfy 0 <= amount_issued <= amount_paid"
+        case .quoteAmountIssuedMismatch: return "The quote's amount_issued changed since the witness was signed; refetch the quote and retry"
+        case .keysetPendingRotation: return "The keyset is about to rotate; retry blank outputs on another active keyset"
         }
     }
 }
@@ -141,7 +147,9 @@ extension CashuError: Equatable {
              (.invalidKeysetID, .invalidKeysetID),
              (.bolt12RequiresPubkey, .bolt12RequiresPubkey),
              (.quoteSigningKeyRequired, .quoteSigningKeyRequired),
-             (.invalidQuoteAccounting, .invalidQuoteAccounting):
+             (.invalidQuoteAccounting, .invalidQuoteAccounting),
+             (.quoteAmountIssuedMismatch, .quoteAmountIssuedMismatch),
+             (.keysetPendingRotation, .keysetPendingRotation):
             return true
         
         // Cases with associated values (String)

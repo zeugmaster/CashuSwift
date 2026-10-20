@@ -101,6 +101,10 @@ struct Network {
             return CashuError.amountOutsideOfLimitRange
         case let s where s.contains("12002"):
             return CashuError.keysetInactive
+        case let s where s.contains("12004"):
+            return CashuError.keysetPendingRotation
+        case let s where s.contains("20008"):
+            return CashuError.quoteAmountIssuedMismatch
         case let s where s.contains("20001"):
             return CashuError.quoteNotPaid
         case let s where s.contains("2001"): // to account for a typo in nutshell error codes

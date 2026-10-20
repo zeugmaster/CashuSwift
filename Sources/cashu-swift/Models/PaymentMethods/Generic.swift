@@ -134,6 +134,12 @@ extension CashuSwift {
             public let expiry: Int?
             public let raw: JSONObject
 
+            public var quotePubkey: String? {
+                if case let .string(p) = raw["pubkey"] ?? .null { return p }
+                return nil
+            }
+            public var quoteAmountIssued: Int? { Generic.optionalInt(raw, key: "amount_issued") }
+
             public init(method: PaymentMethodID,
                         quote: String,
                         request: String,
@@ -335,6 +341,7 @@ extension CashuSwift {
         /// from the wallet seed. Use a fresh counter per quote request and persist the
         /// counter (or key) with the pending quote so the wallet can sign at issuance
         /// and after restore.
+        @available(*, deprecated, message: "The NUT-20 BIP32 path is deprecated for new quotes; use CashuSwift.quoteLockingKey(seed:mintPubkey:counter:) (NUT-13 type 0x04). Keep for recovering legacy quotes.")
         public static func quoteLockingKey(seed: String, counter: UInt32) throws -> (privateKey: Data, publicKey: String) {
             try Crypto.nut20QuoteLockingKey(seed: seed, counter: counter)
         }

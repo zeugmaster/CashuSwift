@@ -97,7 +97,13 @@ extension CashuSwift {
             self.memo = token.memo
             // Legacy V3 tokens may omit unit. Receive-time keyset validation rejects this fallback for non-sat proofs.
             self.unit = token.unit ?? "sat"
-            self.proofsByMint = Dictionary(uniqueKeysWithValues: token.token.map { ($0.mint, $0.proofs) })
+            // NUT-00: witnesses never travel in tokens; drop any on decode.
+            self.proofsByMint = Dictionary(uniqueKeysWithValues: token.token.map { container in
+                (container.mint, container.proofs.map { p in
+                    Proof(keysetID: p.keysetID, amount: p.amount, secret: p.secret, C: p.C,
+                          dleq: p.dleq, witness: nil, spendInfo: p.spendInfo)
+                })
+            })
         }
         
         init(token:TokenV4) throws {
@@ -124,7 +130,8 @@ extension CashuSwift {
                                  amount: p.amount,
                                  secret: p.secret,
                                  C: String(bytes: p.signature),
-                                 dleq: dleq)
+                                 dleq: dleq,
+                                 spendInfo: p.spendInfo)
                 }))
             }
             
@@ -141,7 +148,9 @@ extension CashuSwift {
                     Proof(keysetID: p.keysetID,
                           amount: p.amount,
                           secret: p.secret,
-                          C: p.C)
+                          C: p.C,
+                          dleq: p.dleq,
+                          spendInfo: p.spendInfo)
                 }))
             }
             
@@ -189,7 +198,8 @@ extension CashuSwift {
                                                     secret: p.secret,
                                                     signature: Data(try p.C.bytes),
                                                     dleqProof: dleq,
-                                                    witness: nil)
+                                                    witness: nil,
+                                                    spendInfo: p.spendInfo)
                 }))
             }
             

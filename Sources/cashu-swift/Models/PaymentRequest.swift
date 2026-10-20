@@ -322,6 +322,54 @@ extension CashuSwift {
     }
 }
 
+// MARK: - NutrootOption
+
+extension CashuSwift {
+    /// NUT-18 `nutroot`: the locking condition for payments on v3 keysets. Requests
+    /// receiver-keyed outputs derived from `k` (NUT-28), optionally under the leaves `l`,
+    /// with the keys in `b` blinded in place.
+    public struct NutrootOption: Codable, Equatable, Hashable, Sendable {
+        /// The payee's static receiver key (33-byte compressed hex), or the NUMS point `H`.
+        public let k: String
+        /// Requested condition tree: serialized leaves, hex, in slot order.
+        public let l: [String]?
+        /// Keys of `l` their owners tag blind-me.
+        public let b: [String]?
+
+        public init(k: String, l: [String]? = nil, b: [String]? = nil) {
+            self.k = k
+            self.l = l
+            self.b = b
+        }
+
+        /// `k` is a point, every leaf parses, and every blind-me key appears in some leaf.
+        public func validate() throws {
+            _ = try Crypto.nut20PublicKey(k)
+            let leaves = try (l ?? []).map { try Nutroot.Leaf.parse(hex: $0) }
+            let keys = Set(leaves.flatMap(\.keys))
+            for key in b ?? [] where !keys.contains(key) {
+                throw CashuError.paymentRequestValidation("nutroot blind-me key is not in any leaf")
+            }
+        }
+
+        init(fromCBOR cbor: CBOR) throws {
+            guard let map = cbor.asMap(), let k = map[.utf8String("k")]?.asString() else {
+                throw CashuError.paymentRequestDecoding("Missing required fields in NutrootOption")
+            }
+            self.k = k
+            self.l = map[.utf8String("l")]?.asArray()?.compactMap { $0.asString() }
+            self.b = map[.utf8String("b")]?.asArray()?.compactMap { $0.asString() }
+        }
+
+        func toCBOR() -> CBOR {
+            var map: [CBOR: CBOR] = [.utf8String("k"): .utf8String(k)]
+            if let l { map[.utf8String("l")] = .array(l.map { .utf8String($0) }) }
+            if let b { map[.utf8String("b")] = .array(b.map { .utf8String($0) }) }
+            return .map(map)
+        }
+    }
+}
+
 // MARK: - PaymentRequest
 
 extension CashuSwift {
@@ -352,8 +400,11 @@ extension CashuSwift {
         /// The method of transport chosen to transmit the payment
         public let transports: [Transport]?
         
-        /// The required NUT-10 locking condition
+        /// The required NUT-10 locking condition (pre-v3 keysets)
         public let lockingCondition: NUT10Option?
+        
+        /// The required nutroot locking (v3 keysets)
+        public let nutroot: NutrootOption?
         
         enum CodingKeys: String, CodingKey {
             case paymentId = "i"
@@ -364,6 +415,7 @@ extension CashuSwift {
             case description = "d"
             case transports = "t"
             case lockingCondition = "nut10"
+            case nutroot
         }
         
         /// Creates a new payment request instance.
@@ -376,7 +428,8 @@ extension CashuSwift {
         ///   - description: Optional description
         ///   - transports: Optional array of transport methods
         ///   - lockingCondition: Optional NUT-10 locking condition
-        public init(paymentId: String?, amount: Int?, unit: String?, singleUse: Bool?, mints: [String]?, description: String?, transports: [Transport]?, lockingCondition: NUT10Option?) {
+        ///   - nutroot: Optional nutroot locking (v3 keysets)
+        public init(paymentId: String?, amount: Int?, unit: String?, singleUse: Bool?, mints: [String]?, description: String?, transports: [Transport]?, lockingCondition: NUT10Option?, nutroot: NutrootOption? = nil) {
             self.paymentId = paymentId
             self.amount = amount
             self.unit = unit
@@ -385,6 +438,7 @@ extension CashuSwift {
             self.description = description
             self.transports = transports
             self.lockingCondition = lockingCondition
+            self.nutroot = nutroot
         }
         
         /// Validates the payment request.
@@ -394,6 +448,7 @@ extension CashuSwift {
             if amount != nil && unit == nil {
                 throw CashuError.paymentRequestValidation("Unit must be set when amount is specified")
             }
+            try nutroot?.validate()
         }
         
         /// Checks if a mint URL is accepted by this payment request.
@@ -470,6 +525,8 @@ extension CashuSwift {
             } else {
                 self.lockingCondition = nil
             }
+            
+            self.nutroot = try cborMap[.utf8String("nutroot")].map { try CashuSwift.NutrootOption(fromCBOR: $0) }
         }
         
         /// Encodes the PaymentRequest to CBOR
@@ -507,6 +564,10 @@ extension CashuSwift {
             
             if let locking = lockingCondition {
                 cborMap[.utf8String("nut10")] = locking.toCBOR()
+            }
+            
+            if let nutroot {
+                cborMap[.utf8String("nutroot")] = nutroot.toCBOR()
             }
             
             return .map(cborMap)
@@ -649,7 +710,9 @@ extension CashuSwift {
             }
             
             // Check locking conditions if specified
-            if let nut10 = request.lockingCondition {
+            if let nutroot = request.nutroot, proofs.contains(where: { KeysetVersion(keysetID: $0.keysetID)?.isBLS == true }) {
+                try validateNutroot(nutroot)
+            } else if let nut10 = request.lockingCondition {
                 try validateLockingConditions(nut10: nut10)
             }
         }
@@ -657,6 +720,44 @@ extension CashuSwift {
         /// Validates that the proofs have the required locking conditions.
         /// - Parameter nut10: The required NUT-10 locking condition
         /// - Throws: An error if the locking conditions are not met
+        /// NUT-18 nutroot: every proof discloses exactly the requested tree (order-insensitive,
+        /// byte-identical except blind-me keys replaced in place by some point) and carries `E`
+        /// iff the request blinds something. Whether `E` derives the payee's key is checked by
+        /// `receive`, which holds the private key.
+        private func validateNutroot(_ option: NutrootOption) throws {
+            let requested = try (option.l ?? []).map { try Nutroot.Leaf.parse(hex: $0) }
+            let blindMe = Set(option.b ?? [])
+            let expectsEphemeral = option.k != Nutroot.numsPoint || !blindMe.isEmpty
+            for proof in proofs {
+                guard let info = proof.spendInfo else {
+                    throw CashuError.lockingConditionMismatch("v3 proof without spend info")
+                }
+                try info.validateShape()
+                guard (info.E != nil) == expectsEphemeral else {
+                    throw CashuError.lockingConditionMismatch("ephemeral presence disagrees with the request")
+                }
+                guard (option.k == Nutroot.numsPoint) == (info.u != nil) else {
+                    throw CashuError.lockingConditionMismatch("NUMS offset presence disagrees with the request")
+                }
+                var remaining = try (info.tree ?? []).map { try Nutroot.Leaf.parse(hex: $0) }
+                guard remaining.count == requested.count else {
+                    throw CashuError.lockingConditionMismatch("disclosed tree size differs from the request")
+                }
+                for leaf in requested {
+                    guard let index = remaining.firstIndex(where: { candidate in
+                        candidate.kind == leaf.kind && candidate.n == leaf.n && candidate.time == leaf.time
+                            && candidate.hash == leaf.hash && candidate.keys.count == leaf.keys.count
+                            && zip(candidate.keys, leaf.keys).allSatisfy { got, want in
+                                got == want || (blindMe.contains(want) && (try? Crypto.nut20PublicKey(got)) != nil)
+                            }
+                    }) else {
+                        throw CashuError.lockingConditionMismatch("disclosed tree does not match the requested leaves")
+                    }
+                    remaining.remove(at: index)
+                }
+            }
+        }
+        
         private func validateLockingConditions(nut10: NUT10Option) throws {
             // Check that all proofs have the required spending condition
             for proof in proofs {
