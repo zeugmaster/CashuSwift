@@ -58,6 +58,13 @@ extension CashuSwift {
             }
             publicKey = String(bytes: k.publicKey.dataRepresentation)
         }
+
+        // v3 proofs: NUT-00 receive-time check 1 (spend info reconstructs the secret), then claim
+        // receiver-keyed proofs into bearer form so the swap below can key-path sign them.
+        // Check 2 (we can spend) is enforced by the swap itself: a proof without a key path
+        // throws there unless the caller attached a script-path witness.
+        let receiverKey = try privateKey.map { try Crypto.PrivateKey(dataRepresentation: try $0.bytes) }
+        inputProofs = try inputProofs.map { try Nutroot.claim($0, receiverKey: receiverKey) }
         
         switch try token.checkAllInputsLocked(to: publicKey) {
         case .match:

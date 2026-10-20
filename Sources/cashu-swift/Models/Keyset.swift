@@ -74,29 +74,33 @@ extension CashuSwift {
             try container.encode(finalExpiry, forKey: .finalExpiry)
         }
         
+        /// The cryptographic version of this keyset, inferred from its ID, or `nil` if malformed.
+        public var version: KeysetVersion? {
+            KeysetVersion(keysetID: keysetID)
+        }
+
         public var validID: Bool {
-            if self.keysetID.count == 12 {
+            switch version {
+            case .legacyBase64:
                 return self.keysetID == Keyset.calculateLegacyKeysetID(keyset: self.keys)
-            } else {
-                do {
-                    if self.keysetID.hasPrefix("00") {
-                        return try Keyset.calculateHexKeysetID(keyset: self.keys) == self.keysetID
-                    } else if self.keysetID.hasPrefix("01") {
-                        return try Keyset.calculateHexKeysetIDv2(keyset: self.keys,
-                                                                 unit: self.unit,
-                                                                 inputFeePPK: self.inputFeePPK,
-                                                                 finalExpiry: self.finalExpiry) == self.keysetID
-                    } else {
-                        return false
-                    }
-                } catch {
-                    return false
-                }
+            case .v0:
+                return (try? Keyset.calculateHexKeysetID(keyset: self.keys)) == self.keysetID
+            case .v1:
+                return (try? Keyset.calculateHexKeysetIDv2(keyset: self.keys,
+                                                           unit: self.unit,
+                                                           inputFeePPK: self.inputFeePPK,
+                                                           finalExpiry: self.finalExpiry)) == self.keysetID
+            case .v3:
+                return (try? Keyset.calculateHexKeysetIDv3(keyset: self.keys,
+                                                           unit: self.unit,
+                                                           inputFeePPK: self.inputFeePPK)) == self.keysetID
+            case .none:
+                return false
             }
         }
-        
+
         public var shortID: String {
-            if self.keysetID.count != 12 && self.keysetID.hasPrefix("01") {
+            if version?.supportsShortID == true {
                 return String(self.keysetID.prefix(16))
             }
             return self.keysetID
@@ -132,7 +136,8 @@ extension CashuSwift {
         static func calculateHexKeysetIDv2(keyset: Dictionary<String, String>,
                                             unit: String,
                                             inputFeePPK: Int?,
-                                            finalExpiry: Int?) throws -> String {
+                                            finalExpiry: Int?,
+                                            versionByte: String = "01") throws -> String {
             // 1. Sort keys by amount in ascending numerical order
             // 2. Concatenate as "amount:pubkey_hex" separated by commas
             let sortedPairs = keyset.sorted { (firstElement, secondElement) -> Bool in
@@ -161,11 +166,38 @@ extension CashuSwift {
             
             // 6. SHA256 hash
             let hash = Data(SHA256.hash(data: preimage.data(using: .utf8)!))
-            
-            // 7. Prefix with version byte "01" and return full hex
-            return "01" + hash.map { String(format: "%02x", $0) }.joined()
+
+            // 7. Prefix with the version byte ("01" for v1/secp, "02" for v3/BLS) and return full hex
+            return versionByte + hash.map { String(format: "%02x", $0) }.joined()
         }
         
+        /// NUT-02 v3 keyset ID: `"02" + SHA256(len32(keys)||keys || len32(unit)||unit || len32(fee)||fee)`
+        /// over raw bytes, each key `len32(amount)||amount || len32(pubkey)||pubkey` in ascending
+        /// amount order, amounts and fee as minimal big-endian bytes. `final_expiry` is not committed.
+        static func calculateHexKeysetIDv3(keyset: Dictionary<String, String>,
+                                            unit: String,
+                                            inputFeePPK: Int?) throws -> String {
+            let lowerUnit = unit.lowercased()
+            guard !lowerUnit.isEmpty, lowerUnit.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_" || $0 == "-") }) else {
+                throw CashuError.invalidKeysetID("v3 keyset unit must match [a-z0-9_-]+")
+            }
+            let sorted = keyset.compactMap { pair -> (UInt64, String)? in
+                UInt64(pair.key).map { ($0, pair.value) }
+            }.sorted { $0.0 < $1.0 }
+            var keys = [UInt8]()
+            for (amount, pubkey) in sorted {
+                let pubkeyBytes = try pubkey.bytes
+                guard pubkeyBytes.count == 96 else {
+                    throw CashuError.invalidKeysetID("v3 keyset pubkeys must be compressed G2 points (96 bytes)")
+                }
+                keys += TLV.framed(TLV.minimalBE(amount)) + TLV.framed(pubkeyBytes)
+            }
+            let preimage = TLV.framed(keys)
+                + TLV.framed(Array(lowerUnit.utf8))
+                + TLV.framed(TLV.minimalBE(UInt64(max(inputFeePPK ?? 0, 0))))
+            return "02" + Data(SHA256.hash(data: Data(preimage))).hexEncodedString()
+        }
+
         private static func concatKeysV0(keyset: Dictionary<String, String>) throws -> [UInt8] {
             let sortedValues = keyset.sorted { (firstElement, secondElement) -> Bool in
                 guard let firstKey = UInt(firstElement.key),

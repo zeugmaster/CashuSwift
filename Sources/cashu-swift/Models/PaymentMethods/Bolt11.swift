@@ -21,17 +21,20 @@ extension CashuSwift {
             public let unit: String
             public let amount: Int
             public let description: String?
+            /// NUT-20 lock key. Required when minting onto a v3 keyset (NUT-04).
+            public let pubkey: String?
 
             public var method: PaymentMethodID { .bolt11 }
 
-            public init(unit: String, amount: Int, description: String? = nil) {
+            public init(unit: String, amount: Int, description: String? = nil, pubkey: String? = nil) {
                 self.unit = unit
                 self.amount = amount
                 self.description = description
+                self.pubkey = pubkey
             }
 
             enum CodingKeys: String, CodingKey {
-                case unit, amount, description
+                case unit, amount, description, pubkey
             }
         }
 
@@ -75,25 +78,30 @@ extension CashuSwift {
             public let unit: String
             public let state: QuoteState?
             public let expiry: Int?
+            /// NUT-20 lock key echoed by the mint, when the quote was requested with one.
+            public let pubkey: String?
 
             public var method: PaymentMethodID { .bolt11 }
+            public var quotePubkey: String? { pubkey }
 
             public init(quote: String,
                         request: String,
                         amount: Int?,
                         unit: String,
                         state: QuoteState?,
-                        expiry: Int?) {
+                        expiry: Int?,
+                        pubkey: String? = nil) {
                 self.quote = quote
                 self.request = request
                 self.amount = amount
                 self.unit = unit
                 self.state = state
                 self.expiry = expiry
+                self.pubkey = pubkey
             }
 
             enum CodingKeys: String, CodingKey {
-                case quote, request, amount, unit, state, expiry
+                case quote, request, amount, unit, state, expiry, pubkey
             }
         }
 
@@ -191,6 +199,29 @@ extension CashuSwift {
                 preferredDistribution: preferredDistribution) { quoteID, outputs in
                 StandardMintExecutionBody(quote: quoteID, outputs: outputs)
             }
+        }
+
+        /// Issues ecash against a paid, locked BOLT11 mint quote. `quoteKey` is the private key
+        /// behind the `pubkey` the quote was requested with. Required on v3 keysets (NUT-04),
+        /// where the signature covers the quote input's transaction digest.
+        public static func mint(quote: MintQuote,
+                                from mint: Mint,
+                                seed: String?,
+                                quoteKey: Data,
+                                preferredDistribution: [Int]? = nil,
+                                signatureFormat: Nut20SignatureFormat = .current) async throws -> IssueResult {
+            guard let amount = quote.amount else {
+                throw CashuError.missingRequestDetail("BOLT11 mint quote is missing the amount field.")
+            }
+            return try await CashuSwift._mintSigned(
+                quote: quote,
+                amount: amount,
+                mint: mint,
+                seed: seed,
+                quoteKey: quoteKey,
+                preferredDistribution: preferredDistribution,
+                signatureFormat: signatureFormat
+            )
         }
 
         /// Melts proofs to pay the BOLT11 invoice referenced by the quote.

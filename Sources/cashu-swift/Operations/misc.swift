@@ -78,6 +78,11 @@ public enum CashuSwift {
             throw CashuError.noActiveKeysetForUnit("No active keyset for unit '\(unit)'")
         }
         
+        guard KeysetVersion(keysetID: keyset.keysetID)?.isBLS != true else {
+            // v3 secrets are keys, not JSON; a lock to a public key is a receiver-keyed nutroot
+            // output whose spend info must travel with the proof. See `send(…, lockToPublicKey:)`.
+            throw CashuError.spendingConditionError("v3 keysets lock via nutroot; use send(lockToPublicKey:) or send(request:)")
+        }
         var outputs = [Output]()
         var blindingFactors = [String]()
         var secrets = [String]()
@@ -86,12 +91,10 @@ public enum CashuSwift {
             let payload = SpendingCondition.Payload(nonce: nonce, data: publicKey, tags: nil)
             let sc = SpendingCondition(kind: .P2PK, payload: payload)
             let secret = try sc.serialize() // ONLY EVER SERIALIZE THIS ONCE to not have order of fields change
+
             let blindingFactor = try secp256k1.Signing.PrivateKey()
             let outputRaw = try Crypto.output(secret: secret, blindingFactor: blindingFactor)
-            let output = Output(amount: amount,
-                                B_: String(bytes: outputRaw.dataRepresentation),
-                                id: keyset.keysetID)
-            outputs.append(output)
+            outputs.append(Output(amount: amount, B_: String(bytes: outputRaw.dataRepresentation), id: keyset.keysetID))
             blindingFactors.append(String(bytes: blindingFactor.dataRepresentation))
             secrets.append(secret)
         }
@@ -154,9 +157,9 @@ public enum CashuSwift {
     /// - Throws: An error if the check fails
     public static func check(_ proofs:[ProofRepresenting], mint:MintRepresenting) async throws -> [Proof.ProofState] {
         let ys = try proofs.map { proof in
-            try Crypto.secureHashToCurve(message: proof.secret).stringRepresentation
+            try stateCheckY(for: proof)
         }
-        
+
         let request = Proof.StateCheckRequest(Ys: ys)
         let response = try await Network.post(url: mint.url.appending(path: "/v1/checkstate"),
                                               body: request,
@@ -168,9 +171,9 @@ public enum CashuSwift {
     
     public static func check(_ proofs:[ProofRepresenting], url:URL) async throws -> [Proof.ProofState] {
         let ys = try proofs.map { proof in
-            try Crypto.secureHashToCurve(message: proof.secret).stringRepresentation
+            try stateCheckY(for: proof)
         }
-        
+
         let request = Proof.StateCheckRequest(Ys: ys)
         let response = try await Network.post(url: url.appending(path: "/v1/checkstate"),
                                               body: request,
@@ -180,8 +183,17 @@ public enum CashuSwift {
         }
     }
 
+    /// NUT-07 lookup point `Y = hashToCurve(secret)` (compressed hex) for a proof's state check.
+    /// The curve is selected by keyset version: BLS12-381 G1 for v3 (`02…`), secp256k1 otherwise.
+    static func stateCheckY(for proof: ProofRepresenting) throws -> String {
+        if KeysetVersion(keysetID: proof.keysetID)?.isBLS == true {
+            return String(bytes: Crypto.BLS.hashToCurveG1(try Crypto.v3SecretBytes(proof.secret)).compressedBytes)
+        }
+        return try Crypto.secureHashToCurve(message: proof.secret).stringRepresentation
+    }
+
     // MARK: - MISC
-    
+
     static func normalize(_ proofs:[ProofRepresenting]) -> [Proof] {
         proofs.map({ CashuSwift.Proof($0) })
     }
@@ -221,6 +233,8 @@ public enum CashuSwift {
         throw CashuError.invalidSplit("target value (\(String(describing: target))) for split can not be greater than total(\(total))-fee(\(fee)).")
     }
     
+    /// Wire shape of an input proof: no DLEQ and no spend info (bearer keys never leave the
+    /// wallet), witness kept.
     static func stripDLEQ(_ proofs: [Proof]) -> [CashuSwift.Proof] {
         proofs.map { p in
             CashuSwift.Proof(keysetID: p.keysetID,
@@ -228,7 +242,8 @@ public enum CashuSwift {
                              secret: p.secret,
                              C: p.C,
                              dleq: nil,
-                             witness: p.witness)
+                             witness: p.witness,
+                             spendInfo: nil)
         }
     }
     
@@ -287,33 +302,28 @@ public enum CashuSwift {
         
         var units:Set<String> = []
         for proof in proofs {
-            if proof.keysetID.count == 12 {
+            guard let version = KeysetVersion(keysetID: proof.keysetID) else {
+                throw CashuError.invalidKeysetID("Invalid keyset id \(proof.keysetID)")
+            }
+            if version.supportsShortID {
+                // v1 / v3 IDs may be shortened — resolve to the full keyset by prefix.
+                let keysets = mint.keysets.filter({ $0.keysetID.hasPrefix(proof.keysetID) })
+
+                guard !keysets.isEmpty else {
+                    throw CashuError.unitError("unable to determine any keyset with id \(proof.keysetID) for mint \(mint.url.absoluteString)")
+                }
+
+                guard keysets.count == 1 else {
+                    throw CashuError.invalidKeysetID("keyset id \(proof.keysetID) of mint \(mint.url.absoluteString) resolves to MORE THAN ONE keyset")
+                }
+
+                units.insert(keysets.first!.unit)
+            } else {
+                // legacy / v0 IDs are always full — match exactly.
                 guard let keysetForID = mint.keysets.first(where: { $0.keysetID == proof.keysetID }) else {
                     throw CashuError.unitError("unable to determine keyset with id \(proof.keysetID) for mint \(mint.url.absoluteString)")
                 }
                 units.insert(keysetForID.unit)
-            } else {
-                if proof.keysetID.hasPrefix("00") {
-                    guard let keysetForID = mint.keysets.first(where: { $0.keysetID == proof.keysetID }) else {
-                        throw CashuError.unitError("unable to determine keyset with id \(proof.keysetID) for mint \(mint.url.absoluteString)")
-                    }
-                    
-                    units.insert(keysetForID.unit)
-                } else if proof.keysetID.hasPrefix("01") {
-                    let keysets = mint.keysets.filter({ $0.keysetID.hasPrefix(proof.keysetID) })
-                    
-                    guard !keysets.isEmpty else {
-                        throw CashuError.unitError("unable to determine any keyset with id \(proof.keysetID) for mint \(mint.url.absoluteString)")
-                    }
-                    
-                    guard keysets.count == 1 else {
-                        throw CashuError.invalidKeysetID("keyset id \(proof.keysetID) of mint \(mint.url.absoluteString) resolves to MORE THAN ONE keyset")
-                    }
-                    
-                    units.insert(keysets.first!.unit)
-                } else {
-                    throw CashuError.invalidKeysetID("Invalid keyset id \(proof.keysetID)")
-                }
             }
         }
         return units
@@ -392,13 +402,14 @@ extension Array where Element : ProofRepresenting {
     
     public func withShortKeysetID() -> [CashuSwift.Proof] {
         self.map { p in
-            let shortID = p.keysetID.count != 12 && p.keysetID.hasPrefix("01") ? String(p.keysetID.prefix(16)) : p.keysetID
+            let shortID = CashuSwift.KeysetVersion(keysetID: p.keysetID)?.supportsShortID == true ? String(p.keysetID.prefix(16)) : p.keysetID
             return CashuSwift.Proof(keysetID: shortID,
                                     amount: p.amount,
                                     secret: p.secret,
                                     C: p.C,
                                     dleq: p.dleq,
-                                    witness: nil)
+                                    witness: nil,
+                                    spendInfo: p.spendInfo)
         }
     }
     
@@ -407,30 +418,29 @@ extension Array where Element : ProofRepresenting {
         
         for p in self {
             let fullID: String
-            if p.keysetID.count == 12 {
+            guard let version = CashuSwift.KeysetVersion(keysetID: p.keysetID) else {
+                throw CashuError.invalidKeysetID("keyset id \(p.keysetID) is invalid (neither legacy, nor v0 '00', v1 '01' or v3 '02')")
+            }
+            switch version {
+            case .legacyBase64, .v0:
                 fullID = p.keysetID
-            } else {
-                if p.keysetID.hasPrefix("00") {
-                    fullID = p.keysetID
-                } else if p.keysetID.hasPrefix("01") {
-                    let keysets = mint.keysets.filter({ $0.keysetID.hasPrefix(p.keysetID) })
-                    guard !keysets.isEmpty else {
-                        throw CashuError.invalidKeysetID("No keyset of mint \(mint.url.absoluteString) could be determined for short id \(p.keysetID)")
-                    }
-                    guard keysets.count == 1 else {
-                        throw CashuError.invalidKeysetID("More than one keyset of mint \(mint.url.absoluteString) matches the shortened version \(p.keysetID)")
-                    }
-                    fullID = keysets.first!.keysetID
-                } else {
-                    throw CashuError.invalidKeysetID("keyset id \(p.keysetID) is invalid (neither legacy, nor v0 '00' or v1 '01'")
+            case .v1, .v3:
+                let keysets = mint.keysets.filter({ $0.keysetID.hasPrefix(p.keysetID) })
+                guard !keysets.isEmpty else {
+                    throw CashuError.invalidKeysetID("No keyset of mint \(mint.url.absoluteString) could be determined for short id \(p.keysetID)")
                 }
+                guard keysets.count == 1 else {
+                    throw CashuError.invalidKeysetID("More than one keyset of mint \(mint.url.absoluteString) matches the shortened version \(p.keysetID)")
+                }
+                fullID = keysets.first!.keysetID
             }
             proofs.append(CashuSwift.Proof(keysetID: fullID,
                                            amount: p.amount,
                                            secret: p.secret,
                                            C: p.C,
                                            dleq: p.dleq,
-                                           witness: nil))
+                                           witness: nil,
+                                           spendInfo: p.spendInfo))
         }
         
         return proofs

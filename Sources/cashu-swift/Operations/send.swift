@@ -83,7 +83,15 @@ extension CashuSwift {
                                                  seed: seed,
                                                  unit: unit)
 
-        let sendOutputSets = try lockToPublicKey.map { pubkey in
+        // On a v3 keyset a lock to a public key is a receiver-keyed nutroot output (NUT-28 slot 0).
+        let nutroot = lockToPublicKey.flatMap { activeKeyset.version == .v3 ? NutrootOption(k: $0) : nil }
+        let locked = try nutroot.map {
+            try Nutroot.receiverKeyedOutputs(amounts: splitIntoBase2Numbers(split.sendAmount),
+                                             keysetID: activeKeyset.keysetID, option: $0)
+        }
+
+        let sendOutputSets = try locked.map { (outputs: $0.map(\.output), blindingFactors: $0.map(\.blindingFactor), secrets: $0.map(\.secret)) }
+        ?? lockToPublicKey.map { pubkey in
             try generateP2PKOutputs(for: split.sendAmount,
                                     mint: mint,
                                     publicKey: pubkey,
@@ -104,15 +112,27 @@ extension CashuSwift {
                                         sendOutputs: sendOutputSets,
                                         keepOutputs: keepOutputSets)
         
-        let token = Token(proofs: [mint.url.absoluteString: swapResult.send.withShortKeysetID()],
+        let sendProofs = attach(locked?.map(\.spendInfo), to: swapResult.send)
+        let token = Token(proofs: [mint.url.absoluteString: sendProofs.withShortKeysetID()],
                           unit: unit,
                           memo: memo)
         
         return SendResult(token: token,
-                          send: swapResult.send,
+                          send: sendProofs,
                           change: swapResult.keep,
                           outputDLEQ: swapResult.outputDLEQ,
                           counterIncrease: (activeKeyset.keysetID, increase))
+    }
+
+    /// Attaches the spend info of receiver-keyed outputs to the proofs unblinded from them
+    /// (same order as the outputs were generated).
+    static func attach(_ spendInfos: [SpendInfo]?, to proofs: [Proof]) -> [Proof] {
+        guard let spendInfos, spendInfos.count == proofs.count else { return proofs }
+        return zip(proofs, spendInfos).map { proof, info in
+            var p = proof
+            p.spendInfo = info
+            return p
+        }
     }
     
     public static func send(request: PaymentRequest,
@@ -149,8 +169,12 @@ extension CashuSwift {
         
         // TODO: check for exact amount to avoid swap
         
+        // NUT-18: a payer on a v3 keyset MUST follow `nutroot`; other payers follow `nut10`.
+        let nutroot = activeKeyset.version == .v3 ? request.nutroot : nil
         let lockToPublicKey: String?
-        if let lockingCondition = request.lockingCondition {
+        if nutroot != nil {
+            lockToPublicKey = nil
+        } else if let lockingCondition = request.lockingCondition {
             guard lockingCondition.kind == "P2PK" else {
                 throw CashuError.paymentRequestValidation("CashuSwift only support HTLC locking conditions yet.")
             }
@@ -171,7 +195,13 @@ extension CashuSwift {
                                                  seed: seed,
                                                  unit: unit)
                 
-        let sendOutputSets = try lockToPublicKey.map { pubkey in
+        let locked = try nutroot.map {
+            try Nutroot.receiverKeyedOutputs(amounts: splitIntoBase2Numbers(split.sendAmount),
+                                             keysetID: activeKeyset.keysetID, option: $0)
+        }
+
+        let sendOutputSets = try locked.map { (outputs: $0.map(\.output), blindingFactors: $0.map(\.blindingFactor), secrets: $0.map(\.secret)) }
+        ?? lockToPublicKey.map { pubkey in
             try generateP2PKOutputs(for: split.sendAmount,
                                     mint: mint,
                                     publicKey: pubkey,
@@ -183,7 +213,7 @@ extension CashuSwift {
                              offset: keepOutputSets.outputs.count) // MARK: need to increase detsec counter in function
         
         var increase = seed != nil ? keepOutputSets.outputs.count : 0
-        if lockToPublicKey == nil && seed != nil {
+        if lockToPublicKey == nil && nutroot == nil && seed != nil {
             increase += sendOutputSets.outputs.count
         }
         
@@ -192,14 +222,15 @@ extension CashuSwift {
                                         sendOutputs: sendOutputSets,
                                         keepOutputs: keepOutputSets)
         
+        let sendProofs = attach(locked?.map(\.spendInfo), to: swapResult.send)
         let payload = PaymentRequestPayload(id: request.paymentId,
                                             memo: memo,
                                             mint: mint.url.absoluteString,
                                             unit: unit,
-                                            proofs: swapResult.send)
+                                            proofs: sendProofs)
         
         return SendPayloadResult(payload: payload,
-                                 send: swapResult.send,
+                                 send: sendProofs,
                                  change: swapResult.keep,
                                  outputDLEQ: swapResult.outputDLEQ,
                                  counterIncrease: (activeKeyset.keysetID, increase))

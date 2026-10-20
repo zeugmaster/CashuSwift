@@ -107,9 +107,20 @@ extension CashuSwift.Crypto {
 
     /// Derives the deterministic NUT-20 quote-locking key `m/129373'/20'/0'/0'/{counter}`
     /// from the wallet seed. Returns the raw private key and the compressed public key hex.
+    /// Deprecated by NUT-13 type `0x04` (`CashuSwift.quoteLockingKey(seed:mintPubkey:counter:)`)
+    /// for new quotes; kept to recover keys legacy wallets created.
     static func nut20QuoteLockingKey(seed: String, counter: UInt32) throws -> (privateKey: Data, publicKey: String) {
         let path = "m/129373'/20'/0'/0'/\(counter)"
         let key = try childPrivateKeyForDerivationPath(seed: seed, derivationPath: path)
         return (key.dataRepresentation, String(bytes: key.publicKey.dataRepresentation))
+    }
+}
+
+extension CashuSwift {
+    /// Derives a quote lock key per NUT-13 type `0x04`: scoped to the mint's NUT-06 identity
+    /// `pubkey`, with a per-mint quote counter the wallet persists separately from its proof
+    /// counters. Use a fresh counter per quote and keep it (or the key) with the pending quote.
+    public static func quoteLockingKey(seed: String, mintPubkey: String, counter: UInt64) throws -> (privateKey: Data, publicKey: String) {
+        try Crypto.v3QuoteLockKey(seed: seed, mintPubkey: mintPubkey, counter: counter)
     }
 }

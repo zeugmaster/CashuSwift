@@ -86,6 +86,9 @@ extension CashuSwift {
             public let amountPaid: Int
             public let amountIssued: Int
 
+            public var quotePubkey: String? { pubkey }
+            public var quoteAmountIssued: Int? { amountIssued }
+
             /// NUT-25 BOLT12 mint quote responses do not carry a `state` field.
             public var state: QuoteState? { nil }
 
@@ -182,6 +185,7 @@ extension CashuSwift {
         /// Use a fresh counter per quote and persist it (or the private key) with
         /// the quote. Reuse that key for subsequent issuances of the same quote.
         /// This counter is independent of the NUT-13 output derivation counters.
+        @available(*, deprecated, message: "The NUT-20 BIP32 path is deprecated for new quotes; use CashuSwift.quoteLockingKey(seed:mintPubkey:counter:) (NUT-13 type 0x04). Keep for recovering legacy quotes.")
         public static func quoteLockingKey(seed: String, counter: UInt32) throws -> (privateKey: Data, publicKey: String) {
             try Crypto.nut20QuoteLockingKey(seed: seed, counter: counter)
         }
