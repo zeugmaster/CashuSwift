@@ -276,10 +276,6 @@ extension CashuSwift {
 
         logger.debug("Attempting melt with quote amount: \(quote.amount), required input total: \(targetAmount).")
 
-        guard let keyset = activeKeysetForUnit(proofUnit, mint: mint) else {
-            throw CashuError.noActiveKeysetForUnit("No active keyset for unit \(proofUnit)")
-        }
-
         let noDLEQ = proofs.map {
             Proof(keysetID: $0.keysetID, amount: $0.amount, secret: $0.secret, C: $0.C, dleq: nil, witness: nil)
         }
@@ -288,37 +284,96 @@ extension CashuSwift {
         let url = mint.url.appending(path: "/v1/melt/\(quote.method.rawValue)")
         let response = try await Network.post(url: url, body: executionBody, expected: Quote.self, timeout: timeout)
 
-        let change: [Proof]?
-        if let promises = response.change, let blankOutputs {
-            guard promises.count <= blankOutputs.outputs.count else {
-                throw Crypto.Error.unblinding("could not unblind blank outputs for fee return")
-            }
-            do {
-                change = try Crypto.unblindPromises(
-                    promises,
-                    blindingFactors: Array(blankOutputs.blindingFactors.prefix(promises.count)),
-                    secrets: Array(blankOutputs.secrets.prefix(promises.count)),
-                    keyset: keyset
-                )
-            } catch {
-                logger.error("Unable to unblind change from melt operation due to error: \(error). Operation will still return successful.")
-                change = nil
-            }
-        } else {
-            change = nil
+        // From here on the mint has executed the payment and the inputs are spent.
+        // Nothing below may throw: a thrown error would make a paid melt look failed.
+        let outcome = recoverMeltChange(promises: response.change, blankOutputs: blankOutputs, mint: mint)
+
+        return MeltResult(quote: response,
+                          change: outcome.recoveredProofs,
+                          dleqResult: outcome.legacyDLEQResult,
+                          changeOutcome: outcome)
+    }
+
+    /// Recovers NUT-08 change from the promises a mint returned for a melt.
+    ///
+    /// This runs only after the mint has confirmed the melt, i.e. after the inputs are
+    /// irrevocably spent, so it never throws. Every failure is reported through
+    /// `MeltChange.unrecoverable` with the original promises attached, so the caller
+    /// still learns that the melt succeeded and can persist the promises for a retry.
+    ///
+    /// The keyset used for unblinding is taken from the blank outputs themselves rather
+    /// than from the mint's promises, so a mint cannot steer unblinding to a keyset the
+    /// wallet never requested. As everywhere in this package the DLEQ result is advisory.
+    static func recoverMeltChange(
+        promises: [Promise]?,
+        blankOutputs: (outputs: [Output], blindingFactors: [String], secrets: [String])?,
+        mint: MintRepresenting
+    ) -> MeltChange {
+        // A nil or empty change list is the normal "no change due" case. Some mints echo
+        // `change: []` even when the wallet sent no blank outputs.
+        guard let promises, !promises.isEmpty else {
+            return .none
         }
 
-        let dleqResult: Crypto.DLEQVerificationResult
-        if let change {
-            dleqResult = try Crypto.checkDLEQ(for: change, with: mint)
-            if case .noData = dleqResult {
-                logger.warning("Melt change DLEQ check could not be performed due to missing data.")
-            }
-        } else {
-            dleqResult = .valid
+        // The mint returned change but the caller supplied nothing to unblind it with,
+        // typically a melt-state re-check made without the persisted blank outputs.
+        guard let blankOutputs, !blankOutputs.outputs.isEmpty else {
+            logger.warning("Mint returned \(promises.count) change promises but no blank outputs were supplied to unblind them.")
+            return .unrecoverable(
+                promises: promises,
+                error: Crypto.Error.unblinding("No blank outputs supplied for \(promises.count) change promises.")
+            )
         }
 
-        return MeltResult(quote: response, change: change, dleqResult: dleqResult)
+        guard promises.count <= blankOutputs.outputs.count else {
+            logger.error("Mint returned \(promises.count) change promises for \(blankOutputs.outputs.count) blank outputs.")
+            return .unrecoverable(
+                promises: promises,
+                error: Crypto.Error.unblinding("Mint returned \(promises.count) change promises for \(blankOutputs.outputs.count) blank outputs.")
+            )
+        }
+
+        let ids = Set(blankOutputs.outputs.map(\.id))
+        guard let id = ids.first, ids.count == 1 else {
+            return .unrecoverable(
+                promises: promises,
+                error: CashuError.unknownError("Could not determine singular keyset id from blank outputs: \(ids)")
+            )
+        }
+        guard let keyset = mint.keysets.first(where: { $0.keysetID == id }) else {
+            return .unrecoverable(
+                promises: promises,
+                error: CashuError.unknownError("Could not find keyset \(id) for blank outputs on mint \(mint.url.absoluteString)")
+            )
+        }
+
+        let change: [Proof]
+        do {
+            change = try Crypto.unblindPromises(
+                promises,
+                blindingFactors: Array(blankOutputs.blindingFactors.prefix(promises.count)),
+                secrets: Array(blankOutputs.secrets.prefix(promises.count)),
+                keyset: keyset
+            )
+        } catch {
+            logger.error("Unable to unblind melt change: \(error). The melt itself succeeded; reporting change as unrecoverable.")
+            return .unrecoverable(promises: promises, error: error)
+        }
+
+        let dleq: Crypto.DLEQVerificationResult
+        do {
+            dleq = try Crypto.checkDLEQ(for: change, with: mint)
+        } catch {
+            // Malformed DLEQ data, or a promise keyset ID this mint representation does not
+            // know. The proofs are still recovered; unverifiable DLEQ data counts as failed.
+            logger.error("DLEQ check on melt change could not run: \(error). Reporting DLEQ as failed.")
+            dleq = .fail
+        }
+        if case .noData = dleq {
+            logger.warning("Melt change DLEQ check could not be performed due to missing data.")
+        }
+
+        return .recovered(change, dleq: dleq)
     }
 
     /// Re-checks an existing melt quote's state and unblinds any change that the
@@ -333,59 +388,19 @@ extension CashuSwift {
         let url = mint.url.appending(path: "/v1/melt/quote/\(method.rawValue)/\(quoteID)")
         let quote = try await Network.get(url: url, expected: Quote.self)
 
-        var change: [Proof]?
-
         switch quote.state {
         case .paid:
-            guard let promises = quote.change else {
-                logger.info("Melt quote contained no change promises.")
-                return MeltResult(quote: quote, change: [], dleqResult: .valid)
-            }
-            guard let blankOutputs, !blankOutputs.outputs.isEmpty else {
-                // No blank outputs (or an empty set) is a legitimate state: the original
-                // melt had no overpayment beyond the fee reserve, so the wallet generated
-                // zero blank outputs and there is nothing to unblind. Some mints still echo
-                // `change: []` (a non-nil empty array) here, which passes the guard above —
-                // so we must also treat an empty `outputs` array as "no change to receive"
-                // rather than trying to derive a keyset id from it (which would throw).
-                logger.info("Melt quote has no blank outputs to unblind change into; returning no change.")
-                return MeltResult(quote: quote, change: [], dleqResult: .valid)
-            }
-
-            let ids = Set(blankOutputs.outputs.map { $0.id })
-            guard let id = ids.first, ids.count == 1 else {
-                throw CashuError.unknownError("Could not determine singular keyset id from blankOutput list. result: \(ids)")
-            }
-            guard let keyset = mint.keysets.first(where: { $0.keysetID == id }) else {
-                throw CashuError.unknownError("Could not find keyset for ID \(id)")
-            }
-
-            do {
-                change = try Crypto.unblindPromises(
-                    promises,
-                    blindingFactors: Array(blankOutputs.blindingFactors.prefix(promises.count)),
-                    secrets: Array(blankOutputs.secrets.prefix(promises.count)),
-                    keyset: keyset
-                )
-            } catch {
-                logger.error("Unable to unblind change from melt state due to error: \(error). Operation will still return successful.")
-                change = []
-            }
+            // The payment is final; change problems must not surface as a thrown error.
+            let outcome = recoverMeltChange(promises: quote.change, blankOutputs: blankOutputs, mint: mint)
+            // Legacy `change` is an empty array (never nil) for a paid quote without change,
+            // so callers can keep telling "paid, nothing to unblind" from "not paid yet".
+            return MeltResult(quote: quote,
+                              change: outcome.recoveredProofs ?? [],
+                              dleqResult: outcome.legacyDLEQResult,
+                              changeOutcome: outcome)
 
         case .pending, .unpaid, .issued, .none:
-            change = nil
+            return MeltResult(quote: quote, change: nil, dleqResult: .valid, changeOutcome: .none)
         }
-
-        let dleqResult: Crypto.DLEQVerificationResult
-        if let change, !change.isEmpty {
-            dleqResult = try Crypto.checkDLEQ(for: change, with: mint)
-            if case .noData = dleqResult {
-                logger.warning("Melt state DLEQ check could not be performed due to missing data.")
-            }
-        } else {
-            dleqResult = .valid
-        }
-
-        return MeltResult(quote: quote, change: change, dleqResult: dleqResult)
     }
 }
