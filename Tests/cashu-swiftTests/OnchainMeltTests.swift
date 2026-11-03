@@ -65,6 +65,20 @@ final class OnchainMeltTests: XCTestCase {
         XCTAssertEqual(stub.requests.filter { $0.httpMethod == "POST" }.count, 1)
     }
 
+    func testFailedPayoutReportsNoChangeAndKeepsContextUsable() async throws {
+        let stub = try MintHTTPStub { _ in
+            try JSONEncoder().encode(F.meltQuote(state: .failed, selected: 7))
+        }
+        defer { stub.remove() }
+        let mint = try F.mint(url: stub.url)
+        let context = try O.prepareMelt(quote: F.meltQuote(), feeIndex: 7, from: mint,
+                                       proofs: F.proofs([16], mint: mint), seed: nil, info: F.info())
+        let result = try await O.meltState(context: F.roundTrip(context), from: mint)
+        XCTAssertEqual(result.quote.state, .failed)
+        XCTAssertNil(result.quote.outpoint)
+        if case .pending = result.changeRecovery {} else { XCTFail("a failed payout returns no change") }
+    }
+
     func testLostPostResponsePollsWithoutResubmission() async throws {
         let stub = try MintHTTPStub { request in
             if request.httpMethod == "POST" { throw URLError(.timedOut) }
