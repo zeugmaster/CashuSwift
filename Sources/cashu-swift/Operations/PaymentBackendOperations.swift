@@ -399,7 +399,7 @@ extension CashuSwift {
                               dleqResult: outcome.legacyDLEQResult,
                               changeOutcome: outcome)
 
-        case .pending, .unpaid, .issued, .none:
+        case .pending, .unpaid, .failed, .issued, .none:
             return MeltResult(quote: quote, change: nil, dleqResult: .valid, changeOutcome: .none)
         }
     }

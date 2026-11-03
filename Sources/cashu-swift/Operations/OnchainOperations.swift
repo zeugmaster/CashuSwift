@@ -157,6 +157,7 @@ extension CashuSwift.Onchain {
 
     /// Poll the original quote, even after expiry. This never posts proofs.
     /// Upsert returned change by proof identity; repeated calls return the same change.
+    /// A `.failed` or `.unpaid` quote means the mint released the inputs; `changeRecovery` stays `.pending`.
     public static func meltState(context: MeltContext, from mint: CashuSwift.Mint) async throws -> MeltResult {
         try validate(context, mint: mint)
         let quote = try await meltQuoteState(context.quote.quote, from: mint)

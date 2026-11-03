@@ -254,6 +254,8 @@ change may include unused reserve and denomination overpayment.
 
 On timeout, cancellation, or a malformed response, keep the context and inputs
 reserved. Resume with `meltState(context:from:)`, including after quote expiry.
+A quote that comes back `.unpaid` or `.failed` (cdk's state for a payout that
+did not go out) was not paid: the mint released the inputs, so free them.
 Reconcile the quote and proof states before considering another submission.
 The library performs no automatic withdrawal retries. Transport errors retain
 their original type; `Onchain.Error.http(status:mintCode:)` reports structured

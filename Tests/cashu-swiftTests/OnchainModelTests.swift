@@ -93,6 +93,17 @@ final class OnchainModelTests: XCTestCase {
         XCTAssertThrowsError(try O.quoteLockingKey(seed: F.seed, counter: UInt32.max))
     }
 
+    func testFailedStateDecodesAndIsNeverSettled() throws {
+        var json = try F.json(F.meltQuote(state: .pending, selected: 7))
+        json["state"] = "FAILED"
+        let quote: O.MeltQuote = try F.decode(json)
+        XCTAssertEqual(quote.state, .failed)
+        XCTAssertEqual(quote.selectedFeeIndex, 7)
+        XCTAssertEqual(try quote.requiredInputAmount(inputFee: 0), 12)
+        json["state"] = "UNKNOWN"
+        XCTAssertThrowsError(try F.decode(json) as O.MeltQuote, "undefined states are still rejected")
+    }
+
     func testCDKUnbroadcastOutpointCompatibility() throws {
         var json = try F.json(F.meltQuote(state: .pending, selected: 7))
         json["outpoint"] = ""

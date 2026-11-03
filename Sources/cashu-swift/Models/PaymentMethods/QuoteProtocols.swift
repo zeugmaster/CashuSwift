@@ -13,11 +13,16 @@ extension CashuSwift {
     /// NUTs omit the `state` field (e.g. NUT-25 BOLT12 mint quotes, NUT-30 onchain
     /// mint quotes); in those cases the value is `nil` and the wallet should consult
     /// the method's own progress fields (e.g. `amountPaid` / `amountIssued`).
+    ///
+    /// `failed` is not in NUT-05 but cdk reports it when a payout fails after the
+    /// quote was executed (an onchain broadcast that never went out, for example).
+    /// It is terminal and the mint has released the inputs, like `unpaid`.
     public enum QuoteState: String, Codable, Sendable {
         case unpaid = "UNPAID"
         case pending = "PENDING"
         case paid = "PAID"
         case issued = "ISSUED"
+        case failed = "FAILED"
     }
 
     /// Request to create a mint quote — the wallet asks the mint to issue a
