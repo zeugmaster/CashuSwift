@@ -171,6 +171,9 @@ extension CashuSwift {
         
         // NUT-18: a payer on a v3 keyset MUST follow `nutroot`; other payers follow `nut10`.
         let nutroot = activeKeyset.version == .v3 ? request.nutroot : nil
+        if let nutroot, nutroot.k.lowercased() == Nutroot.numsPoint {
+            try nutroot.validate(mintInfo: await loadMintInfo(from: mint))
+        }
         let lockToPublicKey: String?
         if nutroot != nil {
             lockToPublicKey = nil

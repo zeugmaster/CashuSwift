@@ -156,20 +156,19 @@ public enum CashuSwift {
     /// - Returns: Array of proof states
     /// - Throws: An error if the check fails
     public static func check(_ proofs:[ProofRepresenting], mint:MintRepresenting) async throws -> [Proof.ProofState] {
-        let ys = try proofs.map { proof in
-            try stateCheckY(for: proof)
-        }
-
-        let request = Proof.StateCheckRequest(Ys: ys)
-        let response = try await Network.post(url: mint.url.appending(path: "/v1/checkstate"),
-                                              body: request,
-                                              expected: Proof.StateCheckResponse.self)
-        return response.states.map { entry in
-            entry.state
-        }
+        try await check(proofs, url: mint.url)
     }
     
     public static func check(_ proofs:[ProofRepresenting], url:URL) async throws -> [Proof.ProofState] {
+        try await checkState(proofs, url: url).map(\.state)
+    }
+
+    /// NUT-07 states including the witness and input digest exposed for pending/spent v3 proofs.
+    public static func checkState(_ proofs: [ProofRepresenting], mint: MintRepresenting) async throws -> [Proof.ProofStateListEntry] {
+        try await checkState(proofs, url: mint.url)
+    }
+
+    public static func checkState(_ proofs: [ProofRepresenting], url: URL) async throws -> [Proof.ProofStateListEntry] {
         let ys = try proofs.map { proof in
             try stateCheckY(for: proof)
         }
@@ -178,9 +177,10 @@ public enum CashuSwift {
         let response = try await Network.post(url: url.appending(path: "/v1/checkstate"),
                                               body: request,
                                               expected: Proof.StateCheckResponse.self)
-        return response.states.map { entry in
-            entry.state
+        guard response.states.map(\.Y) == ys else {
+            throw CashuError.inputError("check-state response does not match the requested proofs")
         }
+        return response.states
     }
 
     /// NUT-07 lookup point `Y = hashToCurve(secret)` (compressed hex) for a proof's state check.

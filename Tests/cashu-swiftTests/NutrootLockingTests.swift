@@ -21,6 +21,36 @@ final class NutrootLockingTests: XCTestCase {
     let slot1Blinded = "039ca57991c48db95252bff61e02c31cf9b1e9ec2ef27d9dee33db6f0324e6ca81"
     let keysetID = "02b7e077d020fabed456a6be138a8e20e9ef40b44d873fa12c005b656eb0cf99f6"
 
+    func testScriptOnlyLocksRequireAdvertisedLeaves() throws {
+        let limited: CashuSwift.Mint.Info = try OnchainFixture.decode(["nuts": ["10": ["leaves": ["0001"]]]])
+        let core: CashuSwift.Mint.Info = try OnchainFixture.decode([:])
+        let option = CashuSwift.NutrootOption(k: Nutroot.numsPoint, l: [afterLeaf])
+        XCTAssertThrowsError(try option.validate(mintInfo: limited))
+        XCTAssertNoThrow(try option.validate(mintInfo: core))
+        XCTAssertNoThrow(try CashuSwift.NutrootOption(k: key3, l: [afterLeaf]).validate(mintInfo: limited))
+        XCTAssertThrowsError(try CashuSwift.NutrootOption(k: Nutroot.numsPoint,
+            l: [Nutroot.Leaf.commit(String(repeating: "ab", count: 32)).serializedHex()]).validate())
+        XCTAssertThrowsError(try CashuSwift.NutrootOption(k: key3, l: Array(repeating: afterLeaf, count: 9)).validate())
+    }
+
+    func testSendRefusesUnsupportedScriptOnlyLockBeforeSwap() async throws {
+        let stub = try MintHTTPStub { request in
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertEqual(request.url?.path, "/v1/info")
+            return Data(#"{"nuts":{"10":{"leaves":["0001"]}}}"#.utf8)
+        }
+        defer { stub.remove() }
+        let mint = try V3Fixture.mint(url: stub.url)
+        let request = CashuSwift.PaymentRequest(paymentId: nil, amount: 1, unit: "sat", singleUse: nil,
+            mints: nil, description: nil, transports: nil, lockingCondition: nil,
+            nutroot: .init(k: Nutroot.numsPoint, l: [afterLeaf]))
+        do {
+            _ = try await CashuSwift.send(request: request, mint: mint, inputs: V3Fixture.proofs([8], mint: mint), memo: nil, seed: nil)
+            XCTFail("unsupported script-only lock accepted")
+        } catch CashuError.paymentRequestValidation { }
+        XCTAssertEqual(stub.requests.count, 1)
+    }
+
     func testSlotMapVectors() throws {
         let e = try priv(5)
         let sharedX = try P2BK.sharedX(scalar: e, point: try CashuSwift.Crypto.nut20PublicKey(key3))

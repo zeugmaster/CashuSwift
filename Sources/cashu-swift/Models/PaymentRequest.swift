@@ -346,9 +346,26 @@ extension CashuSwift {
         public func validate() throws {
             _ = try Crypto.nut20PublicKey(k)
             let leaves = try (l ?? []).map { try Nutroot.Leaf.parse(hex: $0) }
+            guard leaves.count <= Nutroot.maxLeaves,
+                  leaves.reduce(0, { $0 + $1.keys.count }) <= 255,
+                  k.lowercased() != Nutroot.numsPoint || leaves.contains(where: { $0.kind != .commit }) else {
+                throw CashuError.paymentRequestValidation("invalid nutroot tree or script-only lock without a spend path")
+            }
             let keys = Set(leaves.flatMap(\.keys))
             for key in b ?? [] where !keys.contains(key) {
                 throw CashuError.paymentRequestValidation("nutroot blind-me key is not in any leaf")
+            }
+        }
+
+        /// A script-only lock must be spendable using leaf types the mint advertises.
+        public func validate(mintInfo: Mint.Info) throws {
+            try validate()
+            guard k.lowercased() == Nutroot.numsPoint else { return }
+            for leaf in l ?? [] {
+                let kind = try Nutroot.Leaf.parse(hex: leaf).kind
+                guard mintInfo.nutrootLeafTypes.contains(String(format: "00%02x", kind.rawValue)) else {
+                    throw CashuError.paymentRequestValidation("mint does not advertise a requested nutroot leaf type")
+                }
             }
         }
 

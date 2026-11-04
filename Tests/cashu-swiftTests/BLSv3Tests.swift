@@ -138,4 +138,18 @@ final class BLSv3Tests: XCTestCase {
                                               from: try JSONSerialization.data(withJSONObject: json))
         XCTAssertTrue(keyset.validID)
     }
+
+    func testV3KeysetRejectsInvalidMetadataInsteadOfNormalizingIt() throws {
+        let keys = ["1": Self.g2Key1]
+        for unit in ["SAT", "", "sät", "sat ", "sat/other"] {
+            XCTAssertThrowsError(try CashuSwift.Keyset.calculateHexKeysetIDv3(keyset: keys, unit: unit, inputFeePPK: 0))
+        }
+        for amount in ["0", "3", "-1", "01", "not-a-number"] {
+            XCTAssertThrowsError(try CashuSwift.Keyset.calculateHexKeysetIDv3(keyset: [amount: Self.g2Key1], unit: "sat", inputFeePPK: 0))
+        }
+        XCTAssertThrowsError(try CashuSwift.Keyset.calculateHexKeysetIDv3(keyset: keys, unit: "sat", inputFeePPK: -1))
+        XCTAssertThrowsError(try CashuSwift.Keyset.calculateHexKeysetIDv3(keyset: [:], unit: "sat", inputFeePPK: 0))
+        XCTAssertThrowsError(try CashuSwift.Keyset.calculateHexKeysetIDv3(
+            keyset: ["1": "c0" + String(repeating: "00", count: 95)], unit: "sat", inputFeePPK: 0))
+    }
 }

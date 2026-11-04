@@ -16,6 +16,50 @@ final class SigningPackageTests: XCTestCase {
     let unsigned = "nutspAeyJ2ZXJzaW9uIjoibnV0c3BBIiwidHJhbnNjcmlwdCI6IjEyMDAzZDAxMDAwMTA4MDIwMDBmNzE3NTZmNzQ2NTJkNmQ2OTZlNzQyZDMwMzAzMDMxMDMwMDIxMDM0YjE1MTI5YTljNjY1ZjM3ZmJlOWY2YzgwYTdmZTZlYzBjODA5ZjM0ZWRkZTk4ZDI5OGFmZjk0YTFlOGFmMjc2MDQwMDAwMjEwMDRiMDEwMDAxMDgwMjAwMjEwMmI3ZTA3N2QwMjBmYWJlZDQ1NmE2YmUxMzhhOGUyMGU5ZWY0MGI0NGQ4NzNmYTEyYzAwNWI2NTZlYjBjZjk5ZjYwMzAwMjA1NjdiNGJhOTgwZGQwYzUxYzgwOTE5NjMzYjM4NGMwNzY0YjMwZTUyNTBjNGE4YjhlMzk1N2M5ZjQyMDhjZGVlIiwic3BlbmRzIjpbeyJpbnB1dCI6MCwic2VjcmV0IjoiMDM0YjE1MTI5YTljNjY1ZjM3ZmJlOWY2YzgwYTdmZTZlYzBjODA5ZjM0ZWRkZTk4ZDI5OGFmZjk0YTFlOGFmMjc2IiwibGVhZiI6IjAwMDEwMjAwMDEwMTA0MDAyMTAyZjkzMDhhMDE5MjU4YzMxMDQ5MzQ0Zjg1Zjg5ZDUyMjliNTMxYzg0NTgzNmY5OWIwODYwMWYxMTNiY2UwMzZmOSIsImNvbnRyb2wiOnsiSyI6IjAyOGVkZmViZDZmZGVhM2UxZDg5MzU5YWYyMDg2OGEyZTc2MzE1YjM2Y2RiMWE3OWRlNDk3YTE3NTdjYTdiZDQwNyIsInBhdGgiOltdfSwic2lnbmF0dXJlcyI6W119XX0"
     let signedVector = "nutspAeyJ2ZXJzaW9uIjoibnV0c3BBIiwidHJhbnNjcmlwdCI6IjEyMDAzZDAxMDAwMTA4MDIwMDBmNzE3NTZmNzQ2NTJkNmQ2OTZlNzQyZDMwMzAzMDMxMDMwMDIxMDM0YjE1MTI5YTljNjY1ZjM3ZmJlOWY2YzgwYTdmZTZlYzBjODA5ZjM0ZWRkZTk4ZDI5OGFmZjk0YTFlOGFmMjc2MDQwMDAwMjEwMDRiMDEwMDAxMDgwMjAwMjEwMmI3ZTA3N2QwMjBmYWJlZDQ1NmE2YmUxMzhhOGUyMGU5ZWY0MGI0NGQ4NzNmYTEyYzAwNWI2NTZlYjBjZjk5ZjYwMzAwMjA1NjdiNGJhOTgwZGQwYzUxYzgwOTE5NjMzYjM4NGMwNzY0YjMwZTUyNTBjNGE4YjhlMzk1N2M5ZjQyMDhjZGVlIiwic3BlbmRzIjpbeyJpbnB1dCI6MCwic2VjcmV0IjoiMDM0YjE1MTI5YTljNjY1ZjM3ZmJlOWY2YzgwYTdmZTZlYzBjODA5ZjM0ZWRkZTk4ZDI5OGFmZjk0YTFlOGFmMjc2IiwibGVhZiI6IjAwMDEwMjAwMDEwMTA0MDAyMTAyZjkzMDhhMDE5MjU4YzMxMDQ5MzQ0Zjg1Zjg5ZDUyMjliNTMxYzg0NTgzNmY5OWIwODYwMWYxMTNiY2UwMzZmOSIsImNvbnRyb2wiOnsiSyI6IjAyOGVkZmViZDZmZGVhM2UxZDg5MzU5YWYyMDg2OGEyZTc2MzE1YjM2Y2RiMWE3OWRlNDk3YTE3NTdjYTdiZDQwNyIsInBhdGgiOltdfSwic2lnbmF0dXJlcyI6WyIxMWVkYWYzNjA4YTZiMWZiZWMxOWYxODI2ZTU4YWNlMDljYTUxYWFmYmI3YWQxMTJhMGIwYjhmODc4Nzk2N2Q5OGVlYTI5MzZiYjU1MDUzZGQ0NjNkYmU0N2MyZjIzZjM3ZTU0NzVhZTRlYmU5MmIzMjhkZjU0ZTgwYzdkOTIwNiJdfV19"
 
+    func testMalformedPackagesFailBeforeSigning() throws {
+        let valid = try CashuSwift.SigningPackage(serialized: unsigned)
+        var variants = [CashuSwift.SigningPackage(transcript: transcript, spends: [])]
+        var repeated = valid
+        repeated.spends += repeated.spends
+        variants.append(repeated)
+        var badIndex = valid
+        badIndex.spends[0].input = -1
+        variants.append(badIndex)
+        var badSlots = valid
+        badSlots.spends[0].slots = [256]
+        variants.append(badSlots)
+        var badTranscript = valid
+        badTranscript.transcript = "f10003010000"
+        variants.append(badTranscript)
+        for package in variants {
+            XCTAssertThrowsError(try package.signed(with: []))
+            let encoded = "nutspA" + (try JSONEncoder().encode(package)).base64URLsafe
+            XCTAssertThrowsError(try CashuSwift.SigningPackage(serialized: encoded))
+        }
+        XCTAssertThrowsError(try valid.witness(for: -1))
+        XCTAssertThrowsError(try valid.witness(for: 1))
+    }
+
+    func testReceiverKeyedSignerFindsGlobalSlotWithMissingOrStaleHint() throws {
+        let receiver = try CashuSwift.Crypto.PrivateKey(dataRepresentation: scalar(3).bytes)
+        let ephemeral = try CashuSwift.Crypto.PrivateKey(dataRepresentation: scalar(5).bytes)
+        let blinded = try CashuSwift.Crypto.P2BK.blind(receiver.publicKey, ephemeral: ephemeral, slot: 17)
+        let leaf = try CashuSwift.Nutroot.Leaf.threshold(n: 1, keys: [String(bytes: blinded.dataRepresentation)]).serializedHex()
+        let internalKey = try CashuSwift.Crypto.PrivateKey(dataRepresentation: scalar(6).bytes).publicKey
+        let lock = try CashuSwift.Nutroot.secret(internalKey: internalKey, leaves: [leaf.bytes])
+        let tx = CashuSwift.Transaction(inputs: [.mintQuote(id: "slot-quote", amount: 8,
+            lockKey: String(bytes: lock.dataRepresentation), issued: 0)], outputs: [.meltQuote(id: "melt", amount: 8)])
+        var package = try CashuSwift.SigningPackage(transaction: tx, mintQuoteInput: 0,
+            internalKey: String(bytes: internalKey.dataRepresentation), tree: [leaf], leafIndex: 0)
+        package.spends[0].E = String(bytes: ephemeral.publicKey.dataRepresentation)
+        for hint: [Int]? in [nil, [17], [1]] {
+            package.spends[0].slots = hint
+            let signed = try package.signed(with: [.init(dataRepresentation: receiver.dataRepresentation)])
+            XCTAssertEqual(signed.spends[0].signatures.count, 1)
+            XCTAssertNoThrow(try signed.witness(for: 0))
+        }
+    }
+
     func testDecodeSignEncodeAndMerge() throws {
         let package = try CashuSwift.SigningPackage(serialized: unsigned)
         XCTAssertEqual(package.version, "nutspA")

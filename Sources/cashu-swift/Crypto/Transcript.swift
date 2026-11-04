@@ -81,10 +81,10 @@ extension CashuSwift {
             Array(SHA256.hash(data: Data(bytes)))
         }
 
-        /// A keyset id is hex-decoded iff it is an even-length string of lowercase hex digits,
+        /// A keyset id is hex-decoded iff it is an even-length string of hex digits,
         /// else its UTF-8 bytes are used.
         static func keysetIDBytes(_ id: String) -> [UInt8] {
-            let hexDigits = Set("0123456789abcdef")
+            let hexDigits = Set("0123456789abcdefABCDEF")
             if !id.isEmpty, id.count % 2 == 0, id.allSatisfy({ hexDigits.contains($0) }),
                let bytes = try? id.bytes {
                 return bytes
@@ -115,6 +115,26 @@ extension CashuSwift {
         public init(inputs: [Input], outputs: [Output]) {
             self.inputs = inputs
             self.outputs = outputs
+        }
+
+        /// NUT-04: one locked quote may issue onto several v3 keysets, but cannot mix
+        /// v3 and pre-v3 outputs. Use the quote's refreshed accounting when preparing it.
+        public init<Quote: MintQuoteResponse>(mintQuote: Quote, outputs: [CashuSwift.Output]) throws {
+            guard !outputs.isEmpty, outputs.allSatisfy({ KeysetVersion(keysetID: $0.id) == .v3 }) else {
+                throw CashuError.inputError("a v3 mint transaction requires only v3 outputs")
+            }
+            guard let lockKey = mintQuote.quotePubkey else { throw CashuError.quoteSigningKeyRequired }
+            guard let paid = mintQuote.quoteAmountPaid, let issued = mintQuote.quoteAmountIssued,
+                  paid >= 0, issued >= 0, issued <= paid else { throw CashuError.invalidQuoteAccounting }
+            let amount = try outputs.reduce(0) { sum, output in
+                let (total, overflow) = sum.addingReportingOverflow(output.amount)
+                guard output.amount > 0, !overflow else { throw CashuError.invalidAmount }
+                return total
+            }
+            guard amount <= paid - issued else { throw CashuError.amountOutsideOfLimitRange }
+            self.init(inputs: [.mintQuote(id: mintQuote.quote, amount: amount, lockKey: lockKey,
+                                          issued: issued)],
+                      outputs: outputs.map { .blinded($0) })
         }
 
         static func container(_ input: Input) throws -> [UInt8] {
@@ -165,6 +185,15 @@ extension CashuSwift {
             }
             let inputRecords = try inputs.map(Transaction.container)
             let outputRecords = try outputs.map(Transaction.container)
+            var names = Set<[UInt8]>()
+            for record in inputRecords {
+                let fields = try TLV.records(Array(record.dropFirst(3)))
+                let nameType: UInt8 = record[0] == 0x11 ? 0x03 : 0x02
+                guard let name = fields.first(where: { $0.type == nameType }),
+                      names.insert([record[0]] + name.value).inserted else {
+                    throw CashuError.inputError("transaction repeats a proof or mint quote")
+                }
+            }
             let grouped = inputRecords.enumerated().sorted { a, b in
                 a.element[0] != b.element[0] ? a.element[0] < b.element[0] : a.offset < b.offset
             } + outputRecords.enumerated().sorted { a, b in
@@ -179,7 +208,8 @@ extension CashuSwift {
 
         /// The digest input `index` signs.
         public func inputDigest(_ index: Int) throws -> [UInt8] {
-            Transaction.inputDigest(transactionDigest: try digest(),
+            guard inputs.indices.contains(index) else { throw CashuError.inputError("input index out of range") }
+            return Transaction.inputDigest(transactionDigest: try digest(),
                                     container: try Transaction.container(inputs[index]))
         }
 
@@ -218,17 +248,23 @@ extension CashuSwift.Crypto {
 
 extension CashuSwift {
     /// Signs every v3 proof input that has no witness yet with its key-path key, derived from
-    /// the proof's spend info (`k`, tweaked by its tree if it discloses one). Pre-v3 inputs and
-    /// inputs that already carry a witness (NUT-11, or a merged script-path witness) are left as is.
+    /// the proof's spend info (`k`, tweaked by its tree if it discloses one).
+    /// Existing v3 witnesses are verified against this transaction before reuse.
+    /// Pre-v3 witnesses retain their existing behavior.
     static func signV3Inputs(_ proofs: [Proof], outputs: [Transaction.Output]) throws -> [Proof] {
-        let needsSigning = proofs.indices.filter {
-            KeysetVersion(keysetID: proofs[$0].keysetID)?.isBLS == true && proofs[$0].witness == nil
+        let v3Inputs = proofs.indices.filter {
+            KeysetVersion(keysetID: proofs[$0].keysetID)?.isBLS == true
         }
-        if needsSigning.isEmpty { return proofs }
+        if v3Inputs.isEmpty { return proofs }
 
         let transaction = Transaction(inputs: proofs.map { .proof($0) }, outputs: outputs)
         var signed = proofs
-        for i in needsSigning {
+        for i in v3Inputs {
+            if let witness = proofs[i].witness {
+                try Nutroot.verifyWitness(Proof.Witness(json: witness), secret: proofs[i].secret,
+                                          inputDigest: transaction.inputDigest(i))
+                continue
+            }
             let key = try Nutroot.keyPathKey(for: proofs[i])
             let signature = try Crypto.schnorrSign(digest: try transaction.inputDigest(i), key: key)
             signed[i].witness = try Proof.Witness(signatures: [signature]).stringJSON()

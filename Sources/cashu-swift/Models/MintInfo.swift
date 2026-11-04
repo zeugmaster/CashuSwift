@@ -20,6 +20,17 @@ extension CashuSwift.Mint {
         public let tosUrl: String?
         public let nuts: Nuts?
 
+        /// NUT-10 leaf versions/types supported by the mint. Like cashu-ts, an absent
+        /// or empty list implies the four core leaves required of every v3 mint.
+        public var nutrootLeafTypes: [String] {
+            guard let leaves = nuts?.nut10?.leaves, !leaves.isEmpty else {
+                return ["0001", "0002", "0003", "0004"]
+            }
+            return leaves.map { $0.lowercased() }.filter {
+                $0.utf8.count == 4 && $0.utf8.allSatisfy { (48...57).contains($0) || (97...102).contains($0) }
+            }
+        }
+
         public struct Contact: Codable, Sendable {
             public let method: String
             public let info: String
@@ -103,15 +114,24 @@ extension CashuSwift.Mint {
             public let methods: [PaymentMethod]?
             public let disabled: Bool?
             public let supported: SupportedValue?
+            public let leaves: [String]?
 
             enum CodingKeys: String, CodingKey {
-                case methods, disabled, supported
+                case methods, disabled, supported, leaves
             }
 
             public init(from decoder: Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
                 methods = try container.decodeIfPresent([PaymentMethod].self, forKey: .methods)
                 disabled = try container.decodeIfPresent(Bool.self, forKey: .disabled)
+                if case .array(let entries) = try container.decodeIfPresent(CashuSwift.JSONValue.self, forKey: .leaves) {
+                    leaves = entries.map {
+                        if case .string(let value) = $0 { return value }
+                        return ""
+                    }
+                } else {
+                    leaves = nil
+                }
                 if let boolSupported = try? container.decode(Bool.self, forKey: .supported) {
                     supported = .bool(boolSupported)
                 } else if let methodsSupported = try? container.decode([PaymentMethod].self, forKey: .supported) {
@@ -125,6 +145,7 @@ extension CashuSwift.Mint {
                 var container = encoder.container(keyedBy: CodingKeys.self)
                 try container.encodeIfPresent(methods, forKey: .methods)
                 try container.encodeIfPresent(disabled, forKey: .disabled)
+                try container.encodeIfPresent(leaves, forKey: .leaves)
                 switch supported {
                 case .bool(let value): try container.encode(value, forKey: .supported)
                 case .methods(let value): try container.encode(value, forKey: .supported)

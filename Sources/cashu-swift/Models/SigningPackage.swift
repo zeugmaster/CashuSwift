@@ -12,6 +12,7 @@ import Foundation
 import secp256k1
 
 extension CashuSwift {
+    /// Experimental wallet-to-wallet format following the draft NUT signing-package proposal.
     public struct SigningPackage: Codable, Equatable, Sendable {
         public static let prefix = "nutspA"
 
@@ -56,8 +57,9 @@ extension CashuSwift {
             self.version = SigningPackage.prefix
             self.transcript = String(bytes: try transaction.transcript())
             self.spends = try spends.map { spend in
-                guard case .proof(let proof) = transaction.inputs[spend.inputIndex],
-                      let info = proof.spendInfo, let tree = info.tree else {
+                guard transaction.inputs.indices.contains(spend.inputIndex),
+                      case .proof(let proof) = transaction.inputs[spend.inputIndex],
+                      let info = proof.spendInfo, let tree = info.tree, tree.indices.contains(spend.leafIndex) else {
                     throw CashuError.spendingConditionError("input has no disclosed tree to spend through")
                 }
                 let K = try info.K ?? Nutroot.resolve(proof).internalKey.dataRepresentation.hexEncodedString()
@@ -67,11 +69,37 @@ extension CashuSwift {
                              control: .init(K: K, path: try Nutroot.merklePath(leaves: tree, index: spend.leafIndex)),
                              E: info.E)
             }
+            let records = try inputs()
+            for i in self.spends.indices {
+                let record = try Transaction.container(transaction.inputs[self.spends[i].input])
+                guard let index = records.firstIndex(where: { $0.record == record }) else {
+                    throw CashuError.inputError("input is absent from transcript")
+                }
+                self.spends[i].input = index
+            }
+            try validate()
+        }
+
+        /// Extracts the script path of a locked mint quote (NUT-04), using its disclosed tree.
+        public init(transaction: Transaction, mintQuoteInput: Int, internalKey: String, tree: [String], leafIndex: Int) throws {
+            guard transaction.inputs.indices.contains(mintQuoteInput), tree.indices.contains(leafIndex),
+                  case .mintQuote(_, _, let lockKey, _) = transaction.inputs[mintQuoteInput] else {
+                throw CashuError.inputError("invalid mint quote script-path plan")
+            }
+            self.init(transcript: String(bytes: try transaction.transcript()), spends: [])
+            let record = try Transaction.container(transaction.inputs[mintQuoteInput])
+            guard let input = try inputs().firstIndex(where: { $0.record == record }) else {
+                throw CashuError.inputError("quote is absent from transcript")
+            }
+            spends = [Spend(input: input, secret: lockKey, leaf: tree[leafIndex],
+                            control: .init(K: internalKey, path: try Nutroot.merklePath(leaves: tree, index: leafIndex)))]
+            try validate()
         }
 
         // MARK: - Codec
 
         public func serialize() throws -> String {
+            try validate()
             let json = try JSONEncoder().encode(self)
             return SigningPackage.prefix + json.base64URLsafe.replacingOccurrences(of: "=", with: "")
         }
@@ -82,9 +110,26 @@ extension CashuSwift {
                 throw CashuError.tokenDecoding("not a nutspA signing package")
             }
             self = try JSONDecoder().decode(SigningPackage.self, from: data)
-            guard version == SigningPackage.prefix else { throw CashuError.tokenDecoding("unknown signing package version") }
-            guard Set(spends.map(\.input)).count == spends.count else {
-                throw CashuError.tokenDecoding("signing package names an input twice")
+            try validate()
+        }
+
+        /// Also validates packages constructed or decoded through Codable directly.
+        public func validate() throws {
+            guard version == SigningPackage.prefix, !spends.isEmpty,
+                  Set(spends.map(\.input)).count == spends.count else {
+                throw CashuError.tokenDecoding("invalid signing package version, empty spends, or repeated input")
+            }
+            for spend in spends {
+                let (leaf, _) = try verify(spend)
+                if let slots = spend.slots {
+                    guard slots.count == leaf.keys.count, slots.allSatisfy({ (1...255).contains($0) }) else {
+                        throw CashuError.inputError("invalid signing package slot hints")
+                    }
+                }
+                if let E = spend.E { _ = try Crypto.nut20PublicKey(E) }
+                guard spend.signatures.allSatisfy({ (try? $0.bytes.count) == 64 }) else {
+                    throw CashuError.inputError("malformed signing package signature")
+                }
             }
         }
 
@@ -101,7 +146,13 @@ extension CashuSwift {
 
         public func inputs() throws -> [ParsedInput] {
             var inputs = [ParsedInput]()
+            var lastType: UInt8 = 0
+            var hasOutput = false
             for record in try TLV.records(try transcript.bytes) {
+                guard record.type >= lastType, !record.value.isEmpty else {
+                    throw CashuError.inputError("invalid transcript container order or empty container")
+                }
+                lastType = record.type
                 switch record.type {
                 case 0x11, 0x12:
                     var amount: UInt64?
@@ -120,11 +171,12 @@ extension CashuSwift {
                     guard let amount, let point else { throw CashuError.inputError("malformed input container") }
                     inputs.append(ParsedInput(type: record.type, amount: amount, point: point, record: record.raw))
                 case 0x21, 0x22:
-                    break
+                    hasOutput = true
                 default:
                     throw CashuError.inputError("unknown transcript container")
                 }
             }
+            guard !inputs.isEmpty, hasOutput else { throw CashuError.inputError("transaction needs inputs and outputs") }
             return inputs
         }
 
@@ -171,12 +223,13 @@ extension CashuSwift {
         /// Appends signatures by every `keys` entry (or, for receiver-keyed spends, the slot key it
         /// derives from `E`) that a spend's leaf lists. Returns the updated package.
         public func signed(with keys: [secp256k1.Schnorr.PrivateKey]) throws -> SigningPackage {
+            try validate()
             var package = self
             for (i, spend) in spends.enumerated() {
                 let (leaf, digest) = try verify(spend)
                 let ephemeral = try spend.E.map { try Crypto.nut20PublicKey($0) }
                 for key in keys {
-                    let candidates = try signingCandidates(for: key, leaf: leaf, ephemeral: ephemeral)
+                    let candidates = try signingCandidates(for: key, leaf: leaf, ephemeral: ephemeral, slots: spend.slots)
                     for candidate in candidates where leaf.keys.contains(String(bytes: candidate.publicKey.dataRepresentation)) {
                         let signature = try Crypto.schnorrSign(digest: digest, key: candidate)
                         if !package.spends[i].signatures.contains(signature) {
@@ -190,16 +243,20 @@ extension CashuSwift {
 
         private func signingCandidates(for key: secp256k1.Schnorr.PrivateKey,
                                        leaf: Nutroot.Leaf,
-                                       ephemeral: Crypto.PublicKey?) throws -> [secp256k1.Schnorr.PrivateKey] {
+                                       ephemeral: Crypto.PublicKey?, slots: [Int]?) throws -> [secp256k1.Schnorr.PrivateKey] {
             var out = [key]
             guard let ephemeral else { return out }
             let staticKey = try Crypto.PrivateKey(dataRepresentation: key.dataRepresentation)
             for (offset, blinded) in leaf.keys.enumerated() {
-                let slot = offset + 1
-                guard slot <= 255 else { break }
-                if let derived = try Crypto.P2BK.unblind(try Crypto.nut20PublicKey(blinded), receiverKey: staticKey,
-                                                         ephemeral: ephemeral, slot: UInt8(slot)) {
-                    out.append(try secp256k1.Schnorr.PrivateKey(dataRepresentation: derived.dataRepresentation))
+                let point = try Crypto.nut20PublicKey(blinded)
+                // Slot numbers belong to the whole tree, which the co-signer may not have.
+                let hint = slots.map { $0[offset] }
+                let candidates = hint.map { [$0] } ?? []
+                for slot in candidates + (1...255).filter({ $0 != hint }) {
+                    if let derived = try Crypto.P2BK.unblind(point, receiverKey: staticKey, ephemeral: ephemeral, slot: UInt8(slot)) {
+                        out.append(try secp256k1.Schnorr.PrivateKey(dataRepresentation: derived.dataRepresentation))
+                        break
+                    }
                 }
             }
             return out
@@ -210,12 +267,14 @@ extension CashuSwift {
         /// The script-path witness for `spend`, with `preimage` for a hashlock leaf. Verifies the
         /// collected signatures satisfy the leaf first.
         public func witness(for spendIndex: Int, preimage: String? = nil) throws -> Proof.Witness {
+            try validate()
+            guard spends.indices.contains(spendIndex) else { throw CashuError.inputError("spend index out of range") }
             let spend = spends[spendIndex]
-            let (leaf, digest) = try verify(spend)
+            let (_, digest) = try verify(spend)
             let witness = Proof.Witness(signatures: spend.signatures,
                                         leaf: spend.leaf,
                                         control: spend.control,
-                                        preimage: leaf.kind == .hashlock ? preimage : nil)
+                                        preimage: preimage)
             try Nutroot.verifyScriptPath(witness, secret: spend.secret, inputDigest: digest)
             return witness
         }
@@ -223,13 +282,19 @@ extension CashuSwift {
         /// Sets the witnesses of this package on `proofs` (the transaction's proof inputs, in
         /// order), after checking the package's transcript is the transaction's.
         public func merge(into proofs: [Proof], transaction: Transaction, preimages: [Int: String] = [:]) throws -> [Proof] {
+            try validate()
             guard String(bytes: try transaction.transcript()) == transcript else {
                 throw CashuError.spendingConditionError("signing package transcript differs from the transaction")
             }
             var merged = proofs
+            let parsed = try inputs()
+            let proofRecords = try proofs.map { try Transaction.container(.proof($0)) }
             for (i, spend) in spends.enumerated() {
-                guard merged.indices.contains(spend.input) else { throw CashuError.inputError("spend input index out of range") }
-                merged[spend.input].witness = try witness(for: i, preimage: preimages[i]).stringJSON()
+                guard parsed[spend.input].type == 0x11,
+                      let index = proofRecords.firstIndex(of: parsed[spend.input].record) else {
+                    throw CashuError.inputError("package input does not match a supplied proof")
+                }
+                merged[index].witness = try witness(for: i, preimage: preimages[i]).stringJSON()
             }
             return merged
         }

@@ -3,6 +3,21 @@ import Foundation
 import XCTest
 
 final class MintInfoPaymentMethodTests: XCTestCase {
+    func testNutrootLeafAdvertisementsSurviveCachingAndDefaultToCore() throws {
+        for json in [#"{}"#, #"{"nuts":{"10":{"supported":true}}}"#, #"{"nuts":{"10":{"leaves":[]}}}"#] {
+            let info = try JSONDecoder().decode(CashuSwift.Mint.Info.self, from: Data(json.utf8))
+            XCTAssertEqual(info.nutrootLeafTypes, ["0001", "0002", "0003", "0004"])
+        }
+        let info = try JSONDecoder().decode(CashuSwift.Mint.Info.self,
+            from: Data(#"{"nuts":{"10":{"supported":true,"leaves":["0001","00AB","bad",42]}}}"#.utf8))
+        let cached = try JSONDecoder().decode(CashuSwift.Mint.Info.self, from: JSONEncoder().encode(info))
+        XCTAssertEqual(info.nutrootLeafTypes, ["0001", "00ab"])
+        XCTAssertEqual(cached.nutrootLeafTypes, info.nutrootLeafTypes)
+        let malformed = try JSONDecoder().decode(CashuSwift.Mint.Info.self,
+            from: Data(#"{"nuts":{"10":{"leaves":[42]}}}"#.utf8))
+        XCTAssertEqual(malformed.nutrootLeafTypes, [], "a nonempty invalid list must not imply core support")
+    }
+
     func testMethodNamesSurviveMintInfoCacheRoundTrip() throws {
         let data = Data(#"""
         {"nuts": {

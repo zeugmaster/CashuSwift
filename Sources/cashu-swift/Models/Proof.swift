@@ -99,12 +99,12 @@ extension CashuSwift {
             case spent = "SPENT"
         }
         
-        struct ProofStateListEntry: Codable {
-            let Y: String
-            let state: ProofState
-            let witness: String?
+        public struct ProofStateListEntry: Codable, Sendable {
+            public let Y: String
+            public let state: ProofState
+            public let witness: String?
             /// NUT-07: the input digest a v3 witness signs, present with the witness.
-            let inputDigest: String?
+            public let inputDigest: String?
 
             enum CodingKeys: String, CodingKey {
                 case Y, state, witness
@@ -117,8 +117,8 @@ extension CashuSwift {
         }
         
         /// Response from checking proof states.
-        public struct StateCheckResponse: Codable {
-            let states: [ProofStateListEntry]
+        public struct StateCheckResponse: Codable, Sendable {
+            public let states: [ProofStateListEntry]
         }
         
         /// Witness data: NUT-11 signatures, a v3 key-path signature, or a NUT-10 script-path

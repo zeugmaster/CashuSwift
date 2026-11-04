@@ -177,24 +177,27 @@ extension CashuSwift {
         static func calculateHexKeysetIDv3(keyset: Dictionary<String, String>,
                                             unit: String,
                                             inputFeePPK: Int?) throws -> String {
-            let lowerUnit = unit.lowercased()
-            guard !lowerUnit.isEmpty, lowerUnit.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_" || $0 == "-") }) else {
+            guard !unit.isEmpty, unit.utf8.allSatisfy({ (97...122).contains($0) || (48...57).contains($0) || $0 == 95 || $0 == 45 }) else {
                 throw CashuError.invalidKeysetID("v3 keyset unit must match [a-z0-9_-]+")
             }
-            let sorted = keyset.compactMap { pair -> (UInt64, String)? in
-                UInt64(pair.key).map { ($0, pair.value) }
+            guard !keyset.isEmpty, inputFeePPK ?? 0 >= 0 else {
+                throw CashuError.invalidKeysetID("v3 keyset needs keys and a nonnegative input fee")
+            }
+            let sorted = try keyset.map { pair -> (UInt64, String) in
+                guard let amount = UInt64(pair.key), amount > 0, amount.nonzeroBitCount == 1,
+                      String(amount) == pair.key else {
+                    throw CashuError.invalidKeysetID("invalid v3 denomination")
+                }
+                return (amount, pair.value)
             }.sorted { $0.0 < $1.0 }
             var keys = [UInt8]()
             for (amount, pubkey) in sorted {
-                let pubkeyBytes = try pubkey.bytes
-                guard pubkeyBytes.count == 96 else {
-                    throw CashuError.invalidKeysetID("v3 keyset pubkeys must be compressed G2 points (96 bytes)")
-                }
+                let pubkeyBytes = try Crypto.BLS.g2Point(fromHex: pubkey).compressedBytes
                 keys += TLV.framed(TLV.minimalBE(amount)) + TLV.framed(pubkeyBytes)
             }
             let preimage = TLV.framed(keys)
-                + TLV.framed(Array(lowerUnit.utf8))
-                + TLV.framed(TLV.minimalBE(UInt64(max(inputFeePPK ?? 0, 0))))
+                + TLV.framed(Array(unit.utf8))
+                + TLV.framed(TLV.minimalBE(UInt64(inputFeePPK ?? 0)))
             return "02" + Data(SHA256.hash(data: Data(preimage))).hexEncodedString()
         }
 

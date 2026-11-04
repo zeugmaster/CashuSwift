@@ -13,6 +13,36 @@ fileprivate let logger = Logger(subsystem: "cashu-swift", category: "Network")
 struct Network {
     
     private init() {}
+
+    // The onchain path preserves HTTP and transport failures for reconciliation.
+    // Existing backends retain their public error behavior.
+    static func strictGet<T: Decodable>(url: URL, expected: T.Type, timeout: Double = 30) async throws -> T {
+        try await strictResponse(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData,
+                                           timeoutInterval: timeout), expected: expected)
+    }
+
+    static func strictPost<I: Encodable, T: Decodable>(url: URL, body: I, expected: T.Type,
+                                                      timeout: Double = 30) async throws -> T {
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: timeout)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(body)
+        return try await strictResponse(request, expected: expected)
+    }
+
+    private struct MintError: Decodable { let code: Int }
+
+    private static func strictResponse<T: Decodable>(_ request: URLRequest, expected: T.Type) async throws -> T {
+        try Task.checkCancellation()
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try Task.checkCancellation()
+        guard let http = response as? HTTPURLResponse else { throw CashuSwift.Onchain.Error.invalidResponse }
+        let mintError = try? JSONDecoder().decode(MintError.self, from: data)
+        guard (200..<300).contains(http.statusCode), mintError == nil else {
+            throw CashuSwift.Onchain.Error.http(status: http.statusCode, mintCode: mintError?.code)
+        }
+        return try JSONDecoder().decode(T.self, from: data)
+    }
     
     enum Error: Swift.Error {
         case decoding(data: Data)

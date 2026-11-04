@@ -138,6 +138,7 @@ extension CashuSwift {
                 if case let .string(p) = raw["pubkey"] ?? .null { return p }
                 return nil
             }
+            public var quoteAmountPaid: Int? { Generic.optionalInt(raw, key: "amount_paid") }
             public var quoteAmountIssued: Int? { Generic.optionalInt(raw, key: "amount_issued") }
 
             public init(method: PaymentMethodID,

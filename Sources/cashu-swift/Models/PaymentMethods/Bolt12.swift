@@ -87,6 +87,7 @@ extension CashuSwift {
             public let amountIssued: Int
 
             public var quotePubkey: String? { pubkey }
+            public var quoteAmountPaid: Int? { amountPaid }
             public var quoteAmountIssued: Int? { amountIssued }
 
             /// NUT-25 BOLT12 mint quote responses do not carry a `state` field.

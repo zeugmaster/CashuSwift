@@ -385,6 +385,19 @@ extension CashuSwift {
                                  preimage: leaf.kind == .hashlock ? preimage : nil)
         }
 
+        /// Verifies either spend path against the exact transaction input digest.
+        public static func verifyWitness(_ witness: Proof.Witness, secret: String, inputDigest: [UInt8]) throws {
+            if witness.leaf != nil {
+                try verifyScriptPath(witness, secret: secret, inputDigest: inputDigest)
+            } else {
+                guard witness.control == nil, witness.preimage == nil, witness.signatures.count == 1,
+                      Crypto.schnorrVerify(digest: inputDigest, signatureHex: witness.signatures[0],
+                                           publicKey: try Crypto.v3SecretBytes(secret)) else {
+                    throw CashuError.spendingConditionError("invalid key-path witness")
+                }
+            }
+        }
+
         /// Verifies a script-path witness against `secret` and `inputDigest` (NUT-10 §Script path).
         public static func verifyScriptPath(_ witness: Proof.Witness,
                                             secret: String,
@@ -451,7 +464,7 @@ extension CashuSwift {
                                          option: NutrootOption) throws -> [LockedOutput] {
             try option.validate()
             let staticKey = try Crypto.nut20PublicKey(option.k)
-            let isNums = option.k == numsPoint
+            let isNums = option.k.lowercased() == numsPoint
             let blindMe = Set(option.b ?? [])
             let requested = try (option.l ?? []).map { try Leaf.parse(hex: $0) }
             guard !isNums || !requested.isEmpty else {

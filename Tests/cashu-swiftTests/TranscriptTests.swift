@@ -174,7 +174,17 @@ final class TranscriptTests: XCTestCase {
         XCTAssertThrowsError(try CashuSwift.TLV.integer([0x00, 0x01]), "leading zero is non-canonical")
         XCTAssertEqual(CashuSwift.TLV.keysetIDBytes("00456a94ab4e1c46"), try "00456a94ab4e1c46".bytes)
         XCTAssertEqual(CashuSwift.TLV.keysetIDBytes("abc"), Array("abc".utf8))
-        XCTAssertEqual(CashuSwift.TLV.keysetIDBytes("ABCD"), Array("ABCD".utf8), "uppercase is not hex here")
+        XCTAssertEqual(CashuSwift.TLV.keysetIDBytes("ABCD"), [0xab, 0xcd])
         XCTAssertThrowsError(try Transaction(inputs: [], outputs: [output(1)]).transcript())
+    }
+
+    func testDuplicateInputAndInvalidIndexRejection() throws {
+        let p = proof(8, secret0, k: k0)
+        XCTAssertThrowsError(try Transaction(inputs: [.proof(p), .proof(p)], outputs: [output(8)]).transcript())
+        let quote = Transaction.Input.mintQuote(id: "same", amount: 8, lockKey: secret0, issued: 0)
+        XCTAssertThrowsError(try Transaction(inputs: [quote, quote], outputs: [output(8)]).transcript())
+        let tx = Transaction(inputs: [.proof(p)], outputs: [output(8)])
+        XCTAssertThrowsError(try tx.inputDigest(-1))
+        XCTAssertThrowsError(try tx.inputDigest(1))
     }
 }

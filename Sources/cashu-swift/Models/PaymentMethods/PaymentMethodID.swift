@@ -34,5 +34,6 @@ extension CashuSwift {
 
         public static let bolt11 = PaymentMethodID(rawValue: "bolt11")
         public static let bolt12 = PaymentMethodID(rawValue: "bolt12")
+        public static let onchain = PaymentMethodID(rawValue: "onchain")
     }
 }
