@@ -2,6 +2,7 @@ import Foundation
 import secp256k1
 
 extension CashuSwift.Onchain {
+    @available(*, deprecated, message: "For new quotes use CashuSwift.quoteLockingKey(seed:mintPubkey:counter:).")
     public static func quoteLockingKey(seed: String, counter: UInt32) throws -> (privateKey: Data, publicKey: String) {
         guard counter < 0x80000000 else { throw CashuError.invalidAmount }
         return try CashuSwift.Crypto.nut20QuoteLockingKey(seed: seed, counter: counter)
@@ -69,7 +70,14 @@ extension CashuSwift.Onchain {
             throw CashuError.preferredDistributionMismatch("Invalid issuance distribution.")
         }
         let material = try generateMaterial(amounts: distribution, mint: mint, unit: quote.unit, seed: seed)
-        let signature = try CashuSwift.Crypto.nut20Signature(quoteID: quote.quote, outputs: material.outputs, privateKey: quoteKey)
+        let signature: String
+        if material.keyset.version == .v3 {
+            let transaction = try CashuSwift.Transaction(mintQuote: quote, outputs: material.outputs)
+            signature = try CashuSwift.Crypto.schnorrSign(digest: transaction.inputDigest(0),
+                key: secp256k1.Schnorr.PrivateKey(dataRepresentation: quoteKey))
+        } else {
+            signature = try CashuSwift.Crypto.nut20Signature(quoteID: quote.quote, outputs: material.outputs, privateKey: quoteKey)
+        }
         return MintContext(version: 1, mintURL: mint.url, quote: quote, material: material, signature: signature)
     }
 
@@ -125,7 +133,7 @@ extension CashuSwift.Onchain {
         let expanded = try proofs.withFullKeysetID(of: mint)
         let inputs = zip(expanded, proofs).map { full, original in
             CashuSwift.Proof(keysetID: full.keysetID, amount: full.amount, secret: full.secret,
-                             C: full.C, dleq: original.dleq, witness: original.witness)
+                             C: full.C, dleq: original.dleq, witness: original.witness, spendInfo: original.spendInfo)
         }
         let fee = try inputFee(inputs, mint: mint, unit: quote.unit)
         let sum = try total(inputs.map(\.amount))
@@ -135,8 +143,11 @@ extension CashuSwift.Onchain {
         let maximumReturn = sum - quote.amount - fee
         let blanks = Array(repeating: 0, count: calculateNumberOfBlankOutputs(maximumReturn))
         let material = try generateMaterial(amounts: blanks, mint: mint, unit: quote.unit, seed: seed)
+        let outputs = material.outputs.map { CashuSwift.Transaction.Output.blinded($0) }
+            + [.meltQuote(id: quote.quote, amount: try selected.requiredInputAmount(inputFee: 0))]
+        let signed = CashuSwift.stripDLEQ(try CashuSwift.signV3Inputs(inputs, outputs: outputs))
         return MeltContext(version: 1, mintURL: mint.url, quote: quote, feeIndex: feeIndex,
-                           inputs: inputs, inputFee: fee, material: material)
+                           inputs: signed, inputFee: fee, material: material)
     }
 
     /// Submit once. A thrown transport error or cancellation leaves the outcome
@@ -219,13 +230,18 @@ extension CashuSwift.Onchain {
         for proof in proofs {
             guard proof.amount > 0, proof.amount.nonzeroBitCount == 1,
                   let keyset = mint.keysets.first(where: { $0.keysetID == proof.keysetID }),
-                  keyset.unit == unit, keyset.keys[String(proof.amount)] != nil else { throw Error.invalidContext }
+                  keyset.unit == unit, let mintKey = keyset.keys[String(proof.amount)] else { throw Error.invalidContext }
             try validateKeyset(keyset)
             // Locked proofs need a dedicated witness-aware spending flow.
             guard !proof.secret.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("[") else {
                 throw CashuError.spendingConditionError("Prepare unlocked inputs before an onchain withdrawal.")
             }
-            _ = try CashuSwift.Crypto.nut20PublicKey(proof.C)
+            if keyset.version == .v3 {
+                _ = try CashuSwift.Crypto.v3SecretBytes(proof.secret)
+                guard try CashuSwift.Crypto.verifyV3(proof, mintKeyHex: mintKey) else { throw Error.invalidContext }
+            } else {
+                _ = try CashuSwift.Crypto.nut20PublicKey(proof.C)
+            }
             feePPK = try add(feePPK, keyset.inputFeePPK)
         }
         return feePPK / 1000 + (feePPK % 1000 == 0 ? 0 : 1)
@@ -236,7 +252,11 @@ extension CashuSwift.Onchain {
         for (amount, key) in keyset.keys {
             guard let denomination = UInt64(amount), denomination > 0, denomination.nonzeroBitCount == 1,
                   String(denomination) == amount else { throw Error.invalidContext }
-            _ = try CashuSwift.Crypto.nut20PublicKey(key)
+            if keyset.version == .v3 {
+                _ = try CashuSwift.Crypto.BLS.g2Point(fromHex: key)
+            } else {
+                _ = try CashuSwift.Crypto.nut20PublicKey(key)
+            }
         }
         guard keyset.validID else { throw CashuError.invalidKeysetID("Onchain keyset ID does not match its keys.") }
     }
@@ -250,7 +270,8 @@ extension CashuSwift.Onchain {
         if seed != nil {
             let next = try add(keyset.derivationCounter, amounts.count)
             // Legacy derivation uses hardened UInt32 child indexes.
-            guard keyset.keysetID.hasPrefix("01") || UInt64(next) <= 0x80000000 else { throw CashuError.invalidAmount }
+            guard keyset.derivationCounter >= 0,
+                  keyset.version == .v1 || keyset.version == .v3 || UInt64(next) <= 0x80000000 else { throw CashuError.invalidAmount }
             range = CounterRange(keysetID: keyset.keysetID, start: keyset.derivationCounter, next: next)
         } else { range = nil }
         let outputs = try CashuSwift.Crypto.generateOutputs(amounts: amounts, keysetID: keyset.keysetID,
@@ -271,10 +292,19 @@ extension CashuSwift.Onchain {
         for (i, output) in material.outputs.enumerated() {
             guard output.id == material.keyset.keysetID, output.amount >= 0,
                   output.amount == 0 || material.keyset.keys[String(output.amount)] != nil else { throw Error.invalidContext }
-            let r = try CashuSwift.Crypto.PrivateKey(dataRepresentation: material.blindingFactors[i].bytes)
-            let expected = try CashuSwift.Crypto.output(secret: material.secrets[i], blindingFactor: r)
-            guard try expected.dataRepresentation == CashuSwift.Crypto.nut20PublicKey(output.B_).dataRepresentation else {
-                throw Error.invalidContext
+            if material.keyset.version == .v3 {
+                let k = try CashuSwift.Crypto.PrivateKey(dataRepresentation: material.secrets[i].bytes)
+                let r = try CashuSwift.Crypto.BLS.scalar(fromHex: material.blindingFactors[i])
+                let expected = CashuSwift.Crypto.BLS.blind(secretBytes: Array(k.publicKey.dataRepresentation), r: r)
+                guard try expected.compressedBytes == CashuSwift.Crypto.BLS.g1Point(fromHex: output.B_).compressedBytes else {
+                    throw Error.invalidContext
+                }
+            } else {
+                let r = try CashuSwift.Crypto.PrivateKey(dataRepresentation: material.blindingFactors[i].bytes)
+                let expected = try CashuSwift.Crypto.output(secret: material.secrets[i], blindingFactor: r)
+                guard try expected.dataRepresentation == CashuSwift.Crypto.nut20PublicKey(output.B_).dataRepresentation else {
+                    throw Error.invalidContext
+                }
             }
         }
     }
@@ -286,10 +316,16 @@ extension CashuSwift.Onchain {
         let amounts = context.material.outputs.map(\.amount)
         guard !amounts.isEmpty, amounts.allSatisfy({ $0 > 0 }),
               try total(amounts) <= context.quote.mintableAmount else { throw Error.invalidContext }
-        let key = try secp256k1.Schnorr.PublicKey(dataRepresentation: context.quote.pubkey.bytes, format: .compressed)
-        let signature = try secp256k1.Schnorr.SchnorrSignature(dataRepresentation: context.signature.bytes)
-        guard try key.xonly.isValidSignature(signature, for: CashuSwift.Crypto.nut20MessageToSign(
-            quoteID: context.quote.quote, outputs: context.material.outputs)) else { throw Error.invalidContext }
+        if context.material.keyset.version == .v3 {
+            let transaction = try CashuSwift.Transaction(mintQuote: context.quote, outputs: context.material.outputs)
+            guard CashuSwift.Crypto.schnorrVerify(digest: try transaction.inputDigest(0),
+                signatureHex: context.signature, publicKey: try context.quote.pubkey.bytes) else { throw Error.invalidContext }
+        } else {
+            let key = try secp256k1.Schnorr.PublicKey(dataRepresentation: context.quote.pubkey.bytes, format: .compressed)
+            let signature = try secp256k1.Schnorr.SchnorrSignature(dataRepresentation: context.signature.bytes)
+            guard try key.xonly.isValidSignature(signature, for: CashuSwift.Crypto.nut20MessageToSign(
+                quoteID: context.quote.quote, outputs: context.material.outputs)) else { throw Error.invalidContext }
+        }
     }
 
     private static func validate(_ context: MeltContext, mint: CashuSwift.Mint) throws {
@@ -306,6 +342,14 @@ extension CashuSwift.Onchain {
               context.material.outputs.count == calculateNumberOfBlankOutputs(sum - context.quote.amount - context.inputFee) else {
             throw Error.invalidContext
         }
+        let transaction = CashuSwift.Transaction(inputs: context.inputs.map { .proof($0) },
+            outputs: context.material.outputs.map { .blinded($0) }
+                + [.meltQuote(id: context.quote.quote, amount: try selected.requiredInputAmount(inputFee: 0))])
+        for (i, proof) in context.inputs.enumerated() where CashuSwift.KeysetVersion(keysetID: proof.keysetID) == .v3 {
+            guard let witness = proof.witness else { throw Error.invalidContext }
+            try CashuSwift.Nutroot.verifyWitness(.init(json: witness), secret: proof.secret,
+                                                 inputDigest: transaction.inputDigest(i))
+        }
     }
 
     private static func recover(_ promises: [CashuSwift.Promise], material: OutputMaterial,
@@ -319,6 +363,11 @@ extension CashuSwift.Onchain {
                 guard promise.id == output.id, promise.amount > 0,
                       !exactAmounts || promise.amount == output.amount,
                       let key = material.keyset.keys[String(promise.amount)] else { return .failed(.invalidPromises) }
+                // BLS promises are verified by pairing during unblinding below.
+                if material.keyset.version == .v3 {
+                    guard promise.dleq == nil else { return .failed(.invalidPromises) }
+                    continue
+                }
                 guard let dleq = promise.dleq else { return .failed(.missingDLEQ) }
                 let valid = try CashuSwift.Crypto.verifyDLEQ(
                     A: CashuSwift.Crypto.nut20PublicKey(key), B_: CashuSwift.Crypto.nut20PublicKey(output.B_),

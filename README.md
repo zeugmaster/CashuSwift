@@ -35,6 +35,66 @@ This library provides basic functionality and model representation for using the
 | [17][17] | WebSocket subscriptions  | :construction: |
 | [30][30] | Onchain deposits and withdrawals | :heavy_check_mark: |
 
+### Draft v3 keysets and nutroot
+
+The `nutroot` branch implements BLS keysets (`02…`) and the current nutroot
+transaction model. It was compared on 2026-11-04 with
+[cashu-ts `5043fec`](https://github.com/cashubtc/cashu-ts/tree/5043fecfd45ceb57f7e0dc42532a772482107575),
+[NUTs #371](https://github.com/cashubtc/nuts/pull/371),
+[#443](https://github.com/cashubtc/nuts/pull/443), and
+[#464](https://github.com/cashubtc/nuts/pull/464). These proposals are still drafts.
+
+V3 uses pairing-verified BLS signatures, compressed secp256k1 public keys as
+secrets, and a Schnorr witness over each transaction input. Mint quotes must be
+locked; signatures commit to the current `amount_issued`. Existing secp256k1
+keysets retain their signing and DLEQ behavior. The typed mint, swap, melt,
+onchain, token, and restore paths select the cryptography by keyset version.
+
+- `Mint.Info.nutrootLeafTypes` reads `nuts["10"].leaves`, defaulting to the four
+  core leaves when the advertisement is absent or empty. Sending a script-only
+  NUMS payment request checks the mint's advertised leaves before swapping.
+- `checkState(_:mint:)` returns each `Y`, state, witness, and `inputDigest`;
+  `check(_:mint:)` continues to return only states.
+- `Transaction(mintQuote:outputs:)` accepts outputs across several v3 keysets
+  and rejects mixing v3 with earlier versions in a mint transaction. The mint
+  convenience APIs still generate outputs on one active keyset.
+- BOLT11 quotes retain `amountPaid` and `amountIssued`. The signed mint overload
+  accepts a partial `amount:` or defaults to the remaining balance. V3 issuance
+  requires both accounting fields and checks the balance again after refreshing.
+- New quote keys use `CashuSwift.quoteLockingKey(seed:mintPubkey:counter:)`, scoped
+  to the mint's identity key. Keep the original key derivation for existing quotes.
+
+For a script-locked mint quote, refresh its accounting, prepare once, and persist
+the preparation before sharing the experimental signing package:
+
+```swift
+let prepared = try CashuSwift.prepareMint(
+    quote: refreshedQuote, from: mint, amount: amount, seed: seedHex
+)
+// Securely persist prepared and advance the keyset counter to prepared.nextCounter.
+// It contains private keys and blinding factors; never send it to co-signers.
+let package = try CashuSwift.SigningPackage(
+    transaction: prepared.transaction(), mintQuoteInput: 0,
+    internalKey: internalKeyHex, tree: leafHexes, leafIndex: chosenLeaf
+)
+let serialized = try package.serialize() // Share only this nutspA package.
+// Each signer validates the transaction and appends their signatures.
+let signed = try package.signed(with: signerKeys)
+let result = try await CashuSwift.mint(
+    prepared: prepared, from: mint, signingPackage: signed
+)
+// Persist result.proofs. If the response was lost, restore these exact outputs:
+// try await CashuSwift.restoreMint(prepared: prepared, from: mint)
+```
+
+Serialize attempts for each quote. An empty restore result does not authorize a
+new issuance. Preserve the original keyset snapshot through rotation; melt change
+is recovered against the keyset of the accepted blank outputs.
+
+Unified transactions (#445) and fixed-output/template leaves (#457) are outside
+this implementation. Unknown V4 `si` fields are currently dropped when tokens are
+re-encoded; avoid forwarding tokens with extensions this version cannot interpret.
+Most existing issuance/receive APIs still leave output-counter tracking to the caller.
 
 ## Basic Usage
 
@@ -88,8 +148,10 @@ signed, including after restarting the wallet.
 ```swift
 // seedHex is the wallet's hex-encoded seed. Reserve and persist a fresh
 // quoteCounter for this quote, independently of NUT-13 output counters.
-let quoteKey = try CashuSwift.Bolt12.quoteLockingKey(
-    seed: seedHex, counter: quoteCounter
+let info = try await CashuSwift.loadInfoFromMint(mint)
+guard let mintPubkey = info.pubkey else { throw CashuError.invalidKey("Mint identity key is missing") }
+let quoteKey = try CashuSwift.quoteLockingKey(
+    seed: seedHex, mintPubkey: mintPubkey, counter: quoteCounter
 )
 let quote = try await CashuSwift.Bolt12.requestMintQuote(
     .init(unit: "sat", amount: nil, pubkey: quoteKey.publicKey),
@@ -124,8 +186,9 @@ Migration from 0.4.3:
   and throws `CashuError.quoteSigningKeyRequired` without contacting the mint.
 - Read the balance with `try quote.mintableAmount`. Negative or inconsistent
   paid/issued totals throw `CashuError.invalidQuoteAccounting`.
-- Typed BOLT12 uses the current NUT-20 signature format. The generic signed API
-  retains its existing defaults and explicit `.legacyConcat` compatibility option.
+- On pre-v3 keysets, typed BOLT12 uses the current NUT-20 signature format. The
+  generic signed API retains its explicit `.legacyConcat` compatibility option.
+  V3 always signs the transaction input digest with refreshed quote accounting.
 
 ### Onchain deposits and withdrawals (NUT-30)
 
@@ -150,7 +213,8 @@ let withdrawalSettings = try CashuSwift.Onchain.settings(
 #### Deposit Bitcoin and issue ecash
 
 ```swift
-let key = try CashuSwift.Onchain.quoteLockingKey(seed: seedHex, counter: quoteCounter)
+guard let mintPubkey = info.pubkey else { throw CashuError.invalidKey("Mint identity key is missing") }
+let key = try CashuSwift.quoteLockingKey(seed: seedHex, mintPubkey: mintPubkey, counter: quoteCounter)
 let quote = try await CashuSwift.Onchain.requestMintQuote(
     .init(unit: "sat", pubkey: key.publicKey), from: mint, info: info
 )

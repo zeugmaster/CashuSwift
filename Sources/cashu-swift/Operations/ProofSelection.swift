@@ -326,11 +326,11 @@ extension CashuSwift {
         return result
     }
 
-    /// Resolves a proof's keyset, handling legacy (12-char), v0 (`00…`) and v1
-    /// (`01…`, possibly shortened) keyset IDs — mirrors `units(for:of:)`.
+    /// Resolves a proof's keyset, handling legacy (12-char), v0 (`00…`), v1 (`01…`) and
+    /// v3 (`02…`) keyset IDs — the latter two possibly shortened. Mirrors `units(for:of:)`.
     private static func resolveKeyset(forID id: String, in mint: some MintRepresenting) -> Keyset? {
         if let exact = mint.keysets.first(where: { $0.keysetID == id }) { return exact }
-        if id.hasPrefix("01") {
+        if KeysetVersion(keysetID: id)?.supportsShortID == true {
             let matches = mint.keysets.filter { $0.keysetID.hasPrefix(id) }
             if matches.count == 1 { return matches.first }
         }

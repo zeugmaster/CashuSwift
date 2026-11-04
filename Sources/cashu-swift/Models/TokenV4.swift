@@ -18,6 +18,7 @@ extension CashuSwift {
                 let signature: Data               // "c" - signature
                 let dleqProof: DLEQProof?         // "d" - optional DLEQ proof
                 let witness: String?              // "w" - optional witness
+                let spendInfo: CashuSwift.SpendInfo?  // "si" - spend info for v3 proofs
 
                 struct DLEQProof {
                     let e: Data   // "e"
@@ -93,11 +94,11 @@ extension CashuSwift.TokenV4 {
         self.tokens = try tokensArray.map { try TokenEntry(fromCBOR: $0) }
     }
 
-    func toCBOR() -> CBOR {
+    func toCBOR() throws -> CBOR {
         var cborMap: [CBOR: CBOR] = [
             .utf8String("m"): .utf8String(mint),
             .utf8String("u"): .utf8String(unit),
-            .utf8String("t"): .array(tokens.map { $0.toCBOR() })
+            .utf8String("t"): .array(try tokens.map { try $0.toCBOR() })
         ]
         if let memo = memo {
             cborMap[.utf8String("d")] = .utf8String(memo)
@@ -126,10 +127,10 @@ extension CashuSwift.TokenV4.TokenEntry {
         self.proofs = try proofsArray.map { try Proof(fromCBOR: $0) }
     }
 
-    func toCBOR() -> CBOR {
+    func toCBOR() throws -> CBOR {
         let cborMap: [CBOR: CBOR] = [
             .utf8String("i"): .byteString([UInt8](keysetID)),
-            .utf8String("p"): .array(proofs.map { $0.toCBOR() })
+            .utf8String("p"): .array(try proofs.map { try $0.toCBOR() })
         ]
         return .map(cborMap)
     }
@@ -156,6 +157,7 @@ extension CashuSwift.TokenV4.TokenEntry.Proof {
         self.secret = secret
         self.signature = signatureData
         self.witness = cborMap[.utf8String("w")]?.asString()
+        self.spendInfo = try cborMap[.utf8String("si")].map { try CashuSwift.SpendInfo(fromCBOR: $0) }
 
         if let dleqCBOR = cborMap[.utf8String("d")] {
             self.dleqProof = try DLEQProof(fromCBOR: dleqCBOR)
@@ -164,7 +166,7 @@ extension CashuSwift.TokenV4.TokenEntry.Proof {
         }
     }
 
-    func toCBOR() -> CBOR {
+    func toCBOR() throws -> CBOR {
         var cborMap: [CBOR: CBOR] = [
             .utf8String("a"): .unsignedInt(UInt64(amount)),
             .utf8String("s"): .utf8String(secret),
@@ -175,6 +177,9 @@ extension CashuSwift.TokenV4.TokenEntry.Proof {
         }
         if let witness = witness {
             cborMap[.utf8String("w")] = .utf8String(witness)
+        }
+        if let spendInfo {
+            cborMap[.utf8String("si")] = try spendInfo.toCBOR()
         }
         return .map(cborMap)
     }
@@ -216,7 +221,7 @@ extension CashuSwift.TokenV4.TokenEntry.Proof.DLEQProof {
 
 extension CashuSwift.TokenV4 {
     public func serialize() throws -> String {
-        let cborValue = self.toCBOR()
+        let cborValue = try self.toCBOR()
         let cborData = cborValue.encode()
         
         let base64URLSafe = Data(cborData).base64EncodedString()

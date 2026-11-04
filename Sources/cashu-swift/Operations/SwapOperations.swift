@@ -104,7 +104,7 @@ extension CashuSwift {
                                                                  keysetID: activeKeyset.keysetID,
                                                                  deterministicFactors: deterministicFactors)
                 
-        let swapRequest = SwapRequest(inputs: stripDLEQ(inputs),
+        let swapRequest = SwapRequest(inputs: stripDLEQ(try signV3Inputs(inputs, outputs: outputs.map { .blinded($0) })),
                                       outputs: outputs)
         
         let swapResponse = try await Network.post(url: mint.url.appending(path: "/v1/swap"),
@@ -169,8 +169,9 @@ extension CashuSwift {
         
         combined.sort(by: { $0.o.amount < $1.o.amount })
         
-        let swapRequest = SwapRequest(inputs: stripDLEQ(inputs),
-                                      outputs: combined.map({ $0.o }))
+        let requestOutputs = combined.map({ $0.o })
+        let swapRequest = SwapRequest(inputs: stripDLEQ(try signV3Inputs(inputs, outputs: requestOutputs.map { .blinded($0) })),
+                                      outputs: requestOutputs)
         
         let swapResponse = try await Network.post(url: mint.url.appending(path: "/v1/swap"),
                                                   body: swapRequest,

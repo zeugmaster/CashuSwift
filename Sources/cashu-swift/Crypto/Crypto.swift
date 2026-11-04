@@ -70,28 +70,41 @@ extension CashuSwift {
             var outputs = [Output]()
             var blindingFactors = [String]()
             var secrets = [String]()
-            
+
+            // v3 (BLS) keysets blind on BLS12-381 G1; v0/v1 keysets on secp256k1.
+            let isBLS = KeysetVersion(keysetID: keysetID)?.isBLS == true
+
             for i in 0..<amounts.count {
+                let blinded: (B_: String, blindingFactor: String, secret: String)
                 if let deterministicFactors = deterministicFactors {
                     let index = deterministicFactors.counter + i
-                    let deterministic = try generateDeterministicOutput(keysetID: keysetID,
-                                                                    seed: deterministicFactors.seed,
-                                                                    index: index)
-                    outputs.append(Output(amount: amounts[i],
-                                          B_: deterministic.output.stringRepresentation,
-                                          id: keysetID))
-                    blindingFactors.append(deterministic.blindingFactor.stringRepresentation)
-                    secrets.append(deterministic.secret)
+                    if isBLS {
+                        blinded = try BLS.deterministicOutput(keysetID: keysetID,
+                                                              seed: deterministicFactors.seed,
+                                                              index: index)
+                    } else {
+                        let d = try generateDeterministicOutput(keysetID: keysetID,
+                                                                seed: deterministicFactors.seed,
+                                                                index: index)
+                        blinded = (d.output.stringRepresentation,
+                                   d.blindingFactor.stringRepresentation,
+                                   d.secret)
+                    }
                 } else {
-                    let random = try generateRandomOutput()
-                    outputs.append(Output(amount: amounts[i],
-                                          B_: random.output.stringRepresentation,
-                                          id: keysetID))
-                    blindingFactors.append(random.blindingFactor.stringRepresentation)
-                    secrets.append(random.secret)
+                    if isBLS {
+                        blinded = try BLS.randomOutput()
+                    } else {
+                        let r = try generateRandomOutput()
+                        blinded = (r.output.stringRepresentation,
+                                   r.blindingFactor.stringRepresentation,
+                                   r.secret)
+                    }
                 }
+                outputs.append(Output(amount: amounts[i], B_: blinded.B_, id: keysetID))
+                blindingFactors.append(blinded.blindingFactor)
+                secrets.append(blinded.secret)
             }
-            
+
             return (outputs, blindingFactors, secrets)
         }
         
@@ -222,10 +235,45 @@ extension CashuSwift {
             var proofs = [Proof]()
             for i in 0..<promises.count {
                 let promise = promises[i]
+
+                // v3 (BLS) keysets: multiplicative unblind C = r⁻¹·C_, then pairing-verify
+                // against the mint's G2 key for this amount. v3 proofs carry no DLEQ.
+                if KeysetVersion(keysetID: promise.id)?.isBLS == true {
+                    guard promise.dleq == nil else {
+                        throw Crypto.Error.unblinding("v3 promise carries a dleq field")
+                    }
+                    guard let mintKeyHex = keyset.keys[String(promise.amount)] else {
+                        throw CashuError.cryptoError("Could not associate mint pubkey from keyset. unblinding not possible")
+                    }
+                    // The secrets slot holds either the bearer key `k` (32 bytes) or a precomputed
+                    // wire secret (33-byte point) whose spend info the caller attaches afterwards.
+                    let secret: String
+                    var spendInfo: SpendInfo? = nil
+                    let secretData = try secrets[i].bytes
+                    if secretData.count == 32 {
+                        let k = try PrivateKey(dataRepresentation: secretData)
+                        secret = String(bytes: k.publicKey.dataRepresentation)
+                        spendInfo = SpendInfo(k: secrets[i])
+                    } else {
+                        secret = secrets[i]
+                    }
+                    let cHex = try BLS.unblindAndVerify(C_Hex: promise.C_,
+                                                        blindingFactorHex: blindingFactors[i],
+                                                        secretBytes: try v3SecretBytes(secret),
+                                                        mintKeyHex: mintKeyHex)
+                    proofs.append(Proof(keysetID: promise.id,
+                                        amount: promise.amount,
+                                        secret: secret,
+                                        C: cHex,
+                                        dleq: nil,
+                                        spendInfo: spendInfo))
+                    continue
+                }
+
                 guard let pubkeyData = try? keyset.keys[String(promise.amount)]?.bytes else {
                     throw CashuError.cryptoError("Could not associate mint pubkey from keyset. unblinding not possible")
                 }
-                
+
                 let mintPubKey = try PublicKey(dataRepresentation: pubkeyData, format: .compressed)
                 let r = try PrivateKey(dataRepresentation: blindingFactors[i].bytes)
                 let C_ = try PublicKey(dataRepresentation: promise.C_.bytes, format: .compressed)
@@ -290,7 +338,13 @@ extension CashuSwift {
                                                                      for DLEQ verification.
                                                                      """)
                 }
-                
+
+                // v3 (BLS) proofs carry no DLEQ; verify the pairing equality instead.
+                if KeysetVersion(keysetID: p.keysetID)?.isBLS == true {
+                    checks.append(try verifyV3(p, mintKeyHex: AString))
+                    continue
+                }
+
                 guard let e = try p.dleq?.e.bytes,
                       let s = try p.dleq?.s.bytes,
                       let r = try p.dleq?.r?.bytes else {
@@ -300,13 +354,13 @@ extension CashuSwift {
                                                         proof.dleq: \(p.dleq.debugDescription)
                                                         """)
                 }
-                
+
                 let A = try PublicKey(dataRepresentation: AString.bytes, format: .compressed)
                 let C = try PublicKey(dataRepresentation: p.C.bytes, format: .compressed)
-                
+
                 checks.append(try verifyDLEQ(A: A, C: C, x: p.secret, e: Data(e), s: Data(s), r: Data(r)))
             }
-            
+
             return checks.allSatisfy({ $0 == true })
         }
         
@@ -322,22 +376,44 @@ extension CashuSwift {
                                                                      for DLEQ verification.
                                                                      """)
                 }
-                
+
+                // v3 (BLS) proofs carry no DLEQ; verify the pairing equality e(C, G2) == e(Y, K) instead.
+                if KeysetVersion(keysetID: p.keysetID)?.isBLS == true {
+                    checks.append(try verifyV3(p, mintKeyHex: AString))
+                    continue
+                }
+
                 guard let e = try p.dleq?.e.bytes,
                       let s = try p.dleq?.s.bytes,
                       let r = try p.dleq?.r?.bytes else {
                     return .noData
                 }
-                
+
                 let A = try PublicKey(dataRepresentation: AString.bytes, format: .compressed)
                 let C = try PublicKey(dataRepresentation: p.C.bytes, format: .compressed)
-                
+
                 checks.append(try verifyDLEQ(A: A, C: C, x: p.secret, e: Data(e), s: Data(s), r: Data(r)))
             }
-            
+
             return checks.allTrue ? .valid : .fail
         }
         
+        /// The decoded 33 bytes of a v3 secret (a compressed secp256k1 point), NUT-00 "Secret bytes".
+        static func v3SecretBytes(_ secret: String) throws -> [UInt8] {
+            guard let key = try? nut20PublicKey(secret) else {
+                throw Error.invalidSecret("v3 secret must be a compressed secp256k1 public key")
+            }
+            return Array(key.dataRepresentation)
+        }
+
+        /// Pairing check for a v3 proof; a proof that carries `dleq` is malformed (NUT-12) and fails.
+        static func verifyV3(_ proof: Proof, mintKeyHex: String) throws -> Bool {
+            guard proof.dleq == nil else { return false }
+            let C = try BLS.g1Point(fromHex: proof.C)
+            let K2 = try BLS.g2Point(fromHex: mintKeyHex)
+            return BLS.verify(C: C, mintKey: K2, secretBytes: try v3SecretBytes(proof.secret))
+        }
+
         static func verifyDLEQ(A: PublicKey, B_: PublicKey, C_: PublicKey, e: Data, s: Data) throws -> Bool {
             // R1 = s*G - e*A
             // R2 = s*B' - e*C'

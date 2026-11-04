@@ -67,6 +67,9 @@ extension CashuSwift {
             public var amount: Int? { nil }
             public var state: QuoteState? { nil }
             public var mintableAmount: Int { amountPaid - amountIssued }
+            public var quotePubkey: String? { pubkey }
+            public var quoteAmountPaid: Int? { amountPaid }
+            public var quoteAmountIssued: Int? { amountIssued }
 
             public init(quote: String, request: String, unit: String, expiry: Int?, pubkey: String,
                         amountPaid: Int, amountIssued: Int, updatedAt: Int) throws {

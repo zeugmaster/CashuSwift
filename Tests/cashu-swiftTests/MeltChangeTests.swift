@@ -213,10 +213,8 @@ final class MeltChangeTests: XCTestCase {
         XCTAssertEqual(outcome.legacyDLEQResult, .fail)
     }
 
-    func testPromiseLabelledWithForeignKeysetFailsDLEQ() throws {
-        // The mint signs with our requested key but labels the promise with a keyset the
-        // wallet does not know. Unblinding uses the blank outputs' keyset and succeeds;
-        // the DLEQ check cannot resolve the foreign ID and must report failure, not throw.
+    func testPromiseLabelledWithForeignKeysetPreservesPromisesForRecovery() throws {
+        // Rotation does not allow the mint to relabel already accepted blank outputs.
         let mint = try makeMint()
         let blanks = try makeBlankOutputs(count: 1)
         let signed = try sign(blanks.outputs[0], amount: 1)
@@ -224,10 +222,18 @@ final class MeltChangeTests: XCTestCase {
 
         let outcome = CashuSwift.recoverMeltChange(promises: promises, blankOutputs: blanks, mint: mint)
 
-        guard case .recovered(let proofs, let dleq) = outcome else {
-            return XCTFail("expected .recovered, got \(outcome)")
-        }
-        XCTAssertEqual(proofs.count, 1)
-        XCTAssertEqual(dleq, .fail)
+        assertUnrecoverable(outcome, echoing: promises)
+    }
+
+    func testV3ChangeUsesTheInactiveAcceptedKeyset() throws {
+        var mint = try V3Fixture.mint(url: Self.mintURL)
+        mint.keysets[0].active = false
+        let blanks = try CashuSwift.Crypto.generateOutputs(amounts: [0, 0], keysetID: mint.keysets[0].keysetID)
+        let promises = try V3Fixture.promises(blanks.outputs, amounts: [2, 4])
+        guard case .recovered(let proofs, let verification) = CashuSwift.recoverMeltChange(
+            promises: promises, blankOutputs: blanks, mint: mint) else { return XCTFail("v3 recovery failed") }
+        XCTAssertEqual(verification, .valid)
+        XCTAssertEqual(proofs.map(\.amount), [2, 4])
+        XCTAssertTrue(proofs.allSatisfy { $0.spendInfo?.k != nil && $0.dleq == nil })
     }
 }

@@ -40,6 +40,14 @@ public protocol ProofRepresenting/*: Codable, Equatable*/ {
     /// Optional DLEQ proof.
     var dleq: CashuSwift.DLEQ? { get }
     
+    /// NUT-00 spend info of a v3 proof. Defaults to `nil` for conformers that do not persist it;
+    /// a v3 proof without it cannot be spent, so wallets must store it.
+    var spendInfo: CashuSwift.SpendInfo? { get }
+    
 //    var witness: String? { get }
+}
+
+public extension ProofRepresenting {
+    var spendInfo: CashuSwift.SpendInfo? { nil }
 }
 
