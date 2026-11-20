@@ -29,6 +29,14 @@ final class MintHTTPStub: @unchecked Sendable {
         Self.registry.stubs[host] = self
     }
 
+    static func session(marker: String) -> URLSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [MintURLProtocol.self]
+        configuration.httpAdditionalHeaders = ["X-Test-Session": marker]
+        configuration.timeoutIntervalForRequest = 91
+        return URLSession(configuration: configuration)
+    }
+
     var requests: [URLRequest] {
         lock.lock()
         defer { lock.unlock() }

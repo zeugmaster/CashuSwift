@@ -39,7 +39,23 @@ extension CashuSwift {
                             seed: String?,
                             memo: String? = nil,
                             lockToPublicKey: String? = nil,
-                            preferredKeepDistribution: [Int]? = nil) async throws -> SendResult {
+                            preferredKeepDistribution: [Int]? = nil,
+                            session: URLSession = .shared) async throws -> SendResult {
+        if let amount, amount <= 0 { throw CashuError.invalidAmount }
+        if inputs.sum == (amount ?? inputs.sum), lockToPublicKey == nil {
+            return SendResult(token: try offlineToken(for: inputs, mint: mint, memo: memo),
+                              send: [], change: [], outputDLEQ: .valid, counterIncrease: nil)
+        }
+        let context = try prepareSend(inputs: inputs, mint: mint, amount: amount, seed: seed, memo: memo,
+                                      lockToPublicKey: lockToPublicKey, preferredKeepDistribution: preferredKeepDistribution)
+        return try await send(context: context, from: mint, session: session)
+    }
+
+    /// Prepare a swap without sending it. Persist this context and reserve its counter
+    /// increase before submission. Use `offlineToken` for an exact, unlocked transfer.
+    public static func prepareSend(inputs: [Proof], mint: Mint, amount: Int? = nil, seed: String?,
+                                   memo: String? = nil, lockToPublicKey: String? = nil,
+                                   preferredKeepDistribution: [Int]? = nil) throws -> SendContext {
         let proofSum = sum(inputs)
         let inputFee = try calculateFee(for: inputs, of: mint)
         
@@ -59,16 +75,6 @@ extension CashuSwift {
             guard SpendingCondition.deserialize(from: p.secret) == nil else {
                 throw CashuError.spendingConditionError(".send() function does not yet support locked inputs.")
             }
-        }
-        
-        if (proofSum == amount ?? proofSum) && lockToPublicKey == nil {
-            return SendResult(token: Token(proofs: [mint.url.absoluteString: inputs.withShortKeysetID()],
-                                           unit: unit,
-                                           memo: memo),
-                              send: [],
-                              change: [],
-                              outputDLEQ: .valid,
-                              counterIncrease: nil)
         }
         
         let split = try split(for: proofSum, target: amount, fee: inputFee)
@@ -99,110 +105,39 @@ extension CashuSwift {
             increase += sendOutputSets.outputs.count
         }
         
-        let swapResult = try await swap(inputs: inputs,
-                                        with: mint,
-                                        sendOutputs: sendOutputSets,
-                                        keepOutputs: keepOutputSets)
-        
-        let token = Token(proofs: [mint.url.absoluteString: swapResult.send.withShortKeysetID()],
-                          unit: unit,
-                          memo: memo)
-        
-        return SendResult(token: token,
-                          send: swapResult.send,
-                          change: swapResult.keep,
-                          outputDLEQ: swapResult.outputDLEQ,
-                          counterIncrease: (activeKeyset.keysetID, increase))
+        _ = try Crypto.checkDLEQ(for: inputs, with: mint)
+        let combined = (sendOutputSets.outputs.indices.map {
+            (sendOutputSets.outputs[$0], sendOutputSets.blindingFactors[$0], sendOutputSets.secrets[$0], true)
+        } + keepOutputSets.outputs.indices.map {
+            (keepOutputSets.outputs[$0], keepOutputSets.blindingFactors[$0], keepOutputSets.secrets[$0], false)
+        }).sorted { $0.0.amount < $1.0.amount }
+        return SendContext(version: 1, mintURL: mint.url, unit: unit, memo: memo,
+                           inputs: inputs, keyset: activeKeyset,
+                           outputs: combined.map { $0.0 }, blindingFactors: combined.map { $0.1 },
+                           secrets: combined.map { $0.2 }, toSend: combined.map { $0.3 },
+                           derivationCounterIncrease: increase)
     }
-    
-    public static func send(request: PaymentRequest,
-                            mint: Mint,
-                            inputs: [Proof],
-                            amount: Int? = nil,
-                            memo: String?,
-                            seed: String?,
-                            preferredKeepDistribution: [Int]? = nil) async throws -> SendPayloadResult {
-        
-        guard let requestAmount = request.amount ?? amount else {
+
+    public static func send(request: PaymentRequest, mint: Mint, inputs: [Proof], amount: Int? = nil,
+                            memo: String?, seed: String?, preferredKeepDistribution: [Int]? = nil,
+                            session: URLSession = .shared) async throws -> SendPayloadResult {
+        guard let amount = request.amount ?? amount else {
             throw CashuError.paymentRequestAmount("Either request amount or explicit amount must be provided")
         }
-        
-        let proofSum = sum(inputs)
-        let inputFee = try calculateFee(for: inputs, of: mint)
-        
-        let unit = try singleUnit(for: inputs, of: mint)
-        
-        if let requestUnit = request.unit, unit != requestUnit {
-            throw CashuError.unitError("Payment request unit '\(requestUnit)' does not match input unit '\(unit)'.")
+        if let unit = request.unit, unit != (try singleUnit(for: inputs, of: mint)) {
+            throw CashuError.unitError("Payment request unit does not match input unit.")
         }
-        
-        // make sure inputs do not have spending condition
-        for p in inputs {
-            guard SpendingCondition.deserialize(from: p.secret) == nil else {
-                throw CashuError.spendingConditionError(".send() function does not yet support locked inputs.")
-            }
+        if let condition = request.lockingCondition, condition.kind != "P2PK" {
+            throw CashuError.paymentRequestValidation("CashuSwift only supports P2PK locking conditions.")
         }
-        
-        guard let activeKeyset = activeKeysetForUnit(unit, mint: mint) else {
-            throw CashuError.noActiveKeysetForUnit(unit)
-        }
-        
-        // TODO: check for exact amount to avoid swap
-        
-        let lockToPublicKey: String?
-        if let lockingCondition = request.lockingCondition {
-            guard lockingCondition.kind == "P2PK" else {
-                throw CashuError.paymentRequestValidation("CashuSwift only support HTLC locking conditions yet.")
-            }
-            lockToPublicKey = lockingCondition.data
-        } else {
-            lockToPublicKey = nil
-        }
-        
-        let split = try split(for: proofSum, target: requestAmount, fee: inputFee)
-
-        let keepDistribution = preferredKeepDistribution ?? splitIntoBase2Numbers(split.keepAmount)
-        guard keepDistribution.reduce(0, +) == split.keepAmount else {
-            throw CashuError.preferredDistributionMismatch(
-                "preferredKeepDistribution sum (\(keepDistribution.reduce(0, +))) does not match the keep amount (\(split.keepAmount)).")
-        }
-        let keepOutputSets = try generateOutputs(distribution: keepDistribution,
-                                                 mint: mint,
-                                                 seed: seed,
-                                                 unit: unit)
-                
-        let sendOutputSets = try lockToPublicKey.map { pubkey in
-            try generateP2PKOutputs(for: split.sendAmount,
-                                    mint: mint,
-                                    publicKey: pubkey,
-                                    unit: unit)
-        } ?? generateOutputs(distribution: splitIntoBase2Numbers(split.sendAmount),
-                             mint: mint,
-                             seed: seed,
-                             unit: unit,
-                             offset: keepOutputSets.outputs.count) // MARK: need to increase detsec counter in function
-        
-        var increase = seed != nil ? keepOutputSets.outputs.count : 0
-        if lockToPublicKey == nil && seed != nil {
-            increase += sendOutputSets.outputs.count
-        }
-        
-        let swapResult = try await swap(inputs: inputs,
-                                        with: mint,
-                                        sendOutputs: sendOutputSets,
-                                        keepOutputs: keepOutputSets)
-        
-        let payload = PaymentRequestPayload(id: request.paymentId,
-                                            memo: memo,
-                                            mint: mint.url.absoluteString,
-                                            unit: unit,
-                                            proofs: swapResult.send)
-        
-        return SendPayloadResult(payload: payload,
-                                 send: swapResult.send,
-                                 change: swapResult.keep,
-                                 outputDLEQ: swapResult.outputDLEQ,
-                                 counterIncrease: (activeKeyset.keysetID, increase))
+        let context = try prepareSend(inputs: inputs, mint: mint, amount: amount, seed: seed, memo: memo,
+                                      lockToPublicKey: request.lockingCondition?.data,
+                                      preferredKeepDistribution: preferredKeepDistribution)
+        let result = try await send(context: context, from: mint, session: session)
+        return SendPayloadResult(payload: PaymentRequestPayload(id: request.paymentId, memo: memo,
+                                  mint: mint.url.absoluteString, unit: context.unit, proofs: result.send),
+                                 send: result.send, change: result.change, outputDLEQ: result.outputDLEQ,
+                                 counterIncrease: result.counterIncrease)
     }
 
     /// Builds a token from exactly the given proofs, with **no mint round-trip**.

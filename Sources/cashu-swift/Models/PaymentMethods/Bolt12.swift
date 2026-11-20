@@ -188,11 +188,11 @@ extension CashuSwift {
 
         /// Requests a BOLT12 mint quote.
         public static func requestMintQuote(_ request: MintQuoteRequest,
-                                            from mint: Mint) async throws -> MintQuote {
+                                            from mint: Mint, session: URLSession = .shared) async throws -> MintQuote {
             guard !request.pubkey.isEmpty else { throw CashuError.bolt12RequiresPubkey }
             let requestedKey = try Crypto.nut20PublicKey(request.pubkey)
             if let amount = request.amount, amount <= 0 { throw CashuError.invalidAmount }
-            let quote = try await CashuSwift._requestMintQuote(request, from: mint, as: MintQuote.self)
+            let quote = try await CashuSwift._requestMintQuote(request, from: mint, as: MintQuote.self, session: session)
             try quote.validate()
             let returnedKey = try Crypto.nut20PublicKey(quote.pubkey)
             guard requestedKey.dataRepresentation == returnedKey.dataRepresentation else {
@@ -205,13 +205,13 @@ extension CashuSwift {
         }
 
         public static func requestMeltQuote(_ request: MeltQuoteRequest,
-                                            from mint: Mint) async throws -> MeltQuote {
-            try await CashuSwift._requestMeltQuote(request, from: mint, as: MeltQuote.self)
+                                            from mint: Mint, session: URLSession = .shared) async throws -> MeltQuote {
+            try await CashuSwift._requestMeltQuote(request, from: mint, as: MeltQuote.self, session: session)
         }
 
         public static func mintQuoteState(_ id: String,
-                                          from mint: Mint) async throws -> MintQuote {
-            let quote = try await CashuSwift._mintQuoteState(quoteID: id, method: .bolt12, from: mint, as: MintQuote.self)
+                                          from mint: Mint, session: URLSession = .shared) async throws -> MintQuote {
+            let quote = try await CashuSwift._mintQuoteState(quoteID: id, method: .bolt12, from: mint, as: MintQuote.self, session: session)
             try quote.validate()
             guard quote.quote == id else {
                 throw CashuError.inputError("Mint returned a different quote ID than requested.")
@@ -220,8 +220,8 @@ extension CashuSwift {
         }
 
         public static func meltQuoteState(_ id: String,
-                                          from mint: Mint) async throws -> MeltQuote {
-            try await CashuSwift._meltQuoteState(quoteID: id, method: .bolt12, from: mint, as: MeltQuote.self)
+                                          from mint: Mint, session: URLSession = .shared) async throws -> MeltQuote {
+            try await CashuSwift._meltQuoteState(quoteID: id, method: .bolt12, from: mint, as: MeltQuote.self, session: session)
         }
 
         /// BOLT12 quotes require the private key associated with their pubkey.
@@ -248,7 +248,7 @@ extension CashuSwift {
                                 amount: Int,
                                 seed: String?,
                                 quoteKey: Data,
-                                preferredDistribution: [Int]? = nil) async throws -> IssueResult {
+                                preferredDistribution: [Int]? = nil, session: URLSession = .shared) async throws -> IssueResult {
             let available = try quote.mintableAmount
             try Crypto.validateNut20QuoteKey(quoteKey, pubkey: quote.pubkey)
             guard amount > 0 else {
@@ -263,7 +263,7 @@ extension CashuSwift {
                 mint: mint,
                 seed: seed,
                 quoteKey: quoteKey,
-                preferredDistribution: preferredDistribution
+                preferredDistribution: preferredDistribution, session: session
             )
         }
 
@@ -274,13 +274,13 @@ extension CashuSwift {
                                 blankOutputs: (outputs: [Output],
                                                blindingFactors: [String],
                                                secrets: [String])? = nil,
-                                preferAsync: Bool? = nil) async throws -> MeltResult<MeltQuote> {
+                                preferAsync: Bool? = nil, session: URLSession = .shared) async throws -> MeltResult<MeltQuote> {
             try await CashuSwift._melt(
                 quote: quote,
                 mint: mint,
                 proofs: proofs,
                 timeout: timeout,
-                blankOutputs: blankOutputs
+                blankOutputs: blankOutputs, session: session
             ) { quoteID, inputs, outputs in
                 StandardMeltExecutionBody(quote: quoteID, inputs: inputs, outputs: outputs, preferAsync: preferAsync)
             }
@@ -290,13 +290,13 @@ extension CashuSwift {
                                      from mint: Mint,
                                      blankOutputs: (outputs: [Output],
                                                     blindingFactors: [String],
-                                                    secrets: [String])? = nil) async throws -> MeltResult<MeltQuote> {
+                                                    secrets: [String])? = nil, session: URLSession = .shared) async throws -> MeltResult<MeltQuote> {
             try await CashuSwift._meltState(
                 quoteID: id,
                 method: .bolt12,
                 mint: mint,
                 blankOutputs: blankOutputs,
-                as: MeltQuote.self
+                as: MeltQuote.self, session: session
             )
         }
     }

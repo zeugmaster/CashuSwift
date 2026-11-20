@@ -73,7 +73,7 @@ extension CashuSwift {
     static func _requestMintQuote<Request: MintQuoteRequest, Response: MintQuoteResponse>(
         _ request: Request,
         from mint: MintRepresenting,
-        as responseType: Response.Type
+        as responseType: Response.Type, session: URLSession
     ) async throws -> Response {
         guard mint.keysets.contains(where: { $0.unit == request.unit }) else {
             throw CashuError.unitIsNotSupported(
@@ -81,13 +81,13 @@ extension CashuSwift {
             )
         }
         let url = mint.url.appending(path: "/v1/mint/quote/\(request.method.rawValue)")
-        return try await Network.post(url: url, body: request, expected: Response.self)
+        return try await Network.post(url: url, body: request, expected: Response.self, session: session)
     }
 
     static func _requestMeltQuote<Request: MeltQuoteRequest, Response: MeltQuoteResponse>(
         _ request: Request,
         from mint: MintRepresenting,
-        as responseType: Response.Type
+        as responseType: Response.Type, session: URLSession
     ) async throws -> Response {
         guard mint.keysets.contains(where: { $0.unit == request.unit }) else {
             throw CashuError.unitIsNotSupported(
@@ -95,27 +95,27 @@ extension CashuSwift {
             )
         }
         let url = mint.url.appending(path: "/v1/melt/quote/\(request.method.rawValue)")
-        return try await Network.post(url: url, body: request, expected: Response.self)
+        return try await Network.post(url: url, body: request, expected: Response.self, session: session)
     }
 
     static func _mintQuoteState<Response: MintQuoteResponse>(
         quoteID: String,
         method: PaymentMethodID,
         from mint: MintRepresenting,
-        as responseType: Response.Type
+        as responseType: Response.Type, session: URLSession
     ) async throws -> Response {
         let url = mint.url.appending(path: "/v1/mint/quote/\(method.rawValue)/\(quoteID)")
-        return try await Network.get(url: url, expected: Response.self)
+        return try await Network.get(url: url, expected: Response.self, session: session)
     }
 
     static func _meltQuoteState<Response: MeltQuoteResponse>(
         quoteID: String,
         method: PaymentMethodID,
         from mint: MintRepresenting,
-        as responseType: Response.Type
+        as responseType: Response.Type, session: URLSession
     ) async throws -> Response {
         let url = mint.url.appending(path: "/v1/melt/quote/\(method.rawValue)/\(quoteID)")
-        return try await Network.get(url: url, expected: Response.self)
+        return try await Network.get(url: url, expected: Response.self, session: session)
     }
 
     // MARK: - Mint (issue)
@@ -128,10 +128,10 @@ extension CashuSwift {
         seed: String?,
         quoteKey: Data,
         preferredDistribution: [Int]? = nil,
-        signatureFormat: Nut20SignatureFormat = .current
+        signatureFormat: Nut20SignatureFormat = .current, session: URLSession
     ) async throws -> IssueResult {
         try await _mint(quote: quote, amount: amount, mint: mint, seed: seed,
-                        preferredDistribution: preferredDistribution) { quoteID, outputs in
+                        preferredDistribution: preferredDistribution, session: session) { quoteID, outputs in
             let signature = try Crypto.nut20Signature(
                 quoteID: quoteID, outputs: outputs, privateKey: quoteKey, format: signatureFormat
             )
@@ -156,6 +156,7 @@ extension CashuSwift {
         mint: Mint,
         seed: String?,
         preferredDistribution: [Int]? = nil,
+        session: URLSession,
         body: (_ quoteID: String, _ outputs: [Output]) throws -> Body
     ) async throws -> IssueResult {
 
@@ -205,7 +206,7 @@ extension CashuSwift {
 
         let executionBody = try body(quote.quote, outputs.outputs)
         let url = mint.url.appending(path: "/v1/mint/\(quote.method.rawValue)")
-        let response = try await Network.post(url: url, body: executionBody, expected: MintExecutionResponse.self)
+        let response = try await Network.post(url: url, body: executionBody, expected: MintExecutionResponse.self, session: session)
 
         let proofs = try Crypto.unblindPromises(
             response.signatures,
@@ -240,6 +241,7 @@ extension CashuSwift {
         proofs: [Proof],
         timeout: Double = 600,
         blankOutputs: (outputs: [Output], blindingFactors: [String], secrets: [String])? = nil,
+        session: URLSession,
         body: (_ quoteID: String, _ inputs: [Proof], _ outputs: [Output]?) throws -> Body
     ) async throws -> MeltResult<Quote> {
 
@@ -282,7 +284,7 @@ extension CashuSwift {
 
         let executionBody = try body(quote.quote, noDLEQ, blankOutputs?.outputs)
         let url = mint.url.appending(path: "/v1/melt/\(quote.method.rawValue)")
-        let response = try await Network.post(url: url, body: executionBody, expected: Quote.self, timeout: timeout)
+        let response = try await Network.post(url: url, body: executionBody, expected: Quote.self, timeout: timeout, session: session)
 
         // From here on the mint has executed the payment and the inputs are spent.
         // Nothing below may throw: a thrown error would make a paid melt look failed.
@@ -383,10 +385,10 @@ extension CashuSwift {
         method: PaymentMethodID,
         mint: Mint,
         blankOutputs: (outputs: [Output], blindingFactors: [String], secrets: [String])? = nil,
-        as responseType: Quote.Type
+        as responseType: Quote.Type, session: URLSession
     ) async throws -> MeltResult<Quote> {
         let url = mint.url.appending(path: "/v1/melt/quote/\(method.rawValue)/\(quoteID)")
-        let quote = try await Network.get(url: url, expected: Quote.self)
+        let quote = try await Network.get(url: url, expected: Quote.self, session: session)
 
         switch quote.state {
         case .paid:

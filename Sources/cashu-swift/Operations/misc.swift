@@ -152,7 +152,7 @@ public enum CashuSwift {
     ///   - mint: The mint to check with
     /// - Returns: Array of proof states
     /// - Throws: An error if the check fails
-    public static func check(_ proofs:[ProofRepresenting], mint:MintRepresenting) async throws -> [Proof.ProofState] {
+    public static func check(_ proofs:[ProofRepresenting], mint:MintRepresenting, session: URLSession = .shared) async throws -> [Proof.ProofState] {
         let ys = try proofs.map { proof in
             try Crypto.secureHashToCurve(message: proof.secret).stringRepresentation
         }
@@ -160,13 +160,13 @@ public enum CashuSwift {
         let request = Proof.StateCheckRequest(Ys: ys)
         let response = try await Network.post(url: mint.url.appending(path: "/v1/checkstate"),
                                               body: request,
-                                              expected: Proof.StateCheckResponse.self)
+                                              expected: Proof.StateCheckResponse.self, session: session)
         return response.states.map { entry in
             entry.state
         }
     }
     
-    public static func check(_ proofs:[ProofRepresenting], url:URL) async throws -> [Proof.ProofState] {
+    public static func check(_ proofs:[ProofRepresenting], url:URL, session: URLSession = .shared) async throws -> [Proof.ProofState] {
         let ys = try proofs.map { proof in
             try Crypto.secureHashToCurve(message: proof.secret).stringRepresentation
         }
@@ -174,7 +174,7 @@ public enum CashuSwift {
         let request = Proof.StateCheckRequest(Ys: ys)
         let response = try await Network.post(url: url.appending(path: "/v1/checkstate"),
                                               body: request,
-                                              expected: Proof.StateCheckResponse.self)
+                                              expected: Proof.StateCheckResponse.self, session: session)
         return response.states.map { entry in
             entry.state
         }
@@ -355,8 +355,8 @@ public enum CashuSwift {
     }
     
     // concrete type overloads
-    public static func check(_ proofs: [Proof], mint: Mint) async throws -> [Proof.ProofState] {
-        return try await check(proofs as [ProofRepresenting], mint: mint as MintRepresenting)
+    public static func check(_ proofs: [Proof], mint: Mint, session: URLSession = .shared) async throws -> [Proof.ProofState] {
+        return try await check(proofs as [ProofRepresenting], mint: mint as MintRepresenting, session: session)
     }
     
     // MARK: - Calculate Fee Overloads

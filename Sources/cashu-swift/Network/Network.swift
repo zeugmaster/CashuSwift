@@ -16,25 +16,25 @@ struct Network {
 
     // The onchain path preserves HTTP and transport failures for reconciliation.
     // Existing backends retain their public error behavior.
-    static func strictGet<T: Decodable>(url: URL, expected: T.Type, timeout: Double = 30) async throws -> T {
+    static func strictGet<T: Decodable>(url: URL, expected: T.Type, timeout: Double? = nil, session: URLSession) async throws -> T {
         try await strictResponse(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData,
-                                           timeoutInterval: timeout), expected: expected)
+                                           timeoutInterval: timeout ?? session.configuration.timeoutIntervalForRequest), expected: expected, session: session)
     }
 
     static func strictPost<I: Encodable, T: Decodable>(url: URL, body: I, expected: T.Type,
-                                                      timeout: Double = 30) async throws -> T {
-        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: timeout)
+                                                      timeout: Double? = nil, session: URLSession) async throws -> T {
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: timeout ?? session.configuration.timeoutIntervalForRequest)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(body)
-        return try await strictResponse(request, expected: expected)
+        return try await strictResponse(request, expected: expected, session: session)
     }
 
     private struct MintError: Decodable { let code: Int }
 
-    private static func strictResponse<T: Decodable>(_ request: URLRequest, expected: T.Type) async throws -> T {
+    private static func strictResponse<T: Decodable>(_ request: URLRequest, expected: T.Type, session: URLSession) async throws -> T {
         try Task.checkCancellation()
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         try Task.checkCancellation()
         guard let http = response as? HTTPURLResponse else { throw CashuSwift.Onchain.Error.invalidResponse }
         let mintError = try? JSONDecoder().decode(MintError.self, from: data)
@@ -50,15 +50,17 @@ struct Network {
     }
     
     ///Make a HTTP GET request to the specified URL, returns the decoded response of the expected type T or an error if decoding fails
-    ///Timeout in seconds, default is 10
-    static func get<T:Decodable>(url:URL, expected:T.Type, timeout:Double = 10) async throws -> T {
-        var req = URLRequest(url: url, timeoutInterval: timeout)
+    ///Uses the session timeout unless an explicit request timeout is supplied.
+    static func get<T:Decodable>(url:URL, expected:T.Type, timeout: Double? = nil, session: URLSession) async throws -> T {
+        var req = URLRequest(url: url, timeoutInterval: timeout ?? session.configuration.timeoutIntervalForRequest)
         req.httpMethod = "GET"
-        req.timeoutInterval = timeout
         
-        guard let (data, _) = try? await URLSession.shared.data(for: req) else {
+        try Task.checkCancellation()
+        guard let (data, _) = try? await session.data(for: req) else {
+            try Task.checkCancellation()
             throw CashuError.networkError
         }
+        try Task.checkCancellation()
         
         do {
             let decoded = try JSONDecoder().decode(T.self, from: data)
@@ -69,24 +71,26 @@ struct Network {
     }
     
     ///Make a HTTP GET request to the specified URL, returns Data if available. 
-    ///Timeout in seconds, default is 10
-    static func get(url:URL, timeout:Double = 10) async throws -> Data?{
-        var req = URLRequest(url: url, timeoutInterval: timeout)
+    ///Uses the session timeout unless an explicit request timeout is supplied.
+    static func get(url:URL, timeout: Double? = nil, session: URLSession) async throws -> Data?{
+        var req = URLRequest(url: url, timeoutInterval: timeout ?? session.configuration.timeoutIntervalForRequest)
         req.httpMethod = "GET"
-        req.timeoutInterval = timeout
         
-        guard let (data, _) = try? await URLSession.shared.data(for: req) else {
+        try Task.checkCancellation()
+        guard let (data, _) = try? await session.data(for: req) else {
+            try Task.checkCancellation()
             throw CashuError.networkError
         }
+        try Task.checkCancellation()
 
         return data
     }
     
     ///Makes a HTTP POST request to the specified URL, with the body as an object of type `I` that conforms to `Codable`
     ///returns the decoded response of the expected type `T` or an error if decoding fails
-    ///Timeout in seconds, default is 10
-    static func post<I:Encodable, T:Decodable>(url:URL, body:I, expected:T.Type, timeout:Double = 10) async throws -> T {
-        var req = URLRequest(url: url, timeoutInterval: timeout)
+    ///Uses the session timeout unless an explicit request timeout is supplied.
+    static func post<I:Encodable, T:Decodable>(url:URL, body:I, expected:T.Type, timeout: Double? = nil, session: URLSession) async throws -> T {
+        var req = URLRequest(url: url, timeoutInterval: timeout ?? session.configuration.timeoutIntervalForRequest)
         req.httpMethod = "POST"
         req.addValue("application/json", forHTTPHeaderField: "Content-Type")
         
@@ -95,11 +99,13 @@ struct Network {
         }
         
         req.httpBody = payload
-        req.timeoutInterval = timeout
         
-        guard let (data, _) = try? await URLSession.shared.data(for: req) else {
+        try Task.checkCancellation()
+        guard let (data, _) = try? await session.data(for: req) else {
+            try Task.checkCancellation()
             throw CashuError.networkError
         }
+        try Task.checkCancellation()
         
         do {
             let decoded = try JSONDecoder().decode(T.self, from: data)

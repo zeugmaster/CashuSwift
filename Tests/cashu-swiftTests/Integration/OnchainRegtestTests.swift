@@ -21,7 +21,7 @@ final class OnchainRegtestTests: XCTestCase {
         let url = try XCTUnwrap(URL(string: "http://127.0.0.1:19338"))
         var info: CashuSwift.Mint.Info?
         for _ in 0..<60 {
-            do { info = try await Network.strictGet(url: url.appending(path: "v1/info"), expected: CashuSwift.Mint.Info.self); break }
+            do { info = try await Network.strictGet(url: url.appending(path: "v1/info"), expected: CashuSwift.Mint.Info.self, session: .shared); break }
             catch { try await Task.sleep(nanoseconds: 1_000_000_000) }
         }
         let metadata = try XCTUnwrap(info, "Regtest mint did not start")

@@ -18,32 +18,32 @@ extension CashuSwift {
     ///   - type: The type conforming to `MintRepresenting` to return (defaults to `Mint`)
     /// - Returns: An instance of the specified mint type with loaded keysets
     /// - Throws: An error if the mint cannot be loaded
-    public static func loadMint<T: MintRepresenting>(url:URL, type:T.Type = Mint.self) async throws -> T {
+    public static func loadMint<T: MintRepresenting>(url:URL, type:T.Type = Mint.self, session: URLSession = .shared) async throws -> T {
         let keysetList = try await Network.get(url: url.appending(path: "/v1/keysets"),
-                                               expected: KeysetList.self)
+                                               expected: KeysetList.self, session: session)
         var keysetsWithKeys = [Keyset]()
         for keyset in keysetList.keysets {
             var new = keyset
             new.keys = try await Network.get(url: url.appending(path: "/v1/keys/\(keyset.keysetID.urlSafe)"),
-                                             expected: KeysetList.self).keysets[0].keys
+                                             expected: KeysetList.self, session: session).keysets[0].keys
             keysetsWithKeys.append(new)
         }
         
         return T(url: url, keysets: keysetsWithKeys)
     }
     
-    public static func loadMintInfo(from mint:Mint) async throws -> Mint.Info {
+    public static func loadMintInfo(from mint:Mint, session: URLSession = .shared) async throws -> Mint.Info {
         return try await Network.get(url: mint.url.appending(path: "v1/info"),
-                                     expected: Mint.Info.self)
+                                     expected: Mint.Info.self, session: session)
     }
     
     /// Updates a mint's keysets from the remote mint.
     /// - Parameter mint: The mint instance to update (passed as inout)
     /// - Throws: An error if the update fails
-    public static func update(_ mint: inout MintRepresenting) async throws {
+    public static func update(_ mint: inout MintRepresenting, session: URLSession = .shared) async throws {
         let mintURL = mint.url  // Create a local copy of the URL
         let remoteKeysetList = try await Network.get(url: mintURL.appending(path: "/v1/keysets"),
-                                                     expected: KeysetList.self)
+                                                     expected: KeysetList.self, session: session)
         
         let remoteIDs = remoteKeysetList.keysets.reduce(into: [String:Bool]()) { partialResult, keyset in
             partialResult[keyset.keysetID] = keyset.active
@@ -61,7 +61,7 @@ extension CashuSwift {
             for keyset in remoteKeysetList.keysets {
                 var new = keyset
                 new.keys = try await Network.get(url: mintURL.appending(path: "/v1/keys/\(keyset.keysetID.urlSafe)"),
-                                                 expected: KeysetList.self).keysets[0].keys
+                                                 expected: KeysetList.self, session: session).keysets[0].keys
                 keysetsWithKeys.append(new)
             }
             mint.keysets = keysetsWithKeys
@@ -70,10 +70,10 @@ extension CashuSwift {
         }
     }
     
-    public static func updatedKeysetsForMint(_ mint:MintRepresenting) async throws -> [Keyset] {
+    public static func updatedKeysetsForMint(_ mint:MintRepresenting, session: URLSession = .shared) async throws -> [Keyset] {
         let mintURL = mint.url
         let remoteKeysetList = try await Network.get(url: mintURL.appending(path: "/v1/keysets"),
-                                                     expected: KeysetList.self)
+                                                     expected: KeysetList.self, session: session)
         
         let remoteIDs = remoteKeysetList.keysets.reduce(into: [String:Bool]()) { partialResult, keyset in
             partialResult[keyset.keysetID] = keyset.active
@@ -91,7 +91,7 @@ extension CashuSwift {
             for keyset in remoteKeysetList.keysets {
                 var new = keyset
                 new.keys = try await Network.get(url: mintURL.appending(path: "/v1/keys/\(keyset.keysetID.urlSafe)"),
-                                                 expected: KeysetList.self).keysets[0].keys
+                                                 expected: KeysetList.self, session: session).keysets[0].keys
                 
                 let detsecCounter = mint.keysets.first(where: {$0.keysetID == keyset.keysetID})?.derivationCounter ?? 0
                 new.derivationCounter = detsecCounter
@@ -104,7 +104,7 @@ extension CashuSwift {
         }
     }
     
-    public static func loadMint(url: URL) async throws -> Mint {
-        return try await loadMint(url: url, type: Mint.self)
+    public static func loadMint(url: URL, session: URLSession = .shared) async throws -> Mint {
+        return try await loadMint(url: url, type: Mint.self, session: session)
     }
 }

@@ -587,3 +587,29 @@ This allows for flexibility while maintaining type safety.
 [16]: https://github.com/cashubtc/nuts/blob/main/16.md
 [17]: https://github.com/cashubtc/nuts/blob/main/17.md
 [30]: https://github.com/cashubtc/nuts/blob/main/30.md
+
+### Networking and recovery
+
+Network operations accept a trailing `session: URLSession = .shared`. Supply a
+session to use a proxy, custom timeouts, authentication or test transport:
+
+```swift
+let mint = try await CashuSwift.loadMint(url: mintURL, session: session)
+let info = try await CashuSwift.loadMintInfo(from: mint, session: session)
+```
+
+Every nested request uses that same session. CashuSwift does not replace,
+invalidate or fall back from it. The caller owns its lifetime, routing, redirect
+policy and cancellation. Request timeouts use the session configuration unless
+an operation supplies an explicit timeout. Existing backend error contracts are
+preserved. Offline helpers require no session. Code storing a network function
+as a function value should use a closure to omit the new default argument.
+
+For a durable send, call `prepareSend`, securely persist the returned
+`SendContext`, reserve its inputs and advance `counterIncrease` **before**
+calling `send(context:from:session:)`. On a lost response, `restoreSend` requests
+signatures for the saved outputs without repeating the swap. A nil result means
+recovery is still pending; it does not authorize releasing inputs. Do not advance
+counters again when applying the result. The context contains secrets, including
+random outputs for locked tokens that cannot be recovered from the seed alone.
+Use `offlineToken` when exact unlocked proofs can be sent without a swap.

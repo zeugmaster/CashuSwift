@@ -16,12 +16,12 @@ extension CashuSwift {
     @available(*, deprecated, message: "function does not check DLEQ")
     public static func restore(mint:MintRepresenting,
                                with seed:String,
-                               batchSize:Int = 10) async throws -> [KeysetRestoreResult] {
+                               batchSize:Int = 10, session: URLSession = .shared) async throws -> [KeysetRestoreResult] {
         // no need to check validity of seed as function would otherwise crash during first det sec generation
         var results = [KeysetRestoreResult]()
         for keyset in mint.keysets {
             logger.info("Attempting restore for keyset: \(keyset.keysetID) of mint: \(mint.url.absoluteString)")
-            let (proofs, _, lastMatchCounter) = try await restoreForKeyset(mint:mint, keyset:keyset, with: seed, batchSize: batchSize)
+            let (proofs, _, lastMatchCounter) = try await restoreForKeyset(mint:mint, keyset:keyset, with: seed, batchSize: batchSize, session: session)
             print("last match counter: \(String(describing: lastMatchCounter))")
             
             // if we dont have any restorable proofs on this keyset, move on to the next
@@ -30,7 +30,7 @@ extension CashuSwift {
                 continue
             }
                         
-            let states = try await check(proofs, mint: mint) // ignores pending but should not
+            let states = try await check(proofs, mint: mint, session: session) // ignores pending but should not
 
             guard states.count == proofs.count else {
                 throw CashuError.restoreError("unable to filter for unspent ecash during restore")
@@ -55,7 +55,7 @@ extension CashuSwift {
     static func restoreForKeyset(mint:MintRepresenting,
                                  keyset:Keyset,
                                  with seed:String,
-                                 batchSize:Int) async throws -> (proofs:[Proof],
+                                 batchSize:Int, session: URLSession) async throws -> (proofs:[Proof],
                                                                  totalRestored:Int,
                                                                  lastMatchCounter:Int) {
         var proofs = [Proof]()
@@ -75,7 +75,7 @@ extension CashuSwift {
             let request = RestoreRequest(outputs: outputs)
             let response = try await Network.post(url: mint.url.appending(path: "/v1/restore"),
                                                   body: request,
-                                                  expected: RestoreResponse.self)
+                                                  expected: RestoreResponse.self, session: session)
             
             currentCounter += batchSize
             
@@ -115,10 +115,10 @@ extension CashuSwift {
     @available(*, deprecated, message: "function does not check DLEQ")
     public static func restore(mint:Mint,
                                with seed:String,
-                               batchSize:Int = 10) async throws -> [KeysetRestoreResult] {
+                               batchSize:Int = 10, session: URLSession = .shared) async throws -> [KeysetRestoreResult] {
         return try await restore(mint: mint as MintRepresenting,
                                  with: seed,
-                                 batchSize: batchSize)
+                                 batchSize: batchSize, session: session)
     }
     
     /// Restores proofs from a seed phrase.
@@ -132,12 +132,12 @@ extension CashuSwift {
     /// - Throws: An error if the restore operation fails
     public static func restore(from mint: Mint,
                                with seed: String,
-                               batchSize: Int = 50) async throws -> (result: [KeysetRestoreResult],
+                               batchSize: Int = 50, session: URLSession = .shared) async throws -> (result: [KeysetRestoreResult],
                                                                      validDLEQ: Bool) {
         
         let results = try await restore(mint: mint as MintRepresenting,
                                         with: seed,
-                                        batchSize: batchSize)
+                                        batchSize: batchSize, session: session)
         
         let flatProofs = results.flatMap({ $0.proofs })
         

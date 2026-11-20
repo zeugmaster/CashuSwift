@@ -8,12 +8,12 @@ extension CashuSwift.Onchain {
     }
 
     public static func requestMintQuote(_ request: MintQuoteRequest, from mint: CashuSwift.Mint,
-                                        info: CashuSwift.Mint.Info? = nil) async throws -> MintQuote {
+                                        info: CashuSwift.Mint.Info? = nil, session: URLSession = .shared) async throws -> MintQuote {
         let requestedKey = try CashuSwift.Crypto.nut20PublicKey(request.pubkey)
-        let metadata = try await metadata(info, mint: mint)
+        let metadata = try await metadata(info, mint: mint, session: session)
         _ = try settings(in: metadata, unit: request.unit, direction: .mint)
         let quote = try await Network.strictPost(url: endpoint(mint.url, "mint/quote/onchain"),
-                                                body: request, expected: MintQuote.self)
+                                                body: request, expected: MintQuote.self, session: session)
         guard quote.unit == request.unit,
               try CashuSwift.Crypto.nut20PublicKey(quote.pubkey).dataRepresentation == requestedKey.dataRepresentation else {
             throw Error.invalidResponse
@@ -21,36 +21,36 @@ extension CashuSwift.Onchain {
         return quote
     }
 
-    public static func mintQuoteState(_ id: String, from mint: CashuSwift.Mint) async throws -> MintQuote {
+    public static func mintQuoteState(_ id: String, from mint: CashuSwift.Mint, session: URLSession = .shared) async throws -> MintQuote {
         try validateQuoteID(id)
-        let result = try await Network.strictGet(url: endpoint(mint.url, "mint/quote/onchain/\(id)"), expected: MintQuote.self)
+        let result = try await Network.strictGet(url: endpoint(mint.url, "mint/quote/onchain/\(id)"), expected: MintQuote.self, session: session)
         guard result.quote == id else { throw Error.invalidResponse }
         return result
     }
 
     /// Prefer this overload when refreshing a persisted quote: it binds the response
     /// to the original address/key and merges accounting in timestamp order.
-    public static func mintQuoteState(_ previous: MintQuote, from mint: CashuSwift.Mint) async throws -> MintQuote {
-        try previous.merging(await mintQuoteState(previous.quote, from: mint))
+    public static func mintQuoteState(_ previous: MintQuote, from mint: CashuSwift.Mint, session: URLSession = .shared) async throws -> MintQuote {
+        try previous.merging(await mintQuoteState(previous.quote, from: mint, session: session))
     }
 
     public static func requestMeltQuote(_ request: MeltQuoteRequest, from mint: CashuSwift.Mint,
-                                        info: CashuSwift.Mint.Info? = nil) async throws -> MeltQuote {
+                                        info: CashuSwift.Mint.Info? = nil, session: URLSession = .shared) async throws -> MeltQuote {
         try validateAddress(request.request)
         guard request.amount > 0 else { throw CashuError.invalidAmount }
-        let metadata = try await metadata(info, mint: mint)
+        let metadata = try await metadata(info, mint: mint, session: session)
         try settings(in: metadata, unit: request.unit, direction: .melt).validate(amount: request.amount)
         let quote = try await Network.strictPost(url: endpoint(mint.url, "melt/quote/onchain"),
-                                                body: request, expected: MeltQuote.self)
+                                                body: request, expected: MeltQuote.self, session: session)
         guard quote.request == request.request, quote.unit == request.unit, quote.amount == request.amount,
               quote.state == .unpaid, quote.selectedFeeIndex == nil,
               quote.outpoint == nil, quote.change?.isEmpty ?? true else { throw Error.invalidResponse }
         return quote
     }
 
-    public static func meltQuoteState(_ id: String, from mint: CashuSwift.Mint) async throws -> MeltQuote {
+    public static func meltQuoteState(_ id: String, from mint: CashuSwift.Mint, session: URLSession = .shared) async throws -> MeltQuote {
         try validateQuoteID(id)
-        let quote = try await Network.strictGet(url: endpoint(mint.url, "melt/quote/onchain/\(id)"), expected: MeltQuote.self)
+        let quote = try await Network.strictGet(url: endpoint(mint.url, "melt/quote/onchain/\(id)"), expected: MeltQuote.self, session: session)
         guard quote.quote == id else { throw Error.invalidResponse }
         return quote
     }
@@ -73,20 +73,20 @@ extension CashuSwift.Onchain {
         return MintContext(version: 1, mintURL: mint.url, quote: quote, material: material, signature: signature)
     }
 
-    public static func mint(context: MintContext, from mint: CashuSwift.Mint) async throws -> MintResult {
+    public static func mint(context: MintContext, from mint: CashuSwift.Mint, session: URLSession = .shared) async throws -> MintResult {
         try validate(context, mint: mint)
         let response = try await Network.strictPost(url: endpoint(mint.url, "mint/onchain"),
-                                                   body: context.executionBody, expected: CashuSwift.MintExecutionResponse.self)
+                                                   body: context.executionBody, expected: CashuSwift.MintExecutionResponse.self, session: session)
         return recoverMint(promises: response.signatures, context: context)
     }
 
     /// Recover a lost mint response using the saved outputs (NUT-09). This requests
     /// existing signatures and never issues new ecash. An empty response is pending,
     /// not proof that it is safe to issue another set of outputs for this quote.
-    public static func restoreMint(context: MintContext, from mint: CashuSwift.Mint) async throws -> MintResult {
+    public static func restoreMint(context: MintContext, from mint: CashuSwift.Mint, session: URLSession = .shared) async throws -> MintResult {
         try validate(context, mint: mint)
         let response = try await Network.strictPost(url: endpoint(mint.url, "restore"),
-            body: CashuSwift.RestoreRequest(outputs: context.material.outputs), expected: CashuSwift.RestoreResponse.self)
+            body: CashuSwift.RestoreRequest(outputs: context.material.outputs), expected: CashuSwift.RestoreResponse.self, session: session)
         guard response.outputs.count == response.signatures.count else { throw Error.invalidResponse }
         if response.outputs.isEmpty { return MintResult(promises: [], recovery: .pending) }
         var byOutput = [String: CashuSwift.Promise]()
@@ -142,7 +142,7 @@ extension CashuSwift.Onchain {
     /// Submit once. A thrown transport error or cancellation leaves the outcome
     /// unknown: keep the context/inputs reserved and call `meltState`, not `melt`.
     public static func melt(context: MeltContext, from mint: CashuSwift.Mint,
-                            timeout: Double = 30) async throws -> MeltResult {
+                            timeout: Double = 30, session: URLSession = .shared) async throws -> MeltResult {
         try validate(context, mint: mint)
         try checkExpiry(context.quote.expiry, now: Date())
         guard try inputFee(context.inputs, mint: mint, unit: context.quote.unit) == context.inputFee else {
@@ -150,7 +150,7 @@ extension CashuSwift.Onchain {
         }
         guard timeout.isFinite, timeout > 0 else { throw Error.invalidContext }
         let quote = try await Network.strictPost(url: endpoint(mint.url, "melt/onchain"),
-                                                body: context.executionBody, expected: MeltQuote.self, timeout: timeout)
+                                                body: context.executionBody, expected: MeltQuote.self, timeout: timeout, session: session)
         guard quote.state == .pending else { throw Error.invalidResponse }
         return try meltResult(quote, context: context)
     }
@@ -158,9 +158,9 @@ extension CashuSwift.Onchain {
     /// Poll the original quote, even after expiry. This never posts proofs.
     /// Upsert returned change by proof identity; repeated calls return the same change.
     /// A `.failed` or `.unpaid` quote means the mint released the inputs; `changeRecovery` stays `.pending`.
-    public static func meltState(context: MeltContext, from mint: CashuSwift.Mint) async throws -> MeltResult {
+    public static func meltState(context: MeltContext, from mint: CashuSwift.Mint, session: URLSession = .shared) async throws -> MeltResult {
         try validate(context, mint: mint)
-        let quote = try await meltQuoteState(context.quote.quote, from: mint)
+        let quote = try await meltQuoteState(context.quote.quote, from: mint, session: session)
         return try meltResult(quote, context: context)
     }
 
@@ -192,9 +192,9 @@ extension CashuSwift.Onchain {
         return MeltResult(quote: quote, changeRecovery: recovery)
     }
 
-    private static func metadata(_ info: CashuSwift.Mint.Info?, mint: CashuSwift.Mint) async throws -> CashuSwift.Mint.Info {
+    private static func metadata(_ info: CashuSwift.Mint.Info?, mint: CashuSwift.Mint, session: URLSession) async throws -> CashuSwift.Mint.Info {
         if let info { return info }
-        return try await Network.strictGet(url: endpoint(mint.url, "info"), expected: CashuSwift.Mint.Info.self)
+        return try await Network.strictGet(url: endpoint(mint.url, "info"), expected: CashuSwift.Mint.Info.self, session: session)
     }
 
     static func endpoint(_ url: URL, _ path: String) throws -> URL {

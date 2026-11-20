@@ -26,7 +26,7 @@ extension CashuSwift {
                                of mint: Mint,
                                seed: String?,
                                privateKey: String?,
-                               preferredReturnDistribution: [Int]? = nil) async throws -> ReceiveResult {
+                               preferredReturnDistribution: [Int]? = nil, session: URLSession = .shared) async throws -> ReceiveResult {
         
         // this should check whether proofs are from this mint and not multi unit FIXME: potentially wonky and not very descriptive
         guard token.proofsByMint.count == 1 else {
@@ -90,7 +90,7 @@ extension CashuSwift {
         }
         
         let swapResult = try await swap(inputs: inputProofs, with: mint, seed: seed,
-                                        preferredReturnDistribution: preferredReturnDistribution)
+                                        preferredReturnDistribution: preferredReturnDistribution, session: session)
         return ReceiveResult(proofs: swapResult.new,
                              inputDLEQ: swapResult.inputDLEQ,
                              outputDLEQ: swapResult.outputDLEQ)

@@ -151,26 +151,26 @@ extension CashuSwift {
 
         /// Requests a BOLT11 mint quote — a Lightning invoice for the user to pay.
         public static func requestMintQuote(_ request: MintQuoteRequest,
-                                            from mint: Mint) async throws -> MintQuote {
-            try await CashuSwift._requestMintQuote(request, from: mint, as: MintQuote.self)
+                                            from mint: Mint, session: URLSession = .shared) async throws -> MintQuote {
+            try await CashuSwift._requestMintQuote(request, from: mint, as: MintQuote.self, session: session)
         }
 
         /// Requests a BOLT11 melt quote — asks the mint what it will charge to pay an invoice.
         public static func requestMeltQuote(_ request: MeltQuoteRequest,
-                                            from mint: Mint) async throws -> MeltQuote {
-            try await CashuSwift._requestMeltQuote(request, from: mint, as: MeltQuote.self)
+                                            from mint: Mint, session: URLSession = .shared) async throws -> MeltQuote {
+            try await CashuSwift._requestMeltQuote(request, from: mint, as: MeltQuote.self, session: session)
         }
 
         /// Re-fetches the current state of a mint quote.
         public static func mintQuoteState(_ id: String,
-                                          from mint: Mint) async throws -> MintQuote {
-            try await CashuSwift._mintQuoteState(quoteID: id, method: .bolt11, from: mint, as: MintQuote.self)
+                                          from mint: Mint, session: URLSession = .shared) async throws -> MintQuote {
+            try await CashuSwift._mintQuoteState(quoteID: id, method: .bolt11, from: mint, as: MintQuote.self, session: session)
         }
 
         /// Re-fetches the current state of a melt quote.
         public static func meltQuoteState(_ id: String,
-                                          from mint: Mint) async throws -> MeltQuote {
-            try await CashuSwift._meltQuoteState(quoteID: id, method: .bolt11, from: mint, as: MeltQuote.self)
+                                          from mint: Mint, session: URLSession = .shared) async throws -> MeltQuote {
+            try await CashuSwift._meltQuoteState(quoteID: id, method: .bolt11, from: mint, as: MeltQuote.self, session: session)
         }
 
         /// Issues ecash proofs against a paid BOLT11 mint quote.
@@ -179,7 +179,7 @@ extension CashuSwift {
         public static func mint(quote: MintQuote,
                                 from mint: Mint,
                                 seed: String?,
-                                preferredDistribution: [Int]? = nil) async throws -> IssueResult {
+                                preferredDistribution: [Int]? = nil, session: URLSession = .shared) async throws -> IssueResult {
             guard let amount = quote.amount else {
                 throw CashuError.missingRequestDetail("BOLT11 mint quote is missing the amount field.")
             }
@@ -188,7 +188,7 @@ extension CashuSwift {
                 amount: amount,
                 mint: mint,
                 seed: seed,
-                preferredDistribution: preferredDistribution) { quoteID, outputs in
+                preferredDistribution: preferredDistribution, session: session) { quoteID, outputs in
                 StandardMintExecutionBody(quote: quoteID, outputs: outputs)
             }
         }
@@ -201,13 +201,13 @@ extension CashuSwift {
                                 blankOutputs: (outputs: [Output],
                                                blindingFactors: [String],
                                                secrets: [String])? = nil,
-                                preferAsync: Bool? = nil) async throws -> MeltResult<MeltQuote> {
+                                preferAsync: Bool? = nil, session: URLSession = .shared) async throws -> MeltResult<MeltQuote> {
             try await CashuSwift._melt(
                 quote: quote,
                 mint: mint,
                 proofs: proofs,
                 timeout: timeout,
-                blankOutputs: blankOutputs
+                blankOutputs: blankOutputs, session: session
             ) { quoteID, inputs, outputs in
                 StandardMeltExecutionBody(quote: quoteID, inputs: inputs, outputs: outputs, preferAsync: preferAsync)
             }
@@ -218,13 +218,13 @@ extension CashuSwift {
                                      from mint: Mint,
                                      blankOutputs: (outputs: [Output],
                                                     blindingFactors: [String],
-                                                    secrets: [String])? = nil) async throws -> MeltResult<MeltQuote> {
+                                                    secrets: [String])? = nil, session: URLSession = .shared) async throws -> MeltResult<MeltQuote> {
             try await CashuSwift._meltState(
                 quoteID: id,
                 method: .bolt11,
                 mint: mint,
                 blankOutputs: blankOutputs,
-                as: MeltQuote.self
+                as: MeltQuote.self, session: session
             )
         }
 

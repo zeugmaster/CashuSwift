@@ -287,28 +287,28 @@ extension CashuSwift {
         /// Requests a mint quote for an arbitrary method. Use this when the mint
         /// advertises a `method` the library has no first-class support for.
         public static func requestMintQuote(_ request: MintQuoteRequest,
-                                            from mint: Mint) async throws -> MintQuote {
-            try await CashuSwift._requestMintQuote(request, from: mint, as: MintQuote.self)
+                                            from mint: Mint, session: URLSession = .shared) async throws -> MintQuote {
+            try await CashuSwift._requestMintQuote(request, from: mint, as: MintQuote.self, session: session)
                 .withInjectedMethod(request.method)
         }
 
         public static func requestMeltQuote(_ request: MeltQuoteRequest,
-                                            from mint: Mint) async throws -> MeltQuote {
-            try await CashuSwift._requestMeltQuote(request, from: mint, as: MeltQuote.self)
+                                            from mint: Mint, session: URLSession = .shared) async throws -> MeltQuote {
+            try await CashuSwift._requestMeltQuote(request, from: mint, as: MeltQuote.self, session: session)
                 .withInjectedMethod(request.method)
         }
 
         public static func mintQuoteState(_ id: String,
                                           method: PaymentMethodID,
-                                          from mint: Mint) async throws -> MintQuote {
-            try await CashuSwift._mintQuoteState(quoteID: id, method: method, from: mint, as: MintQuote.self)
+                                          from mint: Mint, session: URLSession = .shared) async throws -> MintQuote {
+            try await CashuSwift._mintQuoteState(quoteID: id, method: method, from: mint, as: MintQuote.self, session: session)
                 .withInjectedMethod(method)
         }
 
         public static func meltQuoteState(_ id: String,
                                           method: PaymentMethodID,
-                                          from mint: Mint) async throws -> MeltQuote {
-            try await CashuSwift._meltQuoteState(quoteID: id, method: method, from: mint, as: MeltQuote.self)
+                                          from mint: Mint, session: URLSession = .shared) async throws -> MeltQuote {
+            try await CashuSwift._meltQuoteState(quoteID: id, method: method, from: mint, as: MeltQuote.self, session: session)
                 .withInjectedMethod(method)
         }
 
@@ -316,7 +316,7 @@ extension CashuSwift {
                                 from mint: Mint,
                                 amount: Int,
                                 seed: String?,
-                                preferredDistribution: [Int]? = nil) async throws -> IssueResult {
+                                preferredDistribution: [Int]? = nil, session: URLSession = .shared) async throws -> IssueResult {
             guard amount > 0 else {
                 throw CashuError.invalidAmount
             }
@@ -325,7 +325,7 @@ extension CashuSwift {
                 amount: amount,
                 mint: mint,
                 seed: seed,
-                preferredDistribution: preferredDistribution
+                preferredDistribution: preferredDistribution, session: session
             ) { quoteID, outputs in
                 StandardMintExecutionBody(quote: quoteID, outputs: outputs)
             }
@@ -349,7 +349,7 @@ extension CashuSwift {
                                 quoteKey: Data,
                                 amount: Int? = nil,
                                 preferredDistribution: [Int]? = nil,
-                                signatureFormat: Nut20SignatureFormat = .current) async throws -> IssueResult {
+                                signatureFormat: Nut20SignatureFormat = .current, session: URLSession = .shared) async throws -> IssueResult {
             guard let amount = amount ?? quote.amount, amount > 0 else {
                 throw CashuError.invalidAmount
             }
@@ -360,7 +360,7 @@ extension CashuSwift {
                 seed: seed,
                 quoteKey: quoteKey,
                 preferredDistribution: preferredDistribution,
-                signatureFormat: signatureFormat
+                signatureFormat: signatureFormat, session: session
             )
         }
 
@@ -371,13 +371,13 @@ extension CashuSwift {
                                 blankOutputs: (outputs: [Output],
                                                blindingFactors: [String],
                                                secrets: [String])? = nil,
-                                preferAsync: Bool? = nil) async throws -> MeltResult<MeltQuote> {
+                                preferAsync: Bool? = nil, session: URLSession = .shared) async throws -> MeltResult<MeltQuote> {
             try await CashuSwift._melt(
                 quote: quote,
                 mint: mint,
                 proofs: proofs,
                 timeout: timeout,
-                blankOutputs: blankOutputs
+                blankOutputs: blankOutputs, session: session
             ) { quoteID, inputs, outputs in
                 StandardMeltExecutionBody(quote: quoteID, inputs: inputs, outputs: outputs, preferAsync: preferAsync)
             }
@@ -388,13 +388,13 @@ extension CashuSwift {
                                      from mint: Mint,
                                      blankOutputs: (outputs: [Output],
                                                     blindingFactors: [String],
-                                                    secrets: [String])? = nil) async throws -> MeltResult<MeltQuote> {
+                                                    secrets: [String])? = nil, session: URLSession = .shared) async throws -> MeltResult<MeltQuote> {
             try await CashuSwift._meltState(
                 quoteID: id,
                 method: method,
                 mint: mint,
                 blankOutputs: blankOutputs,
-                as: MeltQuote.self
+                as: MeltQuote.self, session: session
             )
         }
 

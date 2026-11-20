@@ -71,7 +71,7 @@ extension CashuSwift {
                                             request: PaymentRequest,
                                             mint: Mint,
                                             seed: String?,
-                                            privateKey: String?) async throws -> ReceiveResult {
+                                            privateKey: String?, session: URLSession = .shared) async throws -> ReceiveResult {
         
         // Validate payload against request
         try payload.validates(against: request, mint: mint)
@@ -80,7 +80,7 @@ extension CashuSwift {
         let token = payload.toToken()
         
         // Receive the token using existing receive operation
-        return try await receive(token: token, of: mint, seed: seed, privateKey: privateKey)
+        return try await receive(token: token, of: mint, seed: seed, privateKey: privateKey, session: session)
     }
     
     /// Sends a payment request payload via HTTP POST transport.
@@ -91,7 +91,7 @@ extension CashuSwift {
     /// - Returns: The HTTP response data
     /// - Throws: An error if sending fails
     public static func sendPaymentViaHTTP(payload: PaymentRequestPayload,
-                                         to endpoint: String) async throws -> Data {
+                                         to endpoint: String, session: URLSession = .shared) async throws -> Data {
         
         guard let url = URL(string: endpoint) else {
             throw CashuError.networkError
@@ -104,7 +104,7 @@ extension CashuSwift {
         let encoder = JSONEncoder()
         request.httpBody = try encoder.encode(payload)
         
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {

@@ -37,11 +37,11 @@ extension CashuSwift {
         
         /// Checks if the mint is reachable by pinging its info endpoint.
         /// - Returns: `true` if the mint is online and reachable, `false` otherwise
-        public func isReachable() async -> Bool {
+        public func isReachable(session: URLSession = .shared) async -> Bool {
             do {
                 // if the network doesn't throw an error we can assume the mint is online
                 let url = self.url.appending(path: "/v1/info")
-                let _ = try await Network.get(url: url)
+                let _ = try await Network.get(url: url, session: session)
                 return true
             } catch {
                 return false
